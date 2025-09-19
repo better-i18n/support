@@ -3,7 +3,7 @@ import type { RealtimeEvent } from "@cossistant/types/realtime-events";
 import type { EventContext } from "./router";
 import type { RawSocket } from "./socket";
 
-const routeEventCalls: Array<[RealtimeEvent, EventContext]> = [];
+const routeEventCalls: [RealtimeEvent, EventContext][] = [];
 
 mock.module("@api/db", () => ({ db: {} }));
 mock.module("@api/db/queries/api-keys", () => ({}));
@@ -53,6 +53,12 @@ mock.module("@api/utils/websocket-connection", () => ({
 }));
 mock.module("@api/utils/websocket-updates", () => ({
 	updateLastSeenTimestamps: async () => {},
+}));
+mock.module("./realtime-pubsub", () => ({
+	initializeRealtimePubSub: () => {},
+	publishToConnection: () => Promise.resolve(),
+	publishToVisitor: () => Promise.resolve(),
+	publishToWebsite: () => Promise.resolve(),
 }));
 mock.module("./router", () => ({
 	routeEvent: async (event: RealtimeEvent, context: EventContext) => {

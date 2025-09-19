@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import type { RealtimeEvent } from "@cossistant/types/realtime-events";
-import { routeEvent } from "./router";
 import type { EventContext } from "./router";
+import { routeEvent } from "./router";
 
 const sendToWebsite = mock<NonNullable<EventContext["sendToWebsite"]>>();
 const sendToVisitor = mock<NonNullable<EventContext["sendToVisitor"]>>();

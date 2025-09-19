@@ -177,4 +177,11 @@ export async function routeEvent<T extends RealtimeEventType>(
 	}
 }
 
-export type { EventContext, EventHandler, ConnectionDispatcher, VisitorDispatcher, WebsiteDispatcher, DispatchOptions };
+export type {
+	ConnectionDispatcher,
+	DispatchOptions,
+	EventContext,
+	EventHandler,
+	VisitorDispatcher,
+	WebsiteDispatcher,
+};
