@@ -14,9 +14,7 @@ const BASE_RETRY_DELAY_MS = 100;
 const redisConfig = {
 	url: env.UPSTASH_REDIS_REST_URL,
 	token: env.UPSTASH_REDIS_REST_TOKEN,
-	keepAlive: true,
 } as const;
-
 const publisher = new Redis(redisConfig);
 const subscriberClient = new Redis(redisConfig);
 
