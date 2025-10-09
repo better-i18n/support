@@ -10,10 +10,59 @@ import { realtime, type RealtimeMessageEvent } from "@api/realtime/realtime";
 import { handle } from "@cossistant/realtime/server";
 import type { OpenAPIHono } from "@hono/zod-openapi";
 
+type MessageUserEvent = {
+	data: RealtimeMessageEvent;
+	__event_path: string[];
+	__stream_id: string;
+};
+
+export function isMessageCreatedUserEvent(
+	event: { __event_path?: unknown; data?: unknown }
+): event is MessageUserEvent {
+	if (!Array.isArray(event.__event_path)) {
+		return false;
+	}
+
+	if (
+		event.__event_path.length < 2 ||
+		event.__event_path[0] !== "message" ||
+		event.__event_path[1] !== "created"
+	) {
+		return false;
+	}
+
+	if (!event.data || typeof event.data !== "object") {
+		return false;
+	}
+
+	return (event.data as { type?: unknown }).type === "MESSAGE_CREATED";
+}
+
+export function matchesVisitorMessageSubscription(
+	event: MessageUserEvent,
+	requestedVisitorId: string | null | undefined
+): boolean {
+	if (!requestedVisitorId) {
+		return false;
+	}
+
+const payloadVisitorId =
+event.data.visitorId ??
+event.data.payload.visitorId ??
+event.data.payload.message.visitorId ??
+null;
+
+	if (!payloadVisitorId) {
+		return false;
+	}
+
+	return payloadVisitorId === requestedVisitorId;
+}
+
 function parseOriginHeaders(request: Request): {
-        origin?: string;
-        protocol?: string;
-        hostname?: string;
+origin?: string;
+protocol?: string;
+hostname?: string;
 } {
         const origin = request.headers.get("origin") ?? undefined;
         if (!origin) {
@@ -73,41 +122,18 @@ const visitorStreamHandler = handle({
                         return new Response("Authentication failed", { status: 401 });
                 }
         },
-        filter: async ({ event, request }) => {
-                if (!Array.isArray(event.__event_path)) {
-                        return false;
-                }
+filter: async ({ event, request }) => {
+if (!isMessageCreatedUserEvent(event)) {
+return false;
+}
 
-                if (
-                        event.__event_path[0] !== "message" ||
-                        event.__event_path[1] !== "created"
-                ) {
-                        return false;
-                }
-
-                const data = event.data as RealtimeMessageEvent | undefined;
-                if (!data || data.type !== "MESSAGE_CREATED") {
-                        return false;
-                }
-
-                const visitorId = new URL(request.url).searchParams.get("visitorId");
-                if (!visitorId) {
-                        return false;
-                }
-
-                const payloadVisitorId =
-                        data.payload.message.visitorId ?? data.visitorId ?? null;
-
-                if (!payloadVisitorId) {
-                        return false;
-                }
-
-                return payloadVisitorId === visitorId;
-        },
+const visitorId = new URL(request.url).searchParams.get("visitorId");
+return matchesVisitorMessageSubscription(event, visitorId);
+},
 });
 
 const dashboardStreamHandler = handle({
-        realtime,
+realtime,
         middleware: async ({ request, channel }) => {
                 if (!channel) {
                         return new Response("Channel is required", { status: 400 });
@@ -128,13 +154,7 @@ const dashboardStreamHandler = handle({
                         return new Response("Forbidden", { status: 403 });
                 }
         },
-        filter: ({ event }) => {
-                return (
-                        Array.isArray(event.__event_path) &&
-                        event.__event_path[0] === "message" &&
-                        event.__event_path[1] === "created"
-                );
-        },
+filter: ({ event }) => isMessageCreatedUserEvent(event),
         responseHeaders: ({ request }) => {
                 const origin = request.headers.get("origin");
                 if (!origin) {
