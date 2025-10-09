@@ -4,6 +4,8 @@ import {
 	type RealtimeEventHandlersMap,
 	useRealtime,
 } from "@cossistant/next/realtime";
+import { useDashboardRealtime } from "@cossistant/realtime/client";
+import type { RealtimeEvent } from "@cossistant/types/realtime-events";
 import { useQueryNormalizer } from "@normy/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
@@ -47,7 +49,6 @@ export function DashboardRealtimeProvider({
 					});
 				},
 			],
-			MESSAGE_CREATED: handleMessageCreated,
 			CONVERSATION_SEEN: [
 				(_data, meta) => {
 					void handleConversationSeen({
@@ -77,6 +78,19 @@ export function DashboardRealtimeProvider({
 				error,
 				eventType: event.type,
 			});
+		},
+	});
+
+	useDashboardRealtime({
+		websiteId: website.id,
+		onMessageCreated: (event: RealtimeEvent<"MESSAGE_CREATED">) => {
+			const handlers = Array.isArray(handleMessageCreated)
+				? handleMessageCreated
+				: [handleMessageCreated];
+
+			for (const handler of handlers) {
+				handler(event.payload, { event, context: realtimeContext });
+			}
 		},
 	});
 

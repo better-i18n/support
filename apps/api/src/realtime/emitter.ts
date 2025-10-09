@@ -1,9 +1,10 @@
 import { type EventContext, routeEvent } from "@api/ws/router";
 import {
-	sendEventToConnection,
-	sendEventToVisitor,
-	sendEventToWebsite,
+        sendEventToConnection,
+        sendEventToVisitor,
+        sendEventToWebsite,
 } from "@api/ws/socket";
+import { forwardMessageEventToRealtimeStreams } from "./stream-dispatcher";
 import {
 	type RealtimeEvent,
 	type RealtimeEventData,
@@ -126,11 +127,11 @@ export class RealtimeEmitter {
 			);
 		}
 
-		const event: RealtimeEvent<TType> = {
-			type,
-			payload: data,
-			timestamp: options.timestamp ?? Date.now(),
-			websiteId,
+                const event: RealtimeEvent<TType> = {
+                        type,
+                        payload: data,
+                        timestamp: options.timestamp ?? Date.now(),
+                        websiteId,
 			organizationId,
 			visitorId: options.visitorId ?? extractVisitorId(data) ?? null,
 		};
@@ -142,12 +143,18 @@ export class RealtimeEmitter {
 			userId: options.userId ?? extractUserId(data) ?? undefined,
 			organizationId,
 			sendToConnection: sendEventToConnection,
-			sendToVisitor: sendEventToVisitor,
-			sendToWebsite: sendEventToWebsite,
-		};
+                        sendToVisitor: sendEventToVisitor,
+                        sendToWebsite: sendEventToWebsite,
+                };
 
-		await routeEvent(event, context);
-	}
+                try {
+                        await forwardMessageEventToRealtimeStreams(event);
+                } catch (error) {
+                        console.error("[Realtime] Failed to forward stream event", error);
+                }
+
+                await routeEvent(event, context);
+        }
 }
 
 const realtimeEmitter = new RealtimeEmitter();

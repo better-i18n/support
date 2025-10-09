@@ -1,7 +1,7 @@
 /** biome-ignore-all lint/style/useBlockStatements: ok */
 /** biome-ignore-all lint/style/useConsistentMemberAccessibility: ok */
 /** biome-ignore-all lint/suspicious/noExplicitAny: ok */
-import type { Redis } from "@upstash/redis";
+import type { Redis } from "ioredis";
 import * as z from "zod/v4/core";
 
 const DEFAULT_VERCEL_FLUID_TIMEOUT = 300;
@@ -66,10 +66,10 @@ class RealtimeBase<T extends Opts> {
               return;
             }
 
-            const payload = {
+            const streamPayload = JSON.stringify({
               data,
               __event_path: [outerKey, innerKey],
-            };
+            });
 
             this._logger.log("⬆️  Emitting event:", {
               channel,
@@ -79,18 +79,22 @@ class RealtimeBase<T extends Opts> {
 
             const id = await this._redis.xadd(
               `channel:${channel}`,
+              "MAXLEN",
+              "~",
+              "100",
               "*",
-              payload,
-              {
-                trim: { type: "MAXLEN", threshold: 100, comparison: "~" },
-              }
+              "payload",
+              streamPayload
             );
 
-            await this._redis.publish(`channel:${channel}`, {
-              data,
-              __event_path: [outerKey, innerKey],
-              __stream_id: id,
-            });
+            await this._redis.publish(
+              `channel:${channel}`,
+              JSON.stringify({
+                data,
+                __event_path: [outerKey, innerKey],
+                __stream_id: id,
+              })
+            );
           },
         };
       }
