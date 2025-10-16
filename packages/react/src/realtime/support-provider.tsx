@@ -130,12 +130,12 @@ export function SupportRealtimeProvider({
                 []
         );
 
-        useRealtime<SupportRealtimeContext>({
-                context: realtimeContext,
-                events,
-                websiteId: realtimeContext.websiteId,
-                visitorId: website?.visitor?.id ?? null,
-        });
+	useRealtime<SupportRealtimeContext>({
+		context: realtimeContext,
+		events,
+		websiteId: realtimeContext.websiteId,
+		visitorId: realtimeContext.visitorId,
+	});
 
 	return <>{children}</>;
 }

@@ -76,7 +76,7 @@ export const getConversationEventsRequestSchema = z
                 conversationId: z.string().min(1).openapi({
                         description: "Conversation ID to retrieve events for",
                 }),
-                limit: z.coerce.number().min(1).max(100).default(50).optional().openapi({
+		limit: z.coerce.number().min(1).max(100).default(50).openapi({
                         description: "Maximum number of events to return",
                         default: 50,
                 }),
