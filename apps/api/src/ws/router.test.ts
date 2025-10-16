@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { ConversationEventType } from "@cossistant/types/enums";
 import type { RealtimeEvent } from "@cossistant/types/realtime-events";
 import type { EventContext } from "./router";
 import { routeEvent } from "./router";
@@ -296,7 +297,7 @@ describe("conversationEventCreated handler", () => {
                                         id: "evt-1",
                                         conversationId: "conv-event",
                                         organizationId: "org-event",
-                                        type: "STATUS_CHANGED",
+                                        type: ConversationEventType.STATUS_CHANGED,
                                         actorUserId: "user-1",
                                         actorAiAgentId: null,
                                         targetUserId: null,

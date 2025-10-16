@@ -287,7 +287,7 @@ export class CossistantClient {
                 this.eventsStore.ingestPage(params.conversationId, {
                         events: response.events,
                         hasNextPage: response.hasNextPage,
-                        nextCursor: response.nextCursor ?? null,
+                        nextCursor: response.nextCursor ?? undefined,
                 });
                 return response;
         }

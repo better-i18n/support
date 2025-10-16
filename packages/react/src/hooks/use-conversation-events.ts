@@ -70,7 +70,7 @@ export function useConversationEvents(
                                 limit: args?.limit ?? baseArgs.limit,
                                 cursor: args?.cursor ?? baseArgs.cursor,
                         }),
-                enabled: options.enabled ?? true,
+                enabled: Boolean(conversationId) && (options.enabled ?? true),
                 refetchInterval: options.refetchInterval ?? false,
                 refetchOnWindowFocus: options.refetchOnWindowFocus ?? true,
                 refetchOnMount: selection.events.length === 0,
@@ -80,13 +80,17 @@ export function useConversationEvents(
 
         const refetch = useCallback(
                 (args?: Pick<GetConversationEventsRequest, "cursor" | "limit">) => {
+                        if (!conversationId) {
+                                return Promise.resolve(undefined);
+                        }
+
                         return queryRefetch({
                                 limit: baseArgs.limit,
                                 cursor: baseArgs.cursor,
                                 ...args,
                         });
                 },
-                [queryRefetch, baseArgs]
+                [queryRefetch, baseArgs, conversationId]
         );
 
         const fetchNextPage = useCallback(() => {

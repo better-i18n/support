@@ -6,7 +6,7 @@ type ConversationEventCreated = RealtimeEvent<"conversationEventCreated">;
 export type ConversationEventsState = {
         events: ConversationEvent[];
         hasNextPage: boolean;
-        nextCursor?: string | null;
+        nextCursor?: string;
 };
 
 export type ConversationEventsStoreState = {
@@ -152,7 +152,7 @@ export type ConversationEventsStore = Store<ConversationEventsStoreState> & {
                 page: Pick<ConversationEventsState, "events" | "hasNextPage" | "nextCursor">
         ): void;
         ingestEvent(conversationId: string, event: ConversationEvent): void;
-        ingestRealtime(event: ConversationEventCreated): ConversationEvent;
+        ingestRealtime(event: RealtimeEvent<"conversationEventCreated">): ConversationEvent;
         clearConversation(conversationId: string): void;
 };
 

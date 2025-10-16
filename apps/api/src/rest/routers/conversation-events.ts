@@ -6,6 +6,7 @@ import {
 import {
         getConversationEventsRequestSchema,
         getConversationEventsResponseSchema,
+        type GetConversationEventsResponse,
 } from "@cossistant/types/api/conversation-event";
 import { OpenAPIHono, z } from "@hono/zod-openapi";
 import { protectedPublicApiKeyMiddleware } from "../middleware";
@@ -100,7 +101,7 @@ conversationEventsRouter.openapi(
                         cursor: query.cursor,
                 });
 
-                const response = {
+                const response: GetConversationEventsResponse = {
                         events: result.events.map((event) => ({
                                 id: event.id,
                                 organizationId: event.organizationId,
@@ -116,8 +117,8 @@ conversationEventsRouter.openapi(
                                 updatedAt: event.createdAt,
                                 deletedAt: null,
                         })),
-                        nextCursor: result.nextCursor,
                         hasNextPage: result.hasNextPage,
+                        ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
                 };
 
                 return c.json(validateResponse(response, getConversationEventsResponseSchema));

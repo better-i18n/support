@@ -97,7 +97,7 @@ export const getConversationEventsResponseSchema = z
                 events: z.array(conversationEventResponseSchema).openapi({
                         description: "Chronologically ordered events",
                 }),
-                nextCursor: z.string().nullable().optional().openapi({
+                nextCursor: z.string().optional().openapi({
                         description: "Cursor to fetch the next page of results",
                 }),
                 hasNextPage: z.boolean().openapi({

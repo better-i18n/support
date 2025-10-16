@@ -776,22 +776,22 @@ export async function getConversationEvents(
 
 	const hasNextPage = rows.length > limit;
 	const limitedRows = hasNextPage ? rows.slice(0, limit) : rows;
-	const nextCursor = hasNextPage
-		? (() => {
-				const lastRow = limitedRows.at(-1);
-				if (!lastRow) {
-					return null;
-				}
+        const nextCursor = hasNextPage
+                ? (() => {
+                                const lastRow = limitedRows.at(-1);
+                                if (!lastRow) {
+                                        return undefined;
+                                }
 
-				const timestamp = new Date(lastRow.createdAt).toISOString();
-				return `${timestamp}_${lastRow.id}`;
-			})()
-		: null;
+                                const timestamp = new Date(lastRow.createdAt).toISOString();
+                                return `${timestamp}_${lastRow.id}`;
+                        })()
+                : undefined;
 
-	return {
-		events: [...limitedRows].reverse(),
-		nextCursor,
-		hasNextPage,
+        return {
+                events: [...limitedRows].reverse(),
+                nextCursor,
+                hasNextPage,
 	};
 }
 

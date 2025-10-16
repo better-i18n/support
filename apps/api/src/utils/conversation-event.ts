@@ -1,5 +1,6 @@
 import type { Database } from "@api/db";
 import { conversationEvent } from "@api/db/schema";
+import { getConversationById } from "@api/db/queries/conversation";
 import { generateULID } from "@api/utils/db/ids";
 import { conversationEventSchema, ConversationEventType } from "@cossistant/types";
 import type { ConversationEvent } from "@cossistant/types";
@@ -29,21 +30,21 @@ export type CreateConversationEventOptions = {
         event: CreateConversationEventPayload;
 };
 
-function normalizeMetadata(
-        metadata: Record<string, unknown> | null | undefined
+function coerceMetadata(
+        metadata: unknown
 ): Record<string, unknown> | undefined {
-        if (!metadata) {
+        if (metadata == null) {
                 return undefined;
         }
 
-        return metadata;
+        return metadata as Record<string, unknown>;
 }
 
 function normalizeEvent(inserted: ConversationEvent): ConversationEvent {
         const normalized: ConversationEvent = {
                 ...inserted,
                 message: inserted.message ?? undefined,
-                metadata: normalizeMetadata(inserted.metadata as Record<string, unknown> | null),
+                metadata: coerceMetadata(inserted.metadata),
                 deletedAt: inserted.deletedAt ?? null,
         };
 
@@ -54,20 +55,11 @@ async function resolveConversationVisitorId(
         db: Database,
         conversationId: string
 ): Promise<string | undefined> {
-        try {
-                const module = await import("@api/db/queries/conversation");
-                const conversationRecord = await module.getConversationById(db, {
-                        conversationId,
-                });
+        const conversationRecord = await getConversationById(db, {
+                conversationId,
+        });
 
-                return conversationRecord?.visitorId ?? undefined;
-        } catch (error) {
-                console.error(
-                        "[CONVERSATION_EVENT] Failed to resolve conversation visitor",
-                        error
-                );
-                return undefined;
-        }
+        return conversationRecord?.visitorId ?? undefined;
 }
 
 export async function createConversationEvent({
@@ -97,7 +89,7 @@ export async function createConversationEvent({
         const parsed = conversationEventSchema.parse({
                 ...inserted,
                 message: inserted.message ?? undefined,
-                metadata: normalizeMetadata(inserted.metadata as Record<string, unknown> | null),
+                metadata: coerceMetadata(inserted.metadata),
                 updatedAt: inserted.createdAt,
                 deletedAt: null,
         });
