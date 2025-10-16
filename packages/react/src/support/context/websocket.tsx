@@ -1,8 +1,8 @@
 "use client";
 
+import { PRESENCE_PING_INTERVAL_MS } from "@cossistant/types";
 import type React from "react";
 import { createContext, useContext, useEffect, useMemo } from "react";
-import { PRESENCE_PING_INTERVAL_MS } from "@cossistant/types";
 import {
 	type RealtimeAuthConfig,
 	type RealtimeContextValue,
@@ -52,7 +52,10 @@ type WebSocketBridgeProps = {
 	onError?: (error: Error) => void;
 };
 
-const WebSocketBridge: React.FC<WebSocketBridgeProps> = ({ children, onError }) => {
+const WebSocketBridge: React.FC<WebSocketBridgeProps> = ({
+	children,
+	onError,
+}) => {
 	const connection = useRealtimeConnection();
 	const { visitorId, sendRaw, isConnected } = connection;
 
@@ -61,7 +64,7 @@ const WebSocketBridge: React.FC<WebSocketBridgeProps> = ({ children, onError }) 
 			return;
 		}
 
-		if (!visitorId || !sendRaw) {
+		if (!(visitorId && sendRaw)) {
 			return;
 		}
 
@@ -112,7 +115,10 @@ const WebSocketBridge: React.FC<WebSocketBridgeProps> = ({ children, onError }) 
 				return;
 			}
 
-			intervalId = window.setInterval(sendPresencePing, PRESENCE_PING_INTERVAL_MS);
+			intervalId = window.setInterval(
+				sendPresencePing,
+				PRESENCE_PING_INTERVAL_MS
+			);
 		};
 
 		const handleFocus = () => {

@@ -21,13 +21,13 @@ export const SupportRouter: React.FC = () => {
 		case "ARTICLES":
 			return <ArticlesPage />;
 
-                case "CONVERSATION":
-                        return (
-                                <ConversationPage
-                                        conversationId={current.params.conversationId}
-                                        initialMessage={current.params.initialMessage}
-                                />
-                        );
+		case "CONVERSATION":
+			return (
+				<ConversationPage
+					conversationId={current.params.conversationId}
+					initialMessage={current.params.initialMessage}
+				/>
+			);
 
 		case "CONVERSATION_HISTORY":
 			return <ConversationHistoryPage />;

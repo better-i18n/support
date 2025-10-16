@@ -2,8 +2,8 @@ import type { Database } from "@api/db";
 import { getVisitorPresenceProfiles } from "@api/db/queries/visitor";
 import { waitForRedis } from "@api/redis";
 import {
-        PRESENCE_AWAY_WINDOW_MS,
-        PRESENCE_ONLINE_WINDOW_MS,
+	PRESENCE_AWAY_WINDOW_MS,
+	PRESENCE_ONLINE_WINDOW_MS,
 } from "@cossistant/types";
 import type Redis from "ioredis";
 

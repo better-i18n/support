@@ -105,16 +105,16 @@ export function MessageGroup({
 					{isReceivedByViewer && (
 						<MessageGroupAvatar className="flex flex-shrink-0 flex-col justify-end">
 							{isVisitor ? (
-                                                                <Avatar
-                                                                        className="size-7"
-                                                                        fallbackName={visitorName}
-                                                                        lastOnlineAt={
-                                                                                visitorPresence?.lastSeenAt ?? visitor?.lastSeenAt
-                                                                        }
-                                                                        status={visitorPresence?.status}
-                                                                        url={visitor?.contact?.image}
-                                                                        withBoringAvatar
-                                                                />
+								<Avatar
+									className="size-7"
+									fallbackName={visitorName}
+									lastOnlineAt={
+										visitorPresence?.lastSeenAt ?? visitor?.lastSeenAt
+									}
+									status={visitorPresence?.status}
+									url={visitor?.contact?.image}
+									withBoringAvatar
+								/>
 							) : isAI ? (
 								<div className="flex size-7 items-center justify-center rounded-full bg-primary/10">
 									<Logo className="h-5 w-5 text-primary" />

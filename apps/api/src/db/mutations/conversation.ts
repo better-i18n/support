@@ -1,7 +1,7 @@
 import type { Database } from "@api/db";
 import { conversation, conversationSeen } from "@api/db/schema";
-import { generateULID } from "@api/utils/db/ids";
 import { createConversationEvent } from "@api/utils/conversation-event";
+import { generateULID } from "@api/utils/db/ids";
 import { ConversationEventType, ConversationStatus } from "@cossistant/types";
 import type { InferSelectModel } from "drizzle-orm";
 import { and, eq } from "drizzle-orm";
@@ -29,23 +29,20 @@ export async function resolveConversation(
 		actorUserId: string;
 	}
 ) {
-        const resolvedAt = new Date();
-        const resolvedAtIso = resolvedAt.toISOString();
+	const resolvedAt = new Date();
+	const resolvedAtIso = resolvedAt.toISOString();
 
-        const [updated] = await db
-                .update(conversation)
-                .set({
-                        status: ConversationStatus.RESOLVED,
-                        resolvedAt: resolvedAtIso,
-                        resolvedByUserId: params.actorUserId,
-                        resolvedByAiAgentId: null,
-                        resolutionTime: computeResolutionTime(
-                                params.conversation,
-                                resolvedAtIso
-                        ),
-                        updatedAt: resolvedAtIso,
-                })
-                .where(
+	const [updated] = await db
+		.update(conversation)
+		.set({
+			status: ConversationStatus.RESOLVED,
+			resolvedAt: resolvedAtIso,
+			resolvedByUserId: params.actorUserId,
+			resolvedByAiAgentId: null,
+			resolutionTime: computeResolutionTime(params.conversation, resolvedAtIso),
+			updatedAt: resolvedAtIso,
+		})
+		.where(
 			and(
 				eq(conversation.id, params.conversation.id),
 				eq(conversation.organizationId, params.conversation.organizationId),
@@ -58,20 +55,20 @@ export async function resolveConversation(
 		return null;
 	}
 
-        await createConversationEvent({
-                db,
-                context: {
-                        conversationId: params.conversation.id,
-                        organizationId: params.conversation.organizationId,
-                        websiteId: params.conversation.websiteId,
-                        visitorId: params.conversation.visitorId,
-                },
-                event: {
-                        type: ConversationEventType.RESOLVED,
-                        actorUserId: params.actorUserId,
-                        createdAt: resolvedAt,
-                },
-        });
+	await createConversationEvent({
+		db,
+		context: {
+			conversationId: params.conversation.id,
+			organizationId: params.conversation.organizationId,
+			websiteId: params.conversation.websiteId,
+			visitorId: params.conversation.visitorId,
+		},
+		event: {
+			type: ConversationEventType.RESOLVED,
+			actorUserId: params.actorUserId,
+			createdAt: resolvedAt,
+		},
+	});
 
 	return updated;
 }
@@ -83,8 +80,8 @@ export async function reopenConversation(
 		actorUserId: string;
 	}
 ) {
-        const reopenedAt = new Date();
-        const reopenedAtIso = reopenedAt.toISOString();
+	const reopenedAt = new Date();
+	const reopenedAtIso = reopenedAt.toISOString();
 
 	const [updated] = await db
 		.update(conversation)
@@ -94,8 +91,8 @@ export async function reopenConversation(
 			resolvedByUserId: null,
 			resolvedByAiAgentId: null,
 			resolutionTime: null,
-                        updatedAt: reopenedAtIso,
-                })
+			updatedAt: reopenedAtIso,
+		})
 		.where(
 			and(
 				eq(conversation.id, params.conversation.id),
@@ -109,20 +106,20 @@ export async function reopenConversation(
 		return null;
 	}
 
-        await createConversationEvent({
-                db,
-                context: {
-                        conversationId: params.conversation.id,
-                        organizationId: params.conversation.organizationId,
-                        websiteId: params.conversation.websiteId,
-                        visitorId: params.conversation.visitorId,
-                },
-                event: {
-                        type: ConversationEventType.REOPENED,
-                        actorUserId: params.actorUserId,
-                        createdAt: reopenedAt,
-                },
-        });
+	await createConversationEvent({
+		db,
+		context: {
+			conversationId: params.conversation.id,
+			organizationId: params.conversation.organizationId,
+			websiteId: params.conversation.websiteId,
+			visitorId: params.conversation.visitorId,
+		},
+		event: {
+			type: ConversationEventType.REOPENED,
+			actorUserId: params.actorUserId,
+			createdAt: reopenedAt,
+		},
+	});
 
 	return updated;
 }
@@ -134,8 +131,8 @@ export async function markConversationAsSpam(
 		actorUserId: string;
 	}
 ) {
-        const updatedAt = new Date();
-        const updatedAtIso = updatedAt.toISOString();
+	const updatedAt = new Date();
+	const updatedAtIso = updatedAt.toISOString();
 
 	const [updated] = await db
 		.update(conversation)
@@ -144,8 +141,8 @@ export async function markConversationAsSpam(
 			resolvedAt: null,
 			resolvedByUserId: null,
 			resolvedByAiAgentId: null,
-                        updatedAt: updatedAtIso,
-                })
+			updatedAt: updatedAtIso,
+		})
 		.where(
 			and(
 				eq(conversation.id, params.conversation.id),
@@ -159,24 +156,24 @@ export async function markConversationAsSpam(
 		return null;
 	}
 
-        await createConversationEvent({
-                db,
-                context: {
-                        conversationId: params.conversation.id,
-                        organizationId: params.conversation.organizationId,
-                        websiteId: params.conversation.websiteId,
-                        visitorId: params.conversation.visitorId,
-                },
-                event: {
-                        type: ConversationEventType.STATUS_CHANGED,
-                        actorUserId: params.actorUserId,
-                        metadata: {
-                                previousStatus: params.conversation.status,
-                                newStatus: ConversationStatus.SPAM,
-                        },
-                        createdAt: updatedAt,
-                },
-        });
+	await createConversationEvent({
+		db,
+		context: {
+			conversationId: params.conversation.id,
+			organizationId: params.conversation.organizationId,
+			websiteId: params.conversation.websiteId,
+			visitorId: params.conversation.visitorId,
+		},
+		event: {
+			type: ConversationEventType.STATUS_CHANGED,
+			actorUserId: params.actorUserId,
+			metadata: {
+				previousStatus: params.conversation.status,
+				newStatus: ConversationStatus.SPAM,
+			},
+			createdAt: updatedAt,
+		},
+	});
 
 	return updated;
 }
@@ -188,8 +185,8 @@ export async function markConversationAsNotSpam(
 		actorUserId: string;
 	}
 ) {
-        const updatedAt = new Date();
-        const updatedAtIso = updatedAt.toISOString();
+	const updatedAt = new Date();
+	const updatedAtIso = updatedAt.toISOString();
 
 	const [updated] = await db
 		.update(conversation)
@@ -199,8 +196,8 @@ export async function markConversationAsNotSpam(
 			resolvedByUserId: null,
 			resolvedByAiAgentId: null,
 			resolutionTime: null,
-                        updatedAt: updatedAtIso,
-                })
+			updatedAt: updatedAtIso,
+		})
 		.where(
 			and(
 				eq(conversation.id, params.conversation.id),
@@ -214,24 +211,24 @@ export async function markConversationAsNotSpam(
 		return null;
 	}
 
-        await createConversationEvent({
-                db,
-                context: {
-                        conversationId: params.conversation.id,
-                        organizationId: params.conversation.organizationId,
-                        websiteId: params.conversation.websiteId,
-                        visitorId: params.conversation.visitorId,
-                },
-                event: {
-                        type: ConversationEventType.STATUS_CHANGED,
-                        actorUserId: params.actorUserId,
-                        metadata: {
-                                previousStatus: params.conversation.status,
-                                newStatus: ConversationStatus.OPEN,
-                        },
-                        createdAt: updatedAt,
-                },
-        });
+	await createConversationEvent({
+		db,
+		context: {
+			conversationId: params.conversation.id,
+			organizationId: params.conversation.organizationId,
+			websiteId: params.conversation.websiteId,
+			visitorId: params.conversation.visitorId,
+		},
+		event: {
+			type: ConversationEventType.STATUS_CHANGED,
+			actorUserId: params.actorUserId,
+			metadata: {
+				previousStatus: params.conversation.status,
+				newStatus: ConversationStatus.OPEN,
+			},
+			createdAt: updatedAt,
+		},
+	});
 
 	return updated;
 }
@@ -243,15 +240,15 @@ export async function archiveConversation(
 		actorUserId: string;
 	}
 ) {
-        const archivedAt = new Date();
-        const archivedAtIso = archivedAt.toISOString();
+	const archivedAt = new Date();
+	const archivedAtIso = archivedAt.toISOString();
 
 	const [updated] = await db
 		.update(conversation)
 		.set({
-                        deletedAt: archivedAtIso,
-                        updatedAt: archivedAtIso,
-                })
+			deletedAt: archivedAtIso,
+			updatedAt: archivedAtIso,
+		})
 		.where(
 			and(
 				eq(conversation.id, params.conversation.id),
@@ -265,23 +262,23 @@ export async function archiveConversation(
 		return null;
 	}
 
-        await createConversationEvent({
-                db,
-                context: {
-                        conversationId: params.conversation.id,
-                        organizationId: params.conversation.organizationId,
-                        websiteId: params.conversation.websiteId,
-                        visitorId: params.conversation.visitorId,
-                },
-                event: {
-                        type: ConversationEventType.STATUS_CHANGED,
-                        actorUserId: params.actorUserId,
-                        metadata: {
-                                archived: true,
-                        },
-                        createdAt: archivedAt,
-                },
-        });
+	await createConversationEvent({
+		db,
+		context: {
+			conversationId: params.conversation.id,
+			organizationId: params.conversation.organizationId,
+			websiteId: params.conversation.websiteId,
+			visitorId: params.conversation.visitorId,
+		},
+		event: {
+			type: ConversationEventType.STATUS_CHANGED,
+			actorUserId: params.actorUserId,
+			metadata: {
+				archived: true,
+			},
+			createdAt: archivedAt,
+		},
+	});
 
 	return updated;
 }
@@ -293,15 +290,15 @@ export async function unarchiveConversation(
 		actorUserId: string;
 	}
 ) {
-        const unarchivedAt = new Date();
-        const unarchivedAtIso = unarchivedAt.toISOString();
+	const unarchivedAt = new Date();
+	const unarchivedAtIso = unarchivedAt.toISOString();
 
 	const [updated] = await db
 		.update(conversation)
 		.set({
-                        deletedAt: null,
-                        updatedAt: unarchivedAtIso,
-                })
+			deletedAt: null,
+			updatedAt: unarchivedAtIso,
+		})
 		.where(
 			and(
 				eq(conversation.id, params.conversation.id),
@@ -315,23 +312,23 @@ export async function unarchiveConversation(
 		return null;
 	}
 
-        await createConversationEvent({
-                db,
-                context: {
-                        conversationId: params.conversation.id,
-                        organizationId: params.conversation.organizationId,
-                        websiteId: params.conversation.websiteId,
-                        visitorId: params.conversation.visitorId,
-                },
-                event: {
-                        type: ConversationEventType.STATUS_CHANGED,
-                        actorUserId: params.actorUserId,
-                        metadata: {
-                                archived: false,
-                        },
-                        createdAt: unarchivedAt,
-                },
-        });
+	await createConversationEvent({
+		db,
+		context: {
+			conversationId: params.conversation.id,
+			organizationId: params.conversation.organizationId,
+			websiteId: params.conversation.websiteId,
+			visitorId: params.conversation.visitorId,
+		},
+		event: {
+			type: ConversationEventType.STATUS_CHANGED,
+			actorUserId: params.actorUserId,
+			metadata: {
+				archived: false,
+			},
+			createdAt: unarchivedAt,
+		},
+	});
 
 	return updated;
 }

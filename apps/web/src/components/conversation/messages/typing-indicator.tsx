@@ -57,14 +57,14 @@ export const VisitorTypingPreview = ({
 	return (
 		<div className={cn("flex w-full gap-2", "flex-row")}>
 			<MessageGroupAvatar className="flex flex-shrink-0 flex-col justify-end">
-                                <Avatar
-                                        className="size-7"
-                                        fallbackName={visitorName}
-                                        lastOnlineAt={presence?.lastSeenAt ?? visitor?.lastSeenAt}
-                                        status={presence?.status}
-                                        url={visitor?.contact?.image}
-                                        withBoringAvatar
-                                />
+				<Avatar
+					className="size-7"
+					fallbackName={visitorName}
+					lastOnlineAt={presence?.lastSeenAt ?? visitor?.lastSeenAt}
+					status={presence?.status}
+					url={visitor?.contact?.image}
+					withBoringAvatar
+				/>
 			</MessageGroupAvatar>
 			<MessageGroupContent className={cn("flex flex-col gap-0")}>
 				<MessageGroupHeader className="mb-2 px-1 text-muted-foreground text-xs opacity-50">

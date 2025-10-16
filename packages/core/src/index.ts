@@ -10,6 +10,13 @@ export { CossistantClient, CossistantClient as default } from "./client";
 export { normalizeLocale } from "./locale-utils";
 export { CossistantRestClient } from "./rest-client";
 export {
+	type ConversationEventsState,
+	type ConversationEventsStore,
+	type ConversationEventsStoreState,
+	createConversationEventsStore,
+	getConversationEvents,
+} from "./store/conversation-events-store";
+export {
 	type ConversationPagination,
 	type ConversationsState,
 	type ConversationsStore,
@@ -19,19 +26,12 @@ export {
 	getConversations,
 } from "./store/conversations-store";
 export {
-        type ConversationMessagesState,
-        createMessagesStore,
-        getConversationMessages,
-        type MessagesState,
-        type MessagesStore,
+	type ConversationMessagesState,
+	createMessagesStore,
+	getConversationMessages,
+	type MessagesState,
+	type MessagesStore,
 } from "./store/messages-store";
-export {
-        createConversationEventsStore,
-        getConversationEvents,
-        type ConversationEventsState,
-        type ConversationEventsStore,
-        type ConversationEventsStoreState,
-} from "./store/conversation-events-store";
 export {
 	applyConversationSeenEvent,
 	type ConversationSeenState,

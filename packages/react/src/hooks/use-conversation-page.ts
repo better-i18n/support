@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { useSupport } from "../provider";
 import { useDefaultMessages } from "./private/use-default-messages";
 import { useConversationAutoSeen } from "./use-conversation-auto-seen";
-import { useConversationLifecycle } from "./use-conversation-lifecycle";
 import { useConversationEvents } from "./use-conversation-events";
+import { useConversationLifecycle } from "./use-conversation-lifecycle";
 import { useConversationMessages } from "./use-conversation-messages";
 import { useMessageComposer } from "./use-message-composer";
 
@@ -128,16 +128,16 @@ export function useConversationPage(
 
 	const effectiveDefaultMessages = hasInitialMessage ? [] : defaultMessages;
 
-        // 3. Fetch messages and events from backend if real conversation exists
-        const messagesQuery = useConversationMessages(lifecycle.conversationId, {
-                enabled: !lifecycle.isPending,
-        });
-        const eventsQuery = useConversationEvents(lifecycle.conversationId, {
-                enabled: !lifecycle.isPending,
-        });
+	// 3. Fetch messages and events from backend if real conversation exists
+	const messagesQuery = useConversationMessages(lifecycle.conversationId, {
+		enabled: !lifecycle.isPending,
+	});
+	const eventsQuery = useConversationEvents(lifecycle.conversationId, {
+		enabled: !lifecycle.isPending,
+	});
 
-        // 4. Determine which messages to display
-        const displayMessages = useMemo(() => {
+	// 4. Determine which messages to display
+	const displayMessages = useMemo(() => {
 		// If we have fetched messages, use them
 		if (messagesQuery.messages.length > 0) {
 			return messagesQuery.messages;
@@ -162,22 +162,22 @@ export function useConversationPage(
 		effectiveDefaultMessages,
 	]);
 
-        const displayEvents = useMemo(() => {
-                if (eventsQuery.events.length > 0) {
-                        return eventsQuery.events;
-                }
+	const displayEvents = useMemo(() => {
+		if (eventsQuery.events.length > 0) {
+			return eventsQuery.events;
+		}
 
-                if (!lifecycle.isPending && passedEvents.length > 0) {
-                        return passedEvents;
-                }
+		if (!lifecycle.isPending && passedEvents.length > 0) {
+			return passedEvents;
+		}
 
-                return [];
-        }, [eventsQuery.events, lifecycle.isPending, passedEvents]);
+		return [];
+	}, [eventsQuery.events, lifecycle.isPending, passedEvents]);
 
-        const lastMessage = useMemo(
-                () => displayMessages.at(-1) ?? null,
-                [displayMessages]
-        );
+	const lastMessage = useMemo(
+		() => displayMessages.at(-1) ?? null,
+		[displayMessages]
+	);
 
 	// 5. Set up message composer
 	const composer = useMessageComposer({
@@ -245,14 +245,13 @@ export function useConversationPage(
 		lastMessage,
 	});
 
-        return {
-                conversationId: lifecycle.conversationId,
-                isPending: lifecycle.isPending,
-                messages: displayMessages,
-                events: displayEvents,
-                isLoading: messagesQuery.isLoading || eventsQuery.isLoading,
-                error:
-                        messagesQuery.error || eventsQuery.error || composer.error,
+	return {
+		conversationId: lifecycle.conversationId,
+		isPending: lifecycle.isPending,
+		messages: displayMessages,
+		events: displayEvents,
+		isLoading: messagesQuery.isLoading || eventsQuery.isLoading,
+		error: messagesQuery.error || eventsQuery.error || composer.error,
 		composer: {
 			message: composer.message,
 			files: composer.files,

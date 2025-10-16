@@ -88,15 +88,15 @@ type RealtimeProviderProps = {
 };
 
 type RealtimeConnectionState = {
-        isConnected: boolean;
-        isConnecting: boolean;
-        error: Error | null;
-        send: (event: AnyRealtimeEvent) => void;
-        sendRaw: (data: string) => void;
-        subscribe: (handler: SubscribeHandler) => () => void;
-        lastEvent: AnyRealtimeEvent | null;
-        connectionId: string | null;
-        reconnect: () => void;
+	isConnected: boolean;
+	isConnecting: boolean;
+	error: Error | null;
+	send: (event: AnyRealtimeEvent) => void;
+	sendRaw: (data: string) => void;
+	subscribe: (handler: SubscribeHandler) => () => void;
+	lastEvent: AnyRealtimeEvent | null;
+	connectionId: string | null;
+	reconnect: () => void;
 };
 
 type RealtimeContextValue = RealtimeConnectionState & {
@@ -529,41 +529,41 @@ export function RealtimeProvider({
 		getWebSocket,
 	]);
 
-        const send = useCallback(
-                (event: AnyRealtimeEvent) => {
-                        if (!connectionUrl) {
-                                throw new Error("Realtime connection is disabled");
-                        }
+	const send = useCallback(
+		(event: AnyRealtimeEvent) => {
+			if (!connectionUrl) {
+				throw new Error("Realtime connection is disabled");
+			}
 
 			if (readyState !== ReadyState.OPEN) {
 				throw new Error("Realtime connection is not established");
 			}
 
 			sendJsonMessage(event);
-                },
-                [connectionUrl, readyState, sendJsonMessage]
-        );
+		},
+		[connectionUrl, readyState, sendJsonMessage]
+	);
 
-        const sendRaw = useCallback(
-                (data: string) => {
-                        if (!connectionUrl) {
-                                throw new Error("Realtime connection is disabled");
-                        }
+	const sendRaw = useCallback(
+		(data: string) => {
+			if (!connectionUrl) {
+				throw new Error("Realtime connection is disabled");
+			}
 
-                        if (readyState !== ReadyState.OPEN) {
-                                throw new Error("Realtime connection is not established");
-                        }
+			if (readyState !== ReadyState.OPEN) {
+				throw new Error("Realtime connection is not established");
+			}
 
-                        sendMessage(data);
-                },
-                [connectionUrl, readyState, sendMessage]
-        );
+			sendMessage(data);
+		},
+		[connectionUrl, readyState, sendMessage]
+	);
 
-        const subscribe = useCallback((handler: SubscribeHandler) => {
-                eventHandlersRef.current.add(handler);
-                return () => {
-                        eventHandlersRef.current.delete(handler);
-                };
+	const subscribe = useCallback((handler: SubscribeHandler) => {
+		eventHandlersRef.current.add(handler);
+		return () => {
+			eventHandlersRef.current.delete(handler);
+		};
 	}, []);
 
 	const reconnect = useCallback(() => {
@@ -571,28 +571,28 @@ export function RealtimeProvider({
 		socket?.close();
 	}, [getWebSocket]);
 
-        const connection = useMemo<RealtimeConnectionState>(
-                () => ({
-                        isConnected: readyState === ReadyState.OPEN,
-                        isConnecting: readyState === ReadyState.CONNECTING,
-                        error: connectionError,
-                        send,
-                        sendRaw,
-                        subscribe,
-                        lastEvent,
-                        connectionId,
-                        reconnect,
-                }),
-                [
-                        readyState,
-                        connectionError,
-                        send,
-                        sendRaw,
-                        subscribe,
-                        lastEvent,
-                        connectionId,
-                        reconnect,
-                ]
+	const connection = useMemo<RealtimeConnectionState>(
+		() => ({
+			isConnected: readyState === ReadyState.OPEN,
+			isConnecting: readyState === ReadyState.CONNECTING,
+			error: connectionError,
+			send,
+			sendRaw,
+			subscribe,
+			lastEvent,
+			connectionId,
+			reconnect,
+		}),
+		[
+			readyState,
+			connectionError,
+			send,
+			sendRaw,
+			subscribe,
+			lastEvent,
+			connectionId,
+			reconnect,
+		]
 	);
 
 	const value = useMemo<RealtimeContextValue>(

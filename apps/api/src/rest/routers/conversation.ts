@@ -9,9 +9,9 @@ import {
 } from "@api/db/queries/conversation";
 import { markVisitorPresence } from "@api/services/presence";
 import {
-        emitConversationCreatedEvent,
-        emitConversationSeenEvent,
-        emitConversationTypingEvent,
+	emitConversationCreatedEvent,
+	emitConversationSeenEvent,
+	emitConversationTypingEvent,
 } from "@api/utils/conversation-realtime";
 import { createMessage } from "@api/utils/message";
 import {
@@ -736,24 +736,24 @@ conversationRouter.openapi(
 				? trimmedPreview.slice(0, 2000)
 				: null;
 
-                await emitConversationTypingEvent({
-                        conversation: conversationRecord,
-                        actor: { type: "visitor", visitorId: visitor.id },
-                        isTyping: body.isTyping,
-                        visitorPreview: effectivePreview ?? undefined,
-                });
+		await emitConversationTypingEvent({
+			conversation: conversationRecord,
+			actor: { type: "visitor", visitorId: visitor.id },
+			isTyping: body.isTyping,
+			visitorPreview: effectivePreview ?? undefined,
+		});
 
-                const sentAt = new Date();
+		const sentAt = new Date();
 
-                await markVisitorPresence({
-                        websiteId: website.id,
-                        visitorId: visitor.id,
-                        lastSeenAt: sentAt,
-                });
+		await markVisitorPresence({
+			websiteId: website.id,
+			visitorId: visitor.id,
+			lastSeenAt: sentAt,
+		});
 
-                const response = {
-                        conversationId: conversationRecord.id,
-                        isTyping: body.isTyping,
+		const response = {
+			conversationId: conversationRecord.id,
+			isTyping: body.isTyping,
 			visitorPreview: effectivePreview,
 			sentAt: sentAt.toISOString(),
 		};

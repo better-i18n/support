@@ -1,14 +1,13 @@
 import { db } from "@api/db";
-import { markUserPresence, markVisitorPresence } from "@api/services/presence";
 import type { ApiKeyWithWebsiteAndOrganization } from "@api/db/queries/api-keys";
 import { normalizeSessionToken, resolveSession } from "@api/db/queries/session";
-
 import { website as websiteTable } from "@api/db/schema";
 import {
 	AuthValidationError,
 	type AuthValidationOptions,
 	performAuthentication,
 } from "@api/lib/auth-validation";
+import { markUserPresence, markVisitorPresence } from "@api/services/presence";
 import {
 	createConnectionEvent,
 	getConnectionIdFromSocket,
@@ -137,9 +136,9 @@ function resolveActiveConnection(
 }
 
 function resolveConnectionContextDetails(
-        connectionId: string,
-        record: LocalConnectionRecord,
-        ws: SocketContext
+	connectionId: string,
+	record: LocalConnectionRecord,
+	ws: SocketContext
 ): ConnectionContextDetails | null {
 	const { userId, visitorId, websiteId, organizationId } = record;
 
@@ -154,53 +153,53 @@ function resolveConnectionContextDetails(
 		return null;
 	}
 
-        return { userId, visitorId, websiteId, organizationId };
+	return { userId, visitorId, websiteId, organizationId };
 }
 
 async function refreshConnectionPresence(
-        metadata: ConnectionContextDetails
+	metadata: ConnectionContextDetails
 ): Promise<void> {
-        if (!metadata.websiteId) {
-                return;
-        }
+	if (!metadata.websiteId) {
+		return;
+	}
 
-        const now = new Date().toISOString();
-        const tasks: Promise<unknown>[] = [];
+	const now = new Date().toISOString();
+	const tasks: Promise<unknown>[] = [];
 
-        if (metadata.userId) {
-                tasks.push(
-                        markUserPresence({
-                                websiteId: metadata.websiteId,
-                                userId: metadata.userId,
-                                lastSeenAt: now,
-                        })
-                );
-        }
+	if (metadata.userId) {
+		tasks.push(
+			markUserPresence({
+				websiteId: metadata.websiteId,
+				userId: metadata.userId,
+				lastSeenAt: now,
+			})
+		);
+	}
 
-        if (metadata.visitorId) {
-                tasks.push(
-                        markVisitorPresence({
-                                websiteId: metadata.websiteId,
-                                visitorId: metadata.visitorId,
-                                lastSeenAt: now,
-                        })
-                );
-        }
+	if (metadata.visitorId) {
+		tasks.push(
+			markVisitorPresence({
+				websiteId: metadata.websiteId,
+				visitorId: metadata.visitorId,
+				lastSeenAt: now,
+			})
+		);
+	}
 
-        if (tasks.length === 0) {
-                return;
-        }
+	if (tasks.length === 0) {
+		return;
+	}
 
-        try {
-                await Promise.all(tasks);
-        } catch (error) {
-                console.error("[WebSocket] Failed to refresh presence", {
-                        websiteId: metadata.websiteId,
-                        userId: metadata.userId,
-                        visitorId: metadata.visitorId,
-                        error,
-                });
-        }
+	try {
+		await Promise.all(tasks);
+	} catch (error) {
+		console.error("[WebSocket] Failed to refresh presence", {
+			websiteId: metadata.websiteId,
+			userId: metadata.userId,
+			visitorId: metadata.visitorId,
+			error,
+		});
+	}
 }
 
 function sendInvalidFormatResponse(ws: SocketContext, error: unknown): void {
@@ -915,41 +914,41 @@ export const upgradedWebsocket = upgradeWebSocket(async (c) => {
 			await updateLastSeenTimestamps({ db, authResult });
 		},
 
-                async onMessage(evt, ws) {
-                        const activeConnection = resolveActiveConnection(ws);
+		async onMessage(evt, ws) {
+			const activeConnection = resolveActiveConnection(ws);
 
-                        if (!activeConnection) {
-                                return;
-                        }
+			if (!activeConnection) {
+				return;
+			}
 
-                        const metadata = resolveConnectionContextDetails(
-                                activeConnection.connectionId,
-                                activeConnection.record,
-                                ws
-                        );
+			const metadata = resolveConnectionContextDetails(
+				activeConnection.connectionId,
+				activeConnection.record,
+				ws
+			);
 
-                        if (!metadata) {
-                                return;
-                        }
+			if (!metadata) {
+				return;
+			}
 
-                        if (typeof evt.data === "string") {
-                                if (evt.data === "ping") {
-                                        ws.send("pong");
-                                        return;
-                                }
+			if (typeof evt.data === "string") {
+				if (evt.data === "ping") {
+					ws.send("pong");
+					return;
+				}
 
-                                if (evt.data === "presence:ping") {
-                                        ws.send("pong");
-                                        await refreshConnectionPresence(metadata);
-                                        return;
-                                }
-                        }
+				if (evt.data === "presence:ping") {
+					ws.send("pong");
+					await refreshConnectionPresence(metadata);
+					return;
+				}
+			}
 
-                        const parsed = parseRealtimeEventMessage(evt.data, ws);
+			const parsed = parseRealtimeEventMessage(evt.data, ws);
 
-                        if (!parsed) {
-                                return;
-                        }
+			if (!parsed) {
+				return;
+			}
 
 			const context: EventContext = {
 				connectionId: activeConnection.connectionId,

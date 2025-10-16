@@ -40,14 +40,14 @@ export function VisitorSidebar({ visitor, isLoading }: VisitorSidebarProps) {
 		<ResizableSidebar className="hidden lg:flex" position="right">
 			<SidebarContainer>
 				<div className="flex h-10 w-full items-center justify-between px-2">
-                                        <div className="flex items-center gap-3">
-                                                <Avatar
-                                                        fallbackName={fullName}
-                                                        lastOnlineAt={presence?.lastSeenAt ?? visitor.lastSeenAt}
-                                                        status={presence?.status}
-                                                        url={visitor.contact?.image}
-                                                        withBoringAvatar
-                                                />
+					<div className="flex items-center gap-3">
+						<Avatar
+							fallbackName={fullName}
+							lastOnlineAt={presence?.lastSeenAt ?? visitor.lastSeenAt}
+							status={presence?.status}
+							url={visitor.contact?.image}
+							withBoringAvatar
+						/>
 						<div className="flex flex-col gap-0.5">
 							<p className="font-medium text-sm">{fullName}</p>
 							{visitor.contact ? (

@@ -10,9 +10,9 @@ import { websiteRouter } from "./website";
 const routers = new OpenAPIHono()
 	.route("/organizations", organizationRouter)
 	.route("/websites", websiteRouter)
-        .route("/messages", messagesRouter)
-        .route("/conversation-events", conversationEventsRouter)
-        .route("/conversations", conversationRouter)
+	.route("/messages", messagesRouter)
+	.route("/conversation-events", conversationEventsRouter)
+	.route("/conversations", conversationRouter)
 	.route("/visitors", visitorRouter)
 	.route("/contacts", contactRouter);
 

@@ -284,32 +284,32 @@ describe("conversationEventCreated handler", () => {
 	});
 
 	it("broadcasts timeline events to dashboards and visitor", async () => {
-                const event: RealtimeEvent<"conversationEventCreated"> = {
-                        type: "conversationEventCreated",
-                        payload: {
-                                websiteId: "site-event",
-                                organizationId: "org-event",
-                                conversationId: "conv-event",
-                                userId: null,
-                                visitorId: null,
-                                aiAgentId: null,
-                                event: {
-                                        id: "evt-1",
-                                        conversationId: "conv-event",
-                                        organizationId: "org-event",
-                                        type: ConversationEventType.STATUS_CHANGED,
-                                        actorUserId: "user-1",
-                                        actorAiAgentId: null,
-                                        targetUserId: null,
-                                        targetAiAgentId: null,
-                                        message: null,
-                                        metadata: null,
-                                        createdAt: "2024-01-01T00:00:00.000Z",
-                                        updatedAt: "2024-01-01T00:00:00.000Z",
-                                        deletedAt: null,
-                                },
-                        },
-                };
+		const event: RealtimeEvent<"conversationEventCreated"> = {
+			type: "conversationEventCreated",
+			payload: {
+				websiteId: "site-event",
+				organizationId: "org-event",
+				conversationId: "conv-event",
+				userId: null,
+				visitorId: null,
+				aiAgentId: null,
+				event: {
+					id: "evt-1",
+					conversationId: "conv-event",
+					organizationId: "org-event",
+					type: ConversationEventType.STATUS_CHANGED,
+					actorUserId: "user-1",
+					actorAiAgentId: null,
+					targetUserId: null,
+					targetAiAgentId: null,
+					message: null,
+					metadata: null,
+					createdAt: "2024-01-01T00:00:00.000Z",
+					updatedAt: "2024-01-01T00:00:00.000Z",
+					deletedAt: null,
+				},
+			},
+		};
 
 		await routeEvent(event, {
 			connectionId: "conn-event",
