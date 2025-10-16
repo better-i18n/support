@@ -6,16 +6,20 @@ import {
 	type RealtimeEvent,
 } from "@cossistant/types";
 import type {
-	CreateConversationRequestBody,
-	CreateConversationResponseBody,
-	GetConversationRequest,
-	GetConversationResponse,
-	ListConversationsRequest,
-	ListConversationsResponse,
-	MarkConversationSeenRequestBody,
-	MarkConversationSeenResponseBody,
-	SetConversationTypingResponseBody,
+        CreateConversationRequestBody,
+        CreateConversationResponseBody,
+        GetConversationRequest,
+        GetConversationResponse,
+        ListConversationsRequest,
+        ListConversationsResponse,
+        MarkConversationSeenRequestBody,
+        MarkConversationSeenResponseBody,
+        SetConversationTypingResponseBody,
 } from "@cossistant/types/api/conversation";
+import type {
+        GetConversationEventsRequest,
+        GetConversationEventsResponse,
+} from "@cossistant/types/api/conversation-event";
 import type {
 	GetMessagesRequest,
 	GetMessagesResponse,
@@ -34,10 +38,11 @@ import {
 	type ConversationsStore,
 	createConversationsStore,
 } from "./store/conversations-store";
+import { createMessagesStore, type MessagesStore } from "./store/messages-store";
 import {
-	createMessagesStore,
-	type MessagesStore,
-} from "./store/messages-store";
+        createConversationEventsStore,
+        type ConversationEventsStore,
+} from "./store/conversation-events-store";
 import {
 	createWebsiteStore,
 	type WebsiteState,
@@ -74,19 +79,21 @@ type InitiateConversationResult = {
 export class CossistantClient {
 	private restClient: CossistantRestClient;
 	private config: CossistantConfig;
-	private pendingConversations = new Map<string, PendingConversation>();
-	private websiteRequest: Promise<PublicWebsiteResponse> | null = null;
-	readonly conversationsStore: ConversationsStore;
-	readonly messagesStore: MessagesStore;
-	readonly websiteStore: WebsiteStore;
+        private pendingConversations = new Map<string, PendingConversation>();
+        private websiteRequest: Promise<PublicWebsiteResponse> | null = null;
+        readonly conversationsStore: ConversationsStore;
+        readonly messagesStore: MessagesStore;
+        readonly eventsStore: ConversationEventsStore;
+        readonly websiteStore: WebsiteStore;
 
-	constructor(config: CossistantConfig) {
-		this.config = config;
-		this.restClient = new CossistantRestClient(config);
-		this.conversationsStore = createConversationsStore();
-		this.messagesStore = createMessagesStore();
-		this.websiteStore = createWebsiteStore();
-	}
+        constructor(config: CossistantConfig) {
+                this.config = config;
+                this.restClient = new CossistantRestClient(config);
+                this.conversationsStore = createConversationsStore();
+                this.messagesStore = createMessagesStore();
+                this.eventsStore = createConversationEventsStore();
+                this.websiteStore = createWebsiteStore();
+        }
 
 	// Configuration updates
 	updateConfiguration(config: Partial<CossistantConfig>): void {
@@ -272,12 +279,24 @@ export class CossistantClient {
 		return this.restClient.setConversationTyping(params);
 	}
 
-	// Message management
-	async getConversationMessages(
-		params: GetMessagesRequest
-	): Promise<GetMessagesResponse> {
-		const response = await this.restClient.getConversationMessages(params);
-		this.messagesStore.ingestPage(params.conversationId, {
+        // Message & event management
+        async getConversationEvents(
+                params: GetConversationEventsRequest
+        ): Promise<GetConversationEventsResponse> {
+                const response = await this.restClient.getConversationEvents(params);
+                this.eventsStore.ingestPage(params.conversationId, {
+                        events: response.events,
+                        hasNextPage: response.hasNextPage,
+                        nextCursor: response.nextCursor ?? null,
+                });
+                return response;
+        }
+
+        async getConversationMessages(
+                params: GetMessagesRequest
+        ): Promise<GetMessagesResponse> {
+                const response = await this.restClient.getConversationMessages(params);
+                this.messagesStore.ingestPage(params.conversationId, {
 			messages: response.messages,
 			hasNextPage: response.hasNextPage,
 			nextCursor: response.nextCursor,
@@ -328,14 +347,15 @@ export class CossistantClient {
 					defaultMessages: [...pending.initialMessages, optimisticMessage],
 				});
 
-				this.conversationsStore.ingestConversation(response.conversation);
-				this.messagesStore.removeMessage(rest.conversationId, optimisticId);
-				this.messagesStore.clearConversation(rest.conversationId);
-				this.messagesStore.ingestPage(rest.conversationId, {
-					messages: response.initialMessages,
-					hasNextPage: false,
-					nextCursor: undefined,
-				});
+                                this.conversationsStore.ingestConversation(response.conversation);
+                                this.messagesStore.removeMessage(rest.conversationId, optimisticId);
+                                this.messagesStore.clearConversation(rest.conversationId);
+                                this.eventsStore.clearConversation(rest.conversationId);
+                                this.messagesStore.ingestPage(rest.conversationId, {
+                                        messages: response.initialMessages,
+                                        hasNextPage: false,
+                                        nextCursor: undefined,
+                                });
 
 				this.pendingConversations.delete(rest.conversationId);
 
@@ -390,23 +410,25 @@ export class CossistantClient {
 				...conversation,
 				lastMessage: conversation.lastMessage ?? undefined,
 			});
-		} else if (event.type === "messageCreated") {
-			const message = this.messagesStore.ingestRealtime(event);
+                } else if (event.type === "messageCreated") {
+                        const message = this.messagesStore.ingestRealtime(event);
 
-			const existingConversation =
-				this.conversationsStore.getState().byId[message.conversationId];
+                        const existingConversation =
+                                this.conversationsStore.getState().byId[message.conversationId];
 
-			if (existingConversation) {
-				const nextConversation = {
-					...existingConversation,
-					updatedAt: message.updatedAt,
-					lastMessage: message,
-				};
+                        if (existingConversation) {
+                                const nextConversation = {
+                                        ...existingConversation,
+                                        updatedAt: message.updatedAt,
+                                        lastMessage: message,
+                                };
 
-				this.conversationsStore.ingestConversation(nextConversation);
-			}
-		}
-	}
+                                this.conversationsStore.ingestConversation(nextConversation);
+                        }
+                } else if (event.type === "conversationEventCreated") {
+                        this.eventsStore.ingestRealtime(event);
+                }
+        }
 
 	// Cleanup method
 	destroy(): void {

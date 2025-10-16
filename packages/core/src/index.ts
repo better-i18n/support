@@ -19,12 +19,19 @@ export {
 	getConversations,
 } from "./store/conversations-store";
 export {
-	type ConversationMessagesState,
-	createMessagesStore,
-	getConversationMessages,
-	type MessagesState,
-	type MessagesStore,
+        type ConversationMessagesState,
+        createMessagesStore,
+        getConversationMessages,
+        type MessagesState,
+        type MessagesStore,
 } from "./store/messages-store";
+export {
+        createConversationEventsStore,
+        getConversationEvents,
+        type ConversationEventsState,
+        type ConversationEventsStore,
+        type ConversationEventsStoreState,
+} from "./store/conversation-events-store";
 export {
 	applyConversationSeenEvent,
 	type ConversationSeenState,

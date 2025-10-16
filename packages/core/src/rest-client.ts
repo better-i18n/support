@@ -1,8 +1,10 @@
 import type { IdentifyContactResponse } from "@cossistant/types/api/contact";
 import type {
-	CreateConversationRequestBody,
-	CreateConversationResponseBody,
-	GetConversationRequest,
+        GetConversationEventsRequest,
+        GetConversationEventsResponse,
+        CreateConversationRequestBody,
+        CreateConversationResponseBody,
+        GetConversationRequest,
 	GetConversationResponse,
 	GetConversationSeenDataResponse,
 	ListConversationsRequest,
@@ -540,12 +542,12 @@ export class CossistantRestClient {
 		};
 	}
 
-	async setConversationTyping(params: {
-		conversationId: string;
-		isTyping: boolean;
-		visitorPreview?: string | null;
-		visitorId?: string;
-	}): Promise<SetConversationTypingResponseBody> {
+        async setConversationTyping(params: {
+                conversationId: string;
+                isTyping: boolean;
+                visitorPreview?: string | null;
+                visitorId?: string;
+        }): Promise<SetConversationTypingResponseBody> {
 		const storedVisitorId = this.websiteId
 			? getVisitorId(this.websiteId)
 			: undefined;
@@ -581,17 +583,52 @@ export class CossistantRestClient {
 			}
 		);
 
-		return {
-			conversationId: response.conversationId,
-			isTyping: response.isTyping,
-			visitorPreview: response.visitorPreview,
-			sentAt: response.sentAt,
-		};
-	}
+                return {
+                        conversationId: response.conversationId,
+                        isTyping: response.isTyping,
+                        visitorPreview: response.visitorPreview,
+                        sentAt: response.sentAt,
+                };
+        }
 
-	async getConversationMessages(
-		params: GetMessagesRequest
-	): Promise<GetMessagesResponse> {
+        async getConversationEvents(
+                params: GetConversationEventsRequest
+        ): Promise<GetConversationEventsResponse> {
+                const visitorId = this.websiteId ? getVisitorId(this.websiteId) : undefined;
+
+                const queryParams = new URLSearchParams();
+                queryParams.set("conversationId", params.conversationId);
+
+                if (params.limit) {
+                        queryParams.set("limit", params.limit.toString());
+                }
+
+                if (params.cursor) {
+                        queryParams.set("cursor", params.cursor);
+                }
+
+                const headers: Record<string, string> = {};
+                if (visitorId) {
+                        headers["X-Visitor-Id"] = visitorId;
+                }
+
+                const response = await this.request<GetConversationEventsResponse>(
+                        `/conversation-events?${queryParams.toString()}`,
+                        {
+                                headers,
+                        }
+                );
+
+                return {
+                        events: response.events,
+                        nextCursor: response.nextCursor,
+                        hasNextPage: response.hasNextPage,
+                };
+        }
+
+        async getConversationMessages(
+                params: GetMessagesRequest
+        ): Promise<GetMessagesResponse> {
 		// Get visitor ID from storage if we have the website ID
 		const visitorId = this.websiteId ? getVisitorId(this.websiteId) : undefined;
 

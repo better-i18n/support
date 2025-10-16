@@ -2,6 +2,7 @@ import type { ConversationRecord } from "@api/db/mutations/conversation";
 import type { conversationEvent } from "@api/db/schema";
 import { realtime } from "@api/realtime/emitter";
 import type { ConversationHeader } from "@cossistant/types/trpc/conversation";
+import type { RealtimeEventData } from "@cossistant/types/realtime-events";
 import type { InferSelectModel } from "drizzle-orm";
 
 type ConversationEventRecord = InferSelectModel<typeof conversationEvent>;
@@ -26,8 +27,14 @@ type TypingEventParams = BaseRealtimeContext & {
 	visitorPreview?: string | null;
 };
 
-type TimelineEventParams = BaseRealtimeContext & {
-	event: ConversationEventRecord;
+type TimelineEventParams = {
+        conversation: {
+                id: string;
+                organizationId: string;
+                websiteId: string;
+                visitorId?: string | null;
+        };
+        event: ConversationEventRecord;
 };
 
 type ConversationCreatedEventParams = {
@@ -107,10 +114,10 @@ export async function emitConversationTypingEvent({
 }
 
 export async function emitConversationCreatedEvent({
-	conversation,
-	header,
+        conversation,
+        header,
 }: ConversationCreatedEventParams) {
-	await realtime.emit("conversationCreated", {
+        await realtime.emit("conversationCreated", {
 		conversationId: conversation.id,
 		websiteId: conversation.websiteId,
 		organizationId: conversation.organizationId,
@@ -127,5 +134,43 @@ export async function emitConversationCreatedEvent({
 			lastMessage: header.lastMessagePreview ?? undefined,
 		},
 		header,
-	});
+        });
+}
+
+function serializeConversationEventForRealtime(
+        params: TimelineEventParams
+): RealtimeEventData<"conversationEventCreated"> {
+        const { conversation, event } = params;
+        const metadata = event.metadata
+                ? (event.metadata as Record<string, unknown>)
+                : null;
+
+        return {
+                conversationId: conversation.id,
+                websiteId: conversation.websiteId,
+                organizationId: conversation.organizationId,
+                visitorId: conversation.visitorId ?? null,
+                userId: event.actorUserId,
+                aiAgentId: event.actorAiAgentId,
+                event: {
+                        id: event.id,
+                        conversationId: event.conversationId,
+                        organizationId: event.organizationId,
+                        type: event.type,
+                        actorUserId: event.actorUserId,
+                        actorAiAgentId: event.actorAiAgentId,
+                        targetUserId: event.targetUserId,
+                        targetAiAgentId: event.targetAiAgentId,
+                        message: event.message ?? null,
+                        metadata,
+                        createdAt: event.createdAt,
+                        updatedAt: event.createdAt,
+                        deletedAt: null,
+                },
+        } satisfies RealtimeEventData<"conversationEventCreated">;
+}
+
+export async function emitConversationEventCreated(params: TimelineEventParams) {
+        const payload = serializeConversationEventForRealtime(params);
+        await realtime.emit("conversationEventCreated", payload);
 }

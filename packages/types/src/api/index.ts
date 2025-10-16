@@ -2,6 +2,7 @@
 export * from "./common";
 export * from "./contact";
 export * from "./conversation";
+export * from "./conversation-event";
 export * from "./message";
 export * from "./messages";
 export * from "./organization";

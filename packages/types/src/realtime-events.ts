@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { visitorResponseSchema } from "./api/visitor";
-import { MessageType, MessageVisibility } from "./enums";
+import { ConversationEventType, MessageType, MessageVisibility } from "./enums";
 import { conversationSchema } from "./schemas";
 import { conversationHeaderSchema } from "./trpc/conversation";
 
@@ -46,18 +46,25 @@ export const realtimeSchema = {
 		isTyping: z.boolean(),
 		visitorPreview: z.string().max(2000).nullable().optional(),
 	}),
-	conversationEventCreated: baseRealtimeEvent.extend({
-		conversationId: z.string(),
-		aiAgentId: z.string().nullable(),
-		event: z.object({
-			id: z.string(),
-			conversationId: z.string(),
-			organizationId: z.string(),
-			type: z.string(),
-			actorUserId: z.string().nullable(),
-			actorAiAgentId: z.string().nullable(),
-		}),
-	}),
+        conversationEventCreated: baseRealtimeEvent.extend({
+                conversationId: z.string(),
+                aiAgentId: z.string().nullable(),
+                event: z.object({
+                        id: z.string(),
+                        conversationId: z.string(),
+                        organizationId: z.string(),
+                        type: z.nativeEnum(ConversationEventType),
+                        actorUserId: z.string().nullable(),
+                        actorAiAgentId: z.string().nullable(),
+                        targetUserId: z.string().nullable(),
+                        targetAiAgentId: z.string().nullable(),
+                        message: z.string().nullable().optional(),
+                        metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+                        createdAt: z.string(),
+                        updatedAt: z.string(),
+                        deletedAt: z.string().nullable(),
+                }),
+        }),
 	messageCreated: baseRealtimeEvent.extend({
 		message: z.object({
 			id: z.string(),

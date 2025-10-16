@@ -8,6 +8,7 @@ export * from "./use-conversation";
 export * from "./use-conversation-auto-seen";
 export * from "./use-conversation-history-page";
 export * from "./use-conversation-lifecycle";
+export * from "./use-conversation-events";
 export * from "./use-conversation-messages";
 export * from "./use-conversation-page";
 export * from "./use-conversation-seen";

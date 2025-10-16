@@ -82,11 +82,11 @@ export function SupportRealtimeProvider({
 				// Update the seen store so the UI reflects who has seen messages
 				applyConversationSeenEvent(event);
 			},
-			conversationTyping: (
-				_data: unknown,
-				{
-					event,
-					context,
+                        conversationTyping: (
+                                _data: unknown,
+                                {
+                                        event,
+                                        context,
 				}: {
 					event: RealtimeEvent<"conversationTyping">;
 					context: SupportRealtimeContext;
@@ -100,23 +100,42 @@ export function SupportRealtimeProvider({
 				}
 
 				// Update typing store, but ignore events from the current visitor (their own typing)
-				// Note: We use context.visitorId which is fresh from the context object
-				applyConversationTypingEvent(event, {
-					ignoreVisitorId: context.visitorId,
-				});
-			},
-		}),
-		// Empty dependencies is fine here since we use the context parameter
-		// which always has fresh data from the memoized realtimeContext
-		[]
-	);
+                                // Note: We use context.visitorId which is fresh from the context object
+                                applyConversationTypingEvent(event, {
+                                        ignoreVisitorId: context.visitorId,
+                                });
+                        },
+                        conversationEventCreated: (
+                                _data: unknown,
+                                {
+                                        event,
+                                        context,
+                                }: {
+                                        event: RealtimeEvent<"conversationEventCreated">;
+                                        context: SupportRealtimeContext;
+                                }
+                        ) => {
+                                if (
+                                        context.websiteId &&
+                                        event.payload.websiteId !== context.websiteId
+                                ) {
+                                        return;
+                                }
 
-	useRealtime<SupportRealtimeContext>({
-		context: realtimeContext,
-		events,
-		websiteId: realtimeContext.websiteId,
-		visitorId: website?.visitor?.id ?? null,
-	});
+                                context.client.handleRealtimeEvent(event);
+                        },
+                }),
+                // Empty dependencies is fine here since we use the context parameter
+                // which always has fresh data from the memoized realtimeContext
+                []
+        );
+
+        useRealtime<SupportRealtimeContext>({
+                context: realtimeContext,
+                events,
+                websiteId: realtimeContext.websiteId,
+                visitorId: website?.visitor?.id ?? null,
+        });
 
 	return <>{children}</>;
 }
