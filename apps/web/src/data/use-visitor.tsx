@@ -24,6 +24,8 @@ export function useVisitor({
 			websiteSlug,
 			visitorId,
 		}),
+		staleTime: 0,
+		refetchOnMount: "always",
 	});
 
 	return {
