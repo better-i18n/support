@@ -1,11 +1,15 @@
 import { z } from "zod";
 import { visitorProfileSchema } from "../api/visitor";
 import {
-	ConversationPriority,
-	ConversationSentiment,
-	ConversationStatus,
+        ConversationPriority,
+        ConversationSentiment,
+        ConversationStatus,
 } from "../enums";
-import { conversationSeenSchema, messageSchema } from "../schemas";
+import {
+        conversationEventSchema,
+        conversationSeenSchema,
+        messageSchema,
+} from "../schemas";
 
 export const conversationStatusSchema = z.enum([
 	ConversationStatus.OPEN,
@@ -87,12 +91,34 @@ export const conversationHeaderSchema = z.object({
 });
 
 export const listConversationHeadersResponseSchema = z.object({
-	items: z.array(conversationHeaderSchema),
-	nextCursor: z.string().nullable(),
+        items: z.array(conversationHeaderSchema),
+        nextCursor: z.string().nullable(),
 });
 
 export type ConversationMutationResponse = z.infer<
-	typeof conversationMutationResponseSchema
+        typeof conversationMutationResponseSchema
 >;
 
 export type ConversationHeader = z.infer<typeof conversationHeaderSchema>;
+
+export const conversationTimelineItemSchema = z.discriminatedUnion("type", [
+        z.object({
+                type: z.literal("message"),
+                message: messageSchema,
+        }),
+        z.object({
+                type: z.literal("event"),
+                event: conversationEventSchema,
+        }),
+]);
+
+export const getConversationTimelineResponseSchema = z.object({
+        items: z.array(conversationTimelineItemSchema),
+        nextCursor: z.string().nullable(),
+});
+
+export type ConversationTimelineItem = z.infer<typeof conversationTimelineItemSchema>;
+
+export type GetConversationTimelineResponse = z.infer<
+        typeof getConversationTimelineResponseSchema
+>;

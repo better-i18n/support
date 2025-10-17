@@ -3,22 +3,33 @@ import type { MessageType, MessageVisibility } from "@cossistant/types";
 import type { RealtimeEvent } from "@cossistant/types/realtime-events";
 import type { ConversationHeader } from "@/data/conversation-header-cache";
 import {
-	type ConversationMessage,
-	upsertConversationMessageInCache,
+        type ConversationMessage,
+        upsertConversationMessageInCache,
 } from "@/data/conversation-message-cache";
+import { upsertConversationTimelineMessageInCache } from "@/data/conversation-timeline-cache";
 import type { DashboardRealtimeContext } from "../types";
 import { forEachConversationHeadersQuery } from "./utils/conversation-headers";
 
 type MessageCreatedEvent = RealtimeEvent<"messageCreated">;
 
 type ConversationMessagesQueryInput = {
-	conversationId?: string;
-	websiteSlug?: string;
+        conversationId?: string;
+        websiteSlug?: string;
 };
 
 type QueryKeyInput = {
-	input?: ConversationMessagesQueryInput;
-	type?: string;
+        input?: ConversationMessagesQueryInput;
+        type?: string;
+};
+
+type ConversationTimelineQueryParams = {
+        conversationId?: string;
+        websiteSlug?: string;
+        limit?: number;
+};
+
+type TimelineQueryMarker = {
+        type?: string;
 };
 
 function toConversationMessage(
@@ -61,13 +72,38 @@ function extractQueryInput(
 }
 
 function isInfiniteQueryKey(queryKey: readonly unknown[]): boolean {
-	const marker = queryKey[2];
-	return Boolean(
-		marker &&
-			typeof marker === "object" &&
-			"type" in marker &&
-			(marker as QueryKeyInput).type === "infinite"
-	);
+        const marker = queryKey[2];
+        return Boolean(
+                marker &&
+                        typeof marker === "object" &&
+                        "type" in marker &&
+                        (marker as QueryKeyInput).type === "infinite"
+        );
+}
+
+function extractTimelineParams(
+        queryKey: readonly unknown[]
+): ConversationTimelineQueryParams | null {
+        if (queryKey.length < 3) {
+                return null;
+        }
+
+        const params = queryKey[2];
+        if (!params || typeof params !== "object") {
+                return null;
+        }
+
+        return params as ConversationTimelineQueryParams;
+}
+
+function isTimelineInfiniteQueryKey(queryKey: readonly unknown[]): boolean {
+        const marker = queryKey[3];
+        return Boolean(
+                marker &&
+                        typeof marker === "object" &&
+                        "type" in marker &&
+                        (marker as TimelineQueryMarker).type === "infinite"
+        );
 }
 
 export const handleMessageCreated = ({
@@ -91,11 +127,11 @@ export const handleMessageCreated = ({
 		.getQueryCache()
 		.findAll({ queryKey: [["conversation", "getConversationMessages"]] });
 
-	for (const query of queries) {
-		const queryKey = query.queryKey as readonly unknown[];
+        for (const query of queries) {
+                const queryKey = query.queryKey as readonly unknown[];
 
-		if (!isInfiniteQueryKey(queryKey)) {
-			continue;
+                if (!isInfiniteQueryKey(queryKey)) {
+                        continue;
 		}
 
 		const input = extractQueryInput(queryKey);
@@ -111,12 +147,43 @@ export const handleMessageCreated = ({
 			continue;
 		}
 
-		upsertConversationMessageInCache(
-			queryClient,
-			queryKey,
-			conversationMessage
-		);
-	}
+                upsertConversationMessageInCache(
+                        queryClient,
+                        queryKey,
+                        conversationMessage
+                );
+        }
+
+        const timelineQueries = queryClient
+                .getQueryCache()
+                .findAll({ queryKey: ["conversation", "timeline"] });
+
+        for (const query of timelineQueries) {
+                const queryKey = query.queryKey as readonly unknown[];
+
+                if (!isTimelineInfiniteQueryKey(queryKey)) {
+                        continue;
+                }
+
+                const params = extractTimelineParams(queryKey);
+                if (!params) {
+                        continue;
+                }
+
+                if (params.conversationId !== payload.conversationId) {
+                        continue;
+                }
+
+                if (params.websiteSlug !== website.slug) {
+                        continue;
+                }
+
+                upsertConversationTimelineMessageInCache(
+                        queryClient,
+                        queryKey,
+                        conversationMessage
+                );
+        }
 
 	const existingHeader =
 		context.queryNormalizer.getObjectById<ConversationHeader>(

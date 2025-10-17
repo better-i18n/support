@@ -22,32 +22,34 @@ export function usePrefetchConversationData() {
 	}: PrefetchConversationDataOptions) => {
 		const prefetchPromises: Promise<void>[] = [];
 
-		// Prefetch conversation events
-		const eventsQueryOptions =
-			trpc.conversation.getConversationEvents.queryOptions({
-				websiteSlug,
-				conversationId,
-				limit,
-				cursor: null,
-			});
+                // Prefetch combined conversation timeline (messages + events)
+                const timelineQueryOptions =
+                        trpc.conversation.getTimeline.queryOptions({
+                                websiteSlug,
+                                conversationId,
+                                limit,
+                                cursor: null,
+                        });
 
-		// Check if events data is already cached
-		const eventsCachedData = queryClient.getQueryData(
-			eventsQueryOptions.queryKey
-		);
+                const timelineCachedData = queryClient.getQueryData(
+                        timelineQueryOptions.queryKey
+                );
 
-		if (!eventsCachedData) {
-			prefetchPromises.push(
-				queryClient.prefetchQuery(eventsQueryOptions).catch((error) => {
-					console.warn("Failed to prefetch conversation events:", error);
-				})
-			);
-		}
+                if (!timelineCachedData) {
+                        prefetchPromises.push(
+                                queryClient.prefetchQuery(timelineQueryOptions).catch((error) => {
+                                        console.warn(
+                                                "Failed to prefetch conversation timeline:",
+                                                error
+                                        );
+                                })
+                        );
+                }
 
-		// Prefetch conversation messages
-		const messagesQueryOptions =
-			trpc.conversation.getConversationMessages.queryOptions({
-				websiteSlug,
+                // Prefetch conversation messages
+                const messagesQueryOptions =
+                        trpc.conversation.getConversationMessages.queryOptions({
+                                websiteSlug,
 				conversationId,
 				limit,
 				cursor: null,

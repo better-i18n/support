@@ -6,9 +6,9 @@ export * from "./presence";
 export * from "./realtime-events";
 export type { Conversation, ConversationEvent, Message } from "./schemas";
 export {
-	conversationEventSchema,
-	conversationSchema,
-	messageSchema,
+        conversationEventSchema,
+        conversationSchema,
+        messageSchema,
 } from "./schemas";
 export * from "./trpc/contact";
 export * from "./trpc/conversation";

@@ -5,11 +5,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
 import {
-	type ConversationMessage,
-	createConversationMessagesInfiniteQueryKey,
-	removeConversationMessageFromCache,
-	upsertConversationMessageInCache,
+        type ConversationMessage,
+        createConversationMessagesInfiniteQueryKey,
+        removeConversationMessageFromCache,
+        upsertConversationMessageInCache,
 } from "@/data/conversation-message-cache";
+import {
+        createConversationTimelineInfiniteQueryKey,
+        removeConversationTimelineMessageFromCache,
+        upsertConversationTimelineMessageInCache,
+} from "@/data/conversation-timeline-cache";
 import { useTRPC } from "@/lib/trpc/client";
 
 type SubmitPayload = {
@@ -40,17 +45,27 @@ export function useSendConversationMessage({
 	const trpc = useTRPC();
 	const queryClient = useQueryClient();
 
-	const messagesQueryKey = useMemo(
-		() =>
-			createConversationMessagesInfiniteQueryKey(
-				trpc.conversation.getConversationMessages.queryOptions({
-					conversationId,
-					websiteSlug,
-					limit: pageLimit,
-				}).queryKey
-			),
-		[conversationId, pageLimit, trpc, websiteSlug]
-	);
+        const messagesQueryKey = useMemo(
+                () =>
+                        createConversationMessagesInfiniteQueryKey(
+                                trpc.conversation.getConversationMessages.queryOptions({
+                                        conversationId,
+                                        websiteSlug,
+                                        limit: pageLimit,
+                                }).queryKey
+                        ),
+                [conversationId, pageLimit, trpc, websiteSlug]
+        );
+
+        const timelineQueryKey = useMemo(
+                () =>
+                        createConversationTimelineInfiniteQueryKey({
+                                conversationId,
+                                websiteSlug,
+                                limit: pageLimit,
+                        }),
+                [conversationId, pageLimit, websiteSlug]
+        );
 
 	const { mutateAsync: sendMessage, isPending } = useMutation(
 		trpc.conversation.sendMessage.mutationOptions()
@@ -87,13 +102,21 @@ export function useSendConversationMessage({
 				visibility: MessageVisibility.PUBLIC,
 			};
 
-			await queryClient.cancelQueries({ queryKey: messagesQueryKey });
+                        await Promise.all([
+                                queryClient.cancelQueries({ queryKey: messagesQueryKey }),
+                                queryClient.cancelQueries({ queryKey: timelineQueryKey }),
+                        ]);
 
-			upsertConversationMessageInCache(
-				queryClient,
-				messagesQueryKey,
-				optimisticMessage
-			);
+                        upsertConversationMessageInCache(
+                                queryClient,
+                                messagesQueryKey,
+                                optimisticMessage
+                        );
+                        upsertConversationTimelineMessageInCache(
+                                queryClient,
+                                timelineQueryKey,
+                                optimisticMessage
+                        );
 
 			try {
 				const response = await sendMessage({
@@ -106,11 +129,16 @@ export function useSendConversationMessage({
 
 				const { message: createdMessage } = response;
 
-				removeConversationMessageFromCache(
-					queryClient,
-					messagesQueryKey,
-					optimisticId
-				);
+                                removeConversationMessageFromCache(
+                                        queryClient,
+                                        messagesQueryKey,
+                                        optimisticId
+                                );
+                                removeConversationTimelineMessageFromCache(
+                                        queryClient,
+                                        timelineQueryKey,
+                                        optimisticId
+                                );
 
 				const normalizedMessage: ConversationMessage = {
 					...createdMessage,
@@ -121,30 +149,41 @@ export function useSendConversationMessage({
 						: null,
 				};
 
-				upsertConversationMessageInCache(
-					queryClient,
-					messagesQueryKey,
-					normalizedMessage
-				);
-			} catch (error) {
-				removeConversationMessageFromCache(
-					queryClient,
-					messagesQueryKey,
-					optimisticId
-				);
+                                upsertConversationMessageInCache(
+                                        queryClient,
+                                        messagesQueryKey,
+                                        normalizedMessage
+                                );
+                                upsertConversationTimelineMessageInCache(
+                                        queryClient,
+                                        timelineQueryKey,
+                                        normalizedMessage
+                                );
+                        } catch (error) {
+                                removeConversationMessageFromCache(
+                                        queryClient,
+                                        messagesQueryKey,
+                                        optimisticId
+                                );
+                                removeConversationTimelineMessageFromCache(
+                                        queryClient,
+                                        timelineQueryKey,
+                                        optimisticId
+                                );
 
-				throw error;
-			}
-		},
-		[
-			conversationId,
-			currentUserId,
-			messagesQueryKey,
-			queryClient,
-			sendMessage,
-			websiteSlug,
-		]
-	);
+                                throw error;
+                        }
+                },
+                [
+                        conversationId,
+                        currentUserId,
+                        messagesQueryKey,
+                        timelineQueryKey,
+                        queryClient,
+                        sendMessage,
+                        websiteSlug,
+                ]
+        );
 
 	return {
 		submit,

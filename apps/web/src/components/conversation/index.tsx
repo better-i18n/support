@@ -6,8 +6,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useInboxes } from "@/contexts/inboxes";
 import { useWebsiteMembers } from "@/contexts/website";
 import { useConversationActions } from "@/data/use-conversation-actions";
-import { useConversationEvents } from "@/data/use-conversation-events";
-import { useConversationMessages } from "@/data/use-conversation-messages";
+import { useConversationTimeline } from "@/data/use-conversation-timeline";
 import { useVisitor } from "@/data/use-visitor";
 import { useAgentTypingReporter } from "@/hooks/use-agent-typing-reporter";
 import { useSendConversationMessage } from "@/hooks/use-send-conversation-message";
@@ -91,21 +90,16 @@ export function Conversation({
 
 	const lastMarkedMessageIdRef = useRef<string | null>(null);
 
-	const {
-		messages,
-		fetchNextPage: fetchNextPageMessages,
-		hasNextPage: hasNextPageMessages,
-	} = useConversationMessages({
-		conversationId,
-		websiteSlug,
-		options: { limit: MESSAGES_PAGE_LIMIT },
-	});
-
-	const {
-		events,
-		fetchNextPage: fetchNextPageEvents,
-		hasNextPage: hasNextPageEvents,
-	} = useConversationEvents({ conversationId, websiteSlug });
+        const {
+                messages,
+                events,
+                fetchNextPage: fetchNextPageTimeline,
+                hasNextPage: hasNextPageTimeline,
+        } = useConversationTimeline({
+                conversationId,
+                websiteSlug,
+                limit: MESSAGES_PAGE_LIMIT,
+        });
 
 	const { visitor, isLoading } = useVisitor({ visitorId, websiteSlug });
 
@@ -160,19 +154,13 @@ export function Conversation({
 		selectedConversation,
 	]);
 
-	const onFetchMoreIfNeeded = async () => {
-		const promises: Promise<unknown>[] = [];
+        const onFetchMoreIfNeeded = async () => {
+                if (!hasNextPageTimeline) {
+                        return;
+                }
 
-		if (hasNextPageMessages) {
-			promises.push(fetchNextPageMessages());
-		}
-
-		if (hasNextPageEvents) {
-			promises.push(fetchNextPageEvents());
-		}
-
-		await Promise.all(promises);
-	};
+                await fetchNextPageTimeline();
+        };
 
 	if (!visitor) {
 		return null;

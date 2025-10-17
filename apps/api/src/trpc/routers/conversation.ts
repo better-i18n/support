@@ -10,10 +10,11 @@ import {
 	unarchiveConversation,
 } from "@api/db/mutations/conversation";
 import {
-	getConversationById,
-	getConversationEvents,
-	listConversationsHeaders,
+        getConversationById,
+        getConversationEvents,
+        listConversationsHeaders,
 } from "@api/db/queries/conversation";
+import { getConversationTimeline } from "@api/db/queries/conversation-timeline";
 import { getConversationMessages } from "@api/db/queries/message";
 import { getCompleteVisitorWithContact } from "@api/db/queries/visitor";
 import { getWebsiteBySlugWithAccess } from "@api/db/queries/website";
@@ -23,14 +24,15 @@ import {
 } from "@api/utils/conversation-realtime";
 import { createMessage } from "@api/utils/message";
 import {
-	type ContactMetadata,
-	conversationEventSchema,
-	conversationMutationResponseSchema,
-	listConversationHeadersResponseSchema,
-	MessageType,
-	MessageVisibility,
-	messageSchema,
-	visitorResponseSchema,
+        type ContactMetadata,
+        conversationEventSchema,
+        conversationMutationResponseSchema,
+        getConversationTimelineResponseSchema,
+        listConversationHeadersResponseSchema,
+        MessageType,
+        MessageVisibility,
+        messageSchema,
+        visitorResponseSchema,
 } from "@cossistant/types";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -138,11 +140,11 @@ export const conversationRouter = createTRPCRouter({
 			};
 		}),
 
-	getConversationEvents: protectedProcedure
-		.input(
-			z.object({
-				conversationId: z.string(),
-				websiteSlug: z.string(),
+        getConversationEvents: protectedProcedure
+                .input(
+                        z.object({
+                                conversationId: z.string(),
+                                websiteSlug: z.string(),
 				limit: z.number().int().min(1).max(100).optional().default(50),
 				cursor: z.union([z.string(), z.date()]).nullable().optional(),
 			})
@@ -188,18 +190,93 @@ export const conversationRouter = createTRPCRouter({
 				cursor: input.cursor,
 			});
 
-			return {
-				items: result.events.map((event) => ({
-					...event,
-					metadata: event.metadata as Record<string, unknown>,
-					updatedAt: event.createdAt,
-					deletedAt: null,
-					message: event.message ?? undefined,
-				})),
-				nextCursor: result.nextCursor,
-				hasNextPage: result.hasNextPage,
-			};
-		}),
+                        return {
+                                items: result.events.map((event) => ({
+                                        ...event,
+                                        metadata: event.metadata as Record<string, unknown>,
+                                        updatedAt: event.createdAt,
+                                        deletedAt: null,
+                                        message: event.message ?? undefined,
+                                })),
+                                nextCursor: result.nextCursor,
+                                hasNextPage: result.hasNextPage,
+                        };
+                }),
+
+        getTimeline: protectedProcedure
+                .input(
+                        z.object({
+                                conversationId: z.string(),
+                                websiteSlug: z.string(),
+                                limit: z.number().int().min(1).max(100).optional().default(50),
+                                cursor: z.string().nullable().optional(),
+                        })
+                )
+                .output(getConversationTimelineResponseSchema)
+                .query(async ({ ctx: { db, user }, input }) => {
+                        const [websiteData, conversation] = await Promise.all([
+                                getWebsiteBySlugWithAccess(db, {
+                                        userId: user.id,
+                                        websiteSlug: input.websiteSlug,
+                                }),
+                                getConversationById(db, {
+                                        conversationId: input.conversationId,
+                                }),
+                        ]);
+
+                        if (!websiteData) {
+                                throw new TRPCError({
+                                        code: "NOT_FOUND",
+                                        message: "Website not found or access denied",
+                                });
+                        }
+
+                        if (!conversation || conversation.websiteId !== websiteData.id) {
+                                throw new TRPCError({
+                                        code: "NOT_FOUND",
+                                        message: "Conversation not found",
+                                });
+                        }
+
+                        const result = await getConversationTimeline(db, {
+                                conversationId: input.conversationId,
+                                websiteId: websiteData.id,
+                                limit: input.limit,
+                                cursor: input.cursor ?? null,
+                        });
+
+                        return {
+                                items: result.items.map((item) => {
+                                        if (item.type === "message") {
+                                                return {
+                                                        type: "message" as const,
+                                                        message: {
+                                                                ...item.message,
+                                                                deletedAt: item.message.deletedAt ?? null,
+                                                        },
+                                                };
+                                        }
+
+                                        const metadata = item.event.metadata as
+                                                | Record<string, unknown>
+                                                | null
+                                                | undefined;
+
+                                        return {
+                                                type: "event" as const,
+                                                event: {
+                                                        ...item.event,
+                                                        metadata: metadata ?? undefined,
+                                                        message: item.event.message ?? undefined,
+                                                        updatedAt:
+                                                                item.event.updatedAt ?? item.event.createdAt,
+                                                        deletedAt: item.event.deletedAt ?? null,
+                                                },
+                                        };
+                                }),
+                                nextCursor: result.nextCursor,
+                        } satisfies z.infer<typeof getConversationTimelineResponseSchema>;
+                }),
 
 	sendMessage: protectedProcedure
 		.input(

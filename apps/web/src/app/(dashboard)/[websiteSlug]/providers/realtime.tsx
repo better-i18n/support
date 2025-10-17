@@ -10,6 +10,7 @@ import { type ReactNode, useMemo } from "react";
 import { useUserSession, useWebsite } from "@/contexts/website";
 import { useTRPC } from "@/lib/trpc/client";
 import { handleConversationCreated } from "./events/handlers/conversation-created";
+import { handleConversationEventCreated } from "./events/handlers/conversation-event-created";
 import { handleConversationSeen } from "./events/handlers/conversation-seen";
 import { handleConversationTyping } from "./events/handlers/conversation-typing";
 import { handleMessageCreated } from "./events/handlers/message-created";
@@ -54,14 +55,22 @@ export function Realtime({ children }: { children: ReactNode }) {
 					});
 				},
 			],
-			messageCreated: [
-				(_data, meta) => {
-					handleMessageCreated({
-						event: meta.event,
-						context: meta.context,
-					});
-				},
-			],
+                        messageCreated: [
+                                (_data, meta) => {
+                                        handleMessageCreated({
+                                                event: meta.event,
+                                                context: meta.context,
+                                        });
+                                },
+                        ],
+                        conversationEventCreated: [
+                                (_data, meta) => {
+                                        handleConversationEventCreated({
+                                                event: meta.event,
+                                                context: meta.context,
+                                        });
+                                },
+                        ],
 			conversationSeen: [
 				(_data, meta) => {
 					void handleConversationSeen({
