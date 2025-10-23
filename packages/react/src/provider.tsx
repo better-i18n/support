@@ -23,16 +23,16 @@ export type SupportProviderProps = {
 export type CossistantProviderProps = SupportProviderProps;
 
 export type CossistantContextValue = {
-	website: PublicWebsiteResponse | null;
-	defaultMessages: DefaultMessage[];
-	quickOptions: string[];
-	setDefaultMessages: (messages: DefaultMessage[]) => void;
-	setQuickOptions: (options: string[]) => void;
-	unreadCount: number;
-	setUnreadCount: (count: number) => void;
-	isLoading: boolean;
-	error: Error | null;
-	client: CossistantClient;
+        website: PublicWebsiteResponse | null;
+        defaultMessages: DefaultMessage[];
+        quickOptions: string[];
+        setDefaultMessages: (messages: DefaultMessage[]) => void;
+        setQuickOptions: (options: string[]) => void;
+        unreadCount: number;
+        setUnreadCount: (count: number) => void;
+        isLoading: boolean;
+        error: Error | null;
+        client: CossistantClient;
 };
 
 type WebsiteData = NonNullable<CossistantContextValue["website"]>;
@@ -48,8 +48,105 @@ export type UseSupportValue = CossistantContextValue & {
 };
 
 const SupportContext = React.createContext<CossistantContextValue | undefined>(
-	undefined
+        undefined
 );
+
+function createUnavailableClient(error: Error): CossistantClient {
+        const fallbackError = error;
+
+        return new Proxy(
+                {},
+                {
+                        get() {
+                                throw fallbackError;
+                        },
+                }
+        ) as CossistantClient;
+}
+
+type SupportProviderWithClientProps = SupportProviderProps & {
+        client: CossistantClient;
+        clientError: Error | null;
+        defaultMessagesState: DefaultMessage[];
+        quickOptionsState: string[];
+        setDefaultMessages: (messages: DefaultMessage[]) => void;
+        setQuickOptions: (options: string[]) => void;
+        unreadCount: number;
+        setUnreadCount: (count: number) => void;
+};
+
+function SupportProviderWithClient({
+        children,
+        client,
+        clientError,
+        autoConnect,
+        onWsConnect,
+        onWsDisconnect,
+        onWsError,
+        publicKey,
+        wsUrl,
+        defaultMessagesState,
+        quickOptionsState,
+        setDefaultMessages,
+        setQuickOptions,
+        unreadCount,
+        setUnreadCount,
+}: SupportProviderWithClientProps) {
+        const { website, isLoading, error: websiteError } = useWebsiteStore(client);
+
+        React.useEffect(() => {
+                if (website) {
+                        // @ts-expect-error internal priming: safe in our library context
+                        client.restClient?.setWebsiteContext?.(website.id, website.visitor?.id);
+                }
+        }, [client, website]);
+
+        const error = clientError ?? websiteError;
+
+        const value = React.useMemo<CossistantContextValue>(
+                () => ({
+                        website,
+                        unreadCount,
+                        setUnreadCount,
+                        isLoading,
+                        error,
+                        client,
+                        defaultMessages: defaultMessagesState,
+                        setDefaultMessages,
+                        quickOptions: quickOptionsState,
+                        setQuickOptions,
+                }),
+                [
+                        website,
+                        unreadCount,
+                        isLoading,
+                        error,
+                        client,
+                        defaultMessagesState,
+                        quickOptionsState,
+                        setDefaultMessages,
+                        setQuickOptions,
+                        setUnreadCount,
+                ]
+        );
+
+        return (
+                <SupportContext.Provider value={value}>
+                        <WebSocketProvider
+                                autoConnect={autoConnect}
+                                onConnect={onWsConnect}
+                                onDisconnect={onWsDisconnect}
+                                onError={onWsError}
+                                publicKey={publicKey}
+                                visitorId={website?.visitor?.id}
+                                websiteId={website?.id}
+                                wsUrl={wsUrl}
+                        >
+                                {children}
+                        </WebSocketProvider>
+                </SupportContext.Provider>
+        );
+}
 
 /**
  * Internal implementation that wires the REST client and websocket provider
@@ -87,82 +184,90 @@ function SupportProviderInner({
 		}
 	}, [quickOptions]);
 
-	const { client } = useClient(publicKey, apiUrl, wsUrl);
-	const { website, isLoading, error: websiteError } = useWebsiteStore(client);
+        const { client, error: clientError } = useClient(publicKey, apiUrl, wsUrl);
 
-	// Prefetch conversations
-	// useConversations(client, {
-	//   enabled: !!website && !!website.visitor && isClientPrimed,
-	// });
+        const setDefaultMessages = React.useCallback(
+                (messages: DefaultMessage[]) => _setDefaultMessages(messages),
+                []
+        );
 
-	const error = websiteError;
+        const setQuickOptions = React.useCallback(
+                (options: string[]) => _setQuickOptions(options),
+                []
+        );
 
-	// Prime REST client with website/visitor context so headers are sent reliably
-	React.useEffect(() => {
-		if (website) {
-			// @ts-expect-error internal priming: safe in our library context
-			client.restClient?.setWebsiteContext?.(website.id, website.visitor?.id);
-		}
-	}, [client, website]);
+        const setUnreadCountStable = React.useCallback(
+                (count: number) => setUnreadCount(count),
+                []
+        );
 
-	const setDefaultMessages = React.useCallback(
-		(messages: DefaultMessage[]) => _setDefaultMessages(messages),
-		[]
-	);
+        const fallbackError = React.useMemo(
+                () =>
+                        clientError ??
+                        new Error(
+                                "Public key is required. Please provide it as a prop or set NEXT_PUBLIC_COSSISTANT_KEY environment variable."
+                        ),
+                [clientError]
+        );
 
-	const setQuickOptions = React.useCallback(
-		(options: string[]) => _setQuickOptions(options),
-		[]
-	);
+        const unavailableClient = React.useMemo(
+                () => createUnavailableClient(fallbackError),
+                [fallbackError]
+        );
 
-	const setUnreadCountStable = React.useCallback(
-		(count: number) => setUnreadCount(count),
-		[]
-	);
+        if (!client) {
+                const value = React.useMemo<CossistantContextValue>(
+                        () => ({
+                                website: null,
+                                unreadCount,
+                                setUnreadCount: setUnreadCountStable,
+                                isLoading: false,
+                                error: fallbackError,
+                                client: unavailableClient,
+                                defaultMessages: _defaultMessages,
+                                setDefaultMessages,
+                                quickOptions: _quickOptions,
+                                setQuickOptions,
+                        }),
+                        [
+                                unreadCount,
+                                setUnreadCountStable,
+                                fallbackError,
+                                unavailableClient,
+                                _defaultMessages,
+                                _quickOptions,
+                                setDefaultMessages,
+                                setQuickOptions,
+                        ]
+                );
 
-	const value = React.useMemo<CossistantContextValue>(
-		() => ({
-			website,
-			unreadCount,
-			setUnreadCount: setUnreadCountStable,
-			isLoading,
-			error,
-			client,
-			defaultMessages: _defaultMessages,
-			setDefaultMessages,
-			quickOptions: _quickOptions,
-			setQuickOptions,
-		}),
-		[
-			website,
-			unreadCount,
-			isLoading,
-			error,
-			client,
-			_defaultMessages,
-			_quickOptions,
-			setDefaultMessages,
-			setQuickOptions,
-			setUnreadCountStable,
-		]
-	);
+                return (
+                        <SupportContext.Provider value={value}>
+                                {children}
+                        </SupportContext.Provider>
+                );
+        }
 
-	return (
-		<SupportContext.Provider value={value}>
-			<WebSocketProvider
-				autoConnect={autoConnect}
-				onConnect={onWsConnect}
-				onDisconnect={onWsDisconnect}
-				onError={onWsError}
-				publicKey={publicKey}
-				visitorId={website?.visitor?.id}
-				websiteId={website?.id}
-				wsUrl={wsUrl}
-			>
-				{children}
-			</WebSocketProvider>
-		</SupportContext.Provider>
-	);
+        return (
+                <SupportProviderWithClient
+                        autoConnect={autoConnect}
+                        client={client}
+                        clientError={clientError}
+                        defaultMessagesState={_defaultMessages}
+                        onWsConnect={onWsConnect}
+                        onWsDisconnect={onWsDisconnect}
+                        onWsError={onWsError}
+                        publicKey={publicKey}
+                        quickOptionsState={_quickOptions}
+                        setDefaultMessages={setDefaultMessages}
+                        setQuickOptions={setQuickOptions}
+                        setUnreadCount={setUnreadCountStable}
+                        unreadCount={unreadCount}
+                        wsUrl={wsUrl}
+                >
+                        {children}
+                </SupportProviderWithClient>
+        );
 }
 
 /**

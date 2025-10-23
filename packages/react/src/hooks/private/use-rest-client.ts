@@ -5,8 +5,8 @@ import type { CossistantConfig } from "@cossistant/types";
 import { useMemo } from "react";
 
 export type UseClientResult = {
-	client: CossistantClient;
-	error: Error | null;
+        client: CossistantClient | null;
+        error: Error | null;
 };
 
 /**
@@ -16,36 +16,44 @@ export type UseClientResult = {
  * `error` field.
  */
 export function useClient(
-	publicKey: string | undefined,
-	apiUrl = "https://api.cossistant.com/v1",
-	wsUrl = "wss://api.cossistant.com/ws"
+        publicKey: string | undefined,
+        apiUrl = "https://api.cossistant.com/v1",
+        wsUrl = "wss://api.cossistant.com/ws"
 ): UseClientResult {
-	const client = useMemo(() => {
-		const keyFromEnv =
-			process.env.NEXT_PUBLIC_COSSISTANT_KEY ||
-			process.env.COSSISTANT_PUBLIC_KEY;
-		const keyToUse = publicKey ?? keyFromEnv;
+        return useMemo(() => {
+                const keyFromEnv =
+                        process.env.NEXT_PUBLIC_COSSISTANT_KEY ||
+                        process.env.COSSISTANT_PUBLIC_KEY;
+                const keyToUse = publicKey ?? keyFromEnv;
 
-		if (!keyToUse) {
-			throw new Error(
-				"Public key is required. Please provide it as a prop or set NEXT_PUBLIC_COSSISTANT_KEY environment variable."
-			);
-		}
+                if (!keyToUse) {
+                        return {
+                                client: null,
+                                error: new Error(
+                                        "Public key is required. Please provide it as a prop or set NEXT_PUBLIC_COSSISTANT_KEY environment variable."
+                                ),
+                        };
+                }
 
-		const config: CossistantConfig = {
-			apiUrl,
-			wsUrl,
-			publicKey: keyToUse,
-		};
+                const config: CossistantConfig = {
+                        apiUrl,
+                        wsUrl,
+                        publicKey: keyToUse,
+                };
 
-		try {
-			return new CossistantClient(config);
-		} catch (err: unknown) {
-			throw err instanceof Error
-				? err
-				: new Error("Failed to initialize Cossistant client");
-		}
-	}, [publicKey, apiUrl, wsUrl]);
-
-	return { client, error: null };
+                try {
+                        return {
+                                client: new CossistantClient(config),
+                                error: null,
+                        };
+                } catch (err: unknown) {
+                        return {
+                                client: null,
+                                error:
+                                        err instanceof Error
+                                                ? err
+                                                : new Error("Failed to initialize Cossistant client"),
+                        };
+                }
+        }, [publicKey, apiUrl, wsUrl]);
 }
