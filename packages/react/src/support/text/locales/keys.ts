@@ -109,17 +109,27 @@ export const supportTextDefinitions = {
 	"component.conversationEvent.tagRemoved": {
 		variables: { actorName: "" as string },
 	},
-	"component.multimodalInput.placeholder": {
-		variables: undefined,
-	},
-	"component.multimodalInput.remove": {
-		variables: { fileName: "" as string },
-	},
-	"component.navigation.articles": {
-		variables: undefined,
-	},
-	"component.navigation.home": {
-		variables: undefined,
+        "component.multimodalInput.placeholder": {
+                variables: undefined,
+        },
+        "component.multimodalInput.remove": {
+                variables: { fileName: "" as string },
+        },
+        "component.visitorIdentification.title": { variables: undefined },
+        "component.visitorIdentification.description": { variables: undefined },
+        "component.visitorIdentification.emailLabel": { variables: undefined },
+        "component.visitorIdentification.emailPlaceholder": { variables: undefined },
+        "component.visitorIdentification.nameLabel": { variables: undefined },
+        "component.visitorIdentification.nameOptional": { variables: undefined },
+        "component.visitorIdentification.namePlaceholder": { variables: undefined },
+        "component.visitorIdentification.submit": { variables: undefined },
+        "component.visitorIdentification.error.emailRequired": { variables: undefined },
+        "component.visitorIdentification.error.generic": { variables: undefined },
+        "component.navigation.articles": {
+                variables: undefined,
+        },
+        "component.navigation.home": {
+                variables: undefined,
 	},
 	"component.message.timestamp.aiIndicator": {
 		variables: undefined,

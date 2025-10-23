@@ -72,12 +72,25 @@ const es: SupportLocaleMessages = {
 		`${variables.actorName} agregó una etiqueta`,
 	"component.conversationEvent.tagRemoved": ({ variables }) =>
 		`${variables.actorName} quitó una etiqueta`,
-	"component.multimodalInput.placeholder": "Escribe tu mensaje...",
-	"component.multimodalInput.remove": ({ variables }) =>
-		`Eliminar ${variables.fileName}`,
-	"component.navigation.articles": "Artículos",
-	"component.navigation.home": "Inicio",
-	"component.message.timestamp.aiIndicator": "• Agente IA",
+        "component.multimodalInput.placeholder": "Escribe tu mensaje...",
+        "component.multimodalInput.remove": ({ variables }) =>
+                `Eliminar ${variables.fileName}`,
+        "component.visitorIdentification.title": "Mantente en contacto",
+        "component.visitorIdentification.description":
+                "Déjanos tus datos de contacto para que podamos hacer seguimiento si te ausentas.",
+        "component.visitorIdentification.emailLabel": "Correo electrónico",
+        "component.visitorIdentification.emailPlaceholder": "tu@ejemplo.com",
+        "component.visitorIdentification.nameLabel": "Nombre",
+        "component.visitorIdentification.nameOptional": "opcional",
+        "component.visitorIdentification.namePlaceholder": "Ana Pérez",
+        "component.visitorIdentification.submit": "Continuar",
+        "component.visitorIdentification.error.emailRequired":
+                "Introduce un correo electrónico válido.",
+        "component.visitorIdentification.error.generic":
+                "No pudimos guardar tus datos. Inténtalo de nuevo.",
+        "component.navigation.articles": "Artículos",
+        "component.navigation.home": "Inicio",
+        "component.message.timestamp.aiIndicator": "• Agente IA",
 };
 
 export default es;

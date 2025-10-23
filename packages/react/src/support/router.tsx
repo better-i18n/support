@@ -1,4 +1,6 @@
 import type React from "react";
+import { useSupport } from "../provider";
+import { VisitorIdentification } from "./components/visitor-identification";
 import { ArticlesPage } from "./pages/articles";
 import { ConversationPage } from "./pages/conversation";
 import { ConversationHistoryPage } from "./pages/conversation-history";
@@ -12,11 +14,16 @@ import { useSupportNavigation } from "./store/support-store";
  * so the router simply maps navigation state to the appropriate page component.
  */
 export const SupportRouter: React.FC = () => {
-	const { current } = useSupportNavigation();
+        const { visitor } = useSupport();
+        const { current } = useSupportNavigation();
 
-	switch (current.page) {
-		case "HOME":
-			return <HomePage />;
+        if (!visitor?.contact) {
+                return <VisitorIdentification />;
+        }
+
+        switch (current.page) {
+                case "HOME":
+                        return <HomePage />;
 
 		case "ARTICLES":
 			return <ArticlesPage />;

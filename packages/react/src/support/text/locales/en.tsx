@@ -74,12 +74,25 @@ const en: SupportLocaleMessages = {
 		`${variables.actorName} added a tag`,
 	"component.conversationEvent.tagRemoved": ({ variables }) =>
 		`${variables.actorName} removed a tag`,
-	"component.multimodalInput.placeholder": "Type your message...",
-	"component.multimodalInput.remove": ({ variables }) =>
-		`Remove ${variables.fileName}`,
-	"component.navigation.articles": "Articles",
-	"component.navigation.home": "Home",
-	"component.message.timestamp.aiIndicator": "• AI agent",
+        "component.multimodalInput.placeholder": "Type your message...",
+        "component.multimodalInput.remove": ({ variables }) =>
+                `Remove ${variables.fileName}`,
+        "component.visitorIdentification.title": "Stay in touch",
+        "component.visitorIdentification.description":
+                "Leave your contact details so we can follow up if you step away.",
+        "component.visitorIdentification.emailLabel": "Email address",
+        "component.visitorIdentification.emailPlaceholder": "you@example.com",
+        "component.visitorIdentification.nameLabel": "Name",
+        "component.visitorIdentification.nameOptional": "optional",
+        "component.visitorIdentification.namePlaceholder": "Jane Doe",
+        "component.visitorIdentification.submit": "Continue",
+        "component.visitorIdentification.error.emailRequired":
+                "Please enter a valid email address.",
+        "component.visitorIdentification.error.generic":
+                "We couldn't save your details. Please try again.",
+        "component.navigation.articles": "Articles",
+        "component.navigation.home": "Home",
+        "component.message.timestamp.aiIndicator": "• AI agent",
 };
 
 export default en;

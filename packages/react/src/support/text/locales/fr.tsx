@@ -72,12 +72,25 @@ const fr: SupportLocaleMessages = {
 		`${variables.actorName} a ajouté une étiquette`,
 	"component.conversationEvent.tagRemoved": ({ variables }) =>
 		`${variables.actorName} a retiré une étiquette`,
-	"component.multimodalInput.placeholder": "Écrivez votre message...",
-	"component.multimodalInput.remove": ({ variables }) =>
-		`Supprimer ${variables.fileName}`,
-	"component.navigation.articles": "Articles",
-	"component.navigation.home": "Accueil",
-	"component.message.timestamp.aiIndicator": "• Agent IA",
+        "component.multimodalInput.placeholder": "Écrivez votre message...",
+        "component.multimodalInput.remove": ({ variables }) =>
+                `Supprimer ${variables.fileName}`,
+        "component.visitorIdentification.title": "Restez en contact",
+        "component.visitorIdentification.description":
+                "Laissez-nous vos coordonnées afin que nous puissions vous répondre si vous vous absentez.",
+        "component.visitorIdentification.emailLabel": "Adresse e-mail",
+        "component.visitorIdentification.emailPlaceholder": "vous@example.com",
+        "component.visitorIdentification.nameLabel": "Nom",
+        "component.visitorIdentification.nameOptional": "optionnel",
+        "component.visitorIdentification.namePlaceholder": "Jean Dupont",
+        "component.visitorIdentification.submit": "Continuer",
+        "component.visitorIdentification.error.emailRequired":
+                "Veuillez saisir une adresse e-mail valide.",
+        "component.visitorIdentification.error.generic":
+                "Nous n'avons pas pu enregistrer vos informations. Veuillez réessayer.",
+        "component.navigation.articles": "Articles",
+        "component.navigation.home": "Accueil",
+        "component.message.timestamp.aiIndicator": "• Agent IA",
 };
 
 export default fr;
