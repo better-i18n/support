@@ -610,29 +610,29 @@ export const AvatarInput =
 			setCroppedArea(null);
 		}, []);
 
-		const applyCrop = useCallback(async () => {
-			if (!(cropState && croppedArea)) {
-				closeCropper();
-				return;
-			}
+                const applyCrop = useCallback(async () => {
+                        if (!(cropState && croppedArea)) {
+                                closeCropper();
+                                return;
+                        }
 
-			try {
-				const croppedFile = await cropImage({
-					file: cropState.file,
-					cropArea: croppedArea,
-					source: cropState.objectUrl,
-				});
-				await commitFile(croppedFile);
-			} catch (error) {
-				const message =
-					error instanceof Error
-						? error
-						: new Error("Unable to crop selected image");
-				onError?.(message);
-			} finally {
-				closeCropper();
-			}
-		}, [commitFile, cropState, croppedArea, closeCropper, onError]);
+                        try {
+                                const croppedFile = await cropImage({
+                                        file: cropState.file,
+                                        cropArea: croppedArea,
+                                        source: cropState.objectUrl,
+                                });
+                                closeCropper();
+                                await commitFile(croppedFile);
+                        } catch (error) {
+                                closeCropper();
+                                const message =
+                                        error instanceof Error
+                                                ? error
+                                                : new Error("Unable to crop selected image");
+                                onError?.(message);
+                        }
+                }, [commitFile, cropState, croppedArea, closeCropper, onError]);
 
 		const removeAvatar = useCallback(() => {
 			setLocalPreviewUrl((previous) => {

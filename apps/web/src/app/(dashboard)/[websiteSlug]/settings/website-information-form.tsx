@@ -35,17 +35,20 @@ const LOGO_ACCEPT =
 	"image/png,image/jpeg,image/webp,image/avif,image/gif,image/svg+xml";
 
 const logoValueSchema = z
-	.union([
-		z.string().min(1),
-		z.object({
-			previewUrl: z.string().min(1),
-			url: z.string().optional(),
-			mimeType: z.string(),
-			name: z.string().optional(),
-			size: z.number().optional(),
-		}),
-	])
-	.nullable();
+        .union([
+                z.string().min(1),
+                z
+                        .object({
+                                previewUrl: z.string().min(1),
+                                url: z.string().optional(),
+                                mimeType: z.string(),
+                                name: z.string().optional(),
+                                size: z.number().optional(),
+                                file: z.instanceof(File).optional(),
+                        })
+                        .passthrough(),
+        ])
+        .nullable();
 
 const contactEmailSchema = z
 	.string()
