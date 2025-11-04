@@ -11,6 +11,11 @@ export const contactMetadataSchema = z.record(
 
 export type ContactMetadata = z.infer<typeof contactMetadataSchema>;
 
+export const contactNotificationPreferencesSchema = z.record(
+        z.string(),
+        z.unknown()
+);
+
 /**
  * Create contact request schema
  */
@@ -45,12 +50,28 @@ export const createContactRequestSchema = z.object({
 			example: "https://example.com/avatar.png",
 		})
 		.optional(),
-	metadata: contactMetadataSchema
-		.openapi({
-			description: "Additional custom metadata for the contact.",
-			example: { plan: "premium", role: "admin" },
-		})
-		.optional(),
+        metadata: contactMetadataSchema
+                .openapi({
+                        description: "Additional custom metadata for the contact.",
+                        example: { plan: "premium", role: "admin" },
+                })
+                .optional(),
+        notificationPreferences: contactNotificationPreferencesSchema
+                .openapi({
+                        description:
+                                "Notification channel preferences for the contact (e.g. email, push tokens).",
+                        example: {
+                                email: { enabled: true },
+                                browser: {
+                                        enabled: true,
+                                        subscription: {
+                                                endpoint: "https://push.example", 
+                                                keys: { p256dh: "...", auth: "..." },
+                                        },
+                                },
+                        },
+                })
+                .optional(),
 	contactOrganizationId: z
 		.string()
 		.ulid()
@@ -97,12 +118,20 @@ export const updateContactRequestSchema = z.object({
 			example: "https://example.com/avatar.png",
 		})
 		.optional(),
-	metadata: contactMetadataSchema
-		.openapi({
-			description: "Additional custom metadata for the contact.",
-			example: { plan: "premium", role: "admin" },
-		})
-		.optional(),
+        metadata: contactMetadataSchema
+                .openapi({
+                        description: "Additional custom metadata for the contact.",
+                        example: { plan: "premium", role: "admin" },
+                })
+                .optional(),
+        notificationPreferences: contactNotificationPreferencesSchema
+                .openapi({
+                        description:
+                                "Notification channel preferences for the contact (e.g. email opt-in/out).",
+                        example: { email: { enabled: true } },
+                })
+                .optional()
+                .nullable(),
 	contactOrganizationId: z
 		.string()
 		.ulid()
@@ -176,12 +205,19 @@ export const identifyContactRequestSchema = z.object({
 			example: "https://example.com/avatar.png",
 		})
 		.optional(),
-	metadata: contactMetadataSchema
-		.openapi({
-			description: "Additional custom metadata for the contact.",
-			example: { plan: "premium", role: "admin" },
-		})
-		.optional(),
+        metadata: contactMetadataSchema
+                .openapi({
+                        description: "Additional custom metadata for the contact.",
+                        example: { plan: "premium", role: "admin" },
+                })
+                .optional(),
+        notificationPreferences: contactNotificationPreferencesSchema
+                .openapi({
+                        description:
+                                "Notification channel preferences for the contact when linking a visitor.",
+                        example: { email: { enabled: true } },
+                })
+                .optional(),
 	contactOrganizationId: z
 		.string()
 		.ulid()
@@ -220,10 +256,26 @@ export const contactResponseSchema = z.object({
 		description: "The contact's avatar/image URL.",
 		example: "https://example.com/avatar.png",
 	}),
-	metadata: contactMetadataSchema.nullable().openapi({
-		description: "Additional custom metadata for the contact.",
-		example: { plan: "premium", role: "admin" },
-	}),
+        metadata: contactMetadataSchema.nullable().openapi({
+                description: "Additional custom metadata for the contact.",
+                example: { plan: "premium", role: "admin" },
+        }),
+        notificationPreferences: contactNotificationPreferencesSchema
+                .nullable()
+                .openapi({
+                        description:
+                                "Notification channel preferences stored for the contact (e.g. email opt-in/out, push tokens).",
+                        example: {
+                                email: { enabled: true },
+                                browser: {
+                                        enabled: true,
+                                        subscription: {
+                                                endpoint: "https://push.example",
+                                                keys: { p256dh: "...", auth: "..." },
+                                        },
+                                },
+                        },
+                }),
 	contactOrganizationId: z.ulid().nullable().openapi({
 		description: "The contact organization ID this contact belongs to.",
 		example: "01JG000000000000000000000",

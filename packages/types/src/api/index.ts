@@ -6,5 +6,6 @@ export * from "./organization";
 export * from "./timeline-item";
 export * from "./upload";
 export * from "./user";
+export * from "./notification";
 export * from "./visitor";
 export * from "./website";

@@ -132,8 +132,9 @@ export const contact = pgTable(
 		externalId: varchar("external_id", { length: 255 }),
 		name: text("name"),
 		email: text("email"),
-		image: text("image"),
-		metadata: jsonb("metadata"),
+                image: text("image"),
+                metadata: jsonb("metadata"),
+                notificationPreferences: jsonb("notification_preferences"),
 		// Reference Fields
 		websiteId: ulidReference("website_id")
 			.notNull()

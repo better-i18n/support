@@ -7,6 +7,7 @@ import {
 import { ensureWebsiteAccess } from "@/lib/auth/website-access";
 import { UserProfileForm } from "./user-profile-form";
 import { WebsiteInformationForm } from "./website-information-form";
+import { NotificationPreferencesForm } from "./notification-preferences-form";
 
 type GeneralSettingsPageProps = {
 	params: Promise<{
@@ -38,10 +39,10 @@ export default async function GeneralSettingsPage({
 						websiteSlug={website.slug}
 					/>
 				</SettingsRow>
-				<SettingsRow
-					description="Control how your name and avatar appear to teammates across Cossistant."
-					title="Your profile"
-				>
+                                <SettingsRow
+                                        description="Control how your name and avatar appear to teammates across Cossistant."
+                                        title="Your profile"
+                                >
 					<UserProfileForm
 						initialAvatarUrl={user.image}
 						initialName={user.name ?? ""}
@@ -49,8 +50,14 @@ export default async function GeneralSettingsPage({
 						userId={user.id}
 						websiteId={website.id}
 					/>
-				</SettingsRow>
-			</PageContent>
-		</SettingsPage>
-	);
+                                </SettingsRow>
+                                <SettingsRow
+                                        description="Choose how Cossistant should reach you for marketing updates and inbox activity."
+                                        title="Notifications"
+                                >
+                                        <NotificationPreferencesForm websiteSlug={website.slug} />
+                                </SettingsRow>
+                        </PageContent>
+                </SettingsPage>
+        );
 }
