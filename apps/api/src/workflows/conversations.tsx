@@ -1,23 +1,13 @@
 import { db } from "@api/db";
 import { env } from "@api/env";
+import {
+        getConversationUnseenDigestData,
+        type ConversationDigestMember,
+        type ConversationTimelineMessage,
+} from "@api/db/queries";
 import { sendEmail } from "@api/lib/resend";
-import {
-        conversation,
-        conversationAssignee,
-        conversationParticipant,
-        conversationSeen,
-        conversationTimelineItem,
-} from "@api/db/schema";
-import { member, user } from "@api/db/schema/auth";
-import { website } from "@api/db/schema/website";
-import {
-        ConversationParticipationStatus,
-        ConversationTimelineType,
-        TimelineItemVisibility,
-} from "@cossistant/types";
 import { ConversationUnseenDigestEmail } from "@cossistant/transactional/emails/conversation-unseen-digest";
 import { serve } from "@upstash/workflow/hono";
-import { and, desc, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 
 // Needed for email templates, don't remove
@@ -25,37 +15,7 @@ import React from "react";
 
 import type { ConversationUnseenDigestData } from "./types";
 
-type RawTimelineMessage = {
-        id: string;
-        text: string | null;
-        parts: unknown;
-        createdAt: string;
-        userId: string | null;
-        visitorId: string | null;
-        aiAgentId: string | null;
-};
-
-type MemberInfo = {
-        userId: string;
-        email: string;
-        name: string | null;
-};
-
 const MAX_MESSAGES_PER_EMAIL = 10;
-
-const parseOptionalTimestamp = (value: string | null | undefined, fallback: number): number => {
-        if (!value) {
-                return fallback;
-        }
-
-        const parsed = Date.parse(value);
-
-        if (Number.isNaN(parsed)) {
-                return fallback;
-        }
-
-        return parsed;
-};
 
 const normalizeWhitespace = (value: string): string => value.replace(/\s+/g, " ").trim();
 
@@ -68,7 +28,7 @@ const truncate = (value: string, maxLength = 240): string => {
         return `${truncated}\u2026`;
 };
 
-const extractMessagePreview = (message: RawTimelineMessage): string => {
+const extractMessagePreview = (message: ConversationTimelineMessage): string => {
         if (typeof message.text === "string" && message.text.trim().length > 0) {
                 return normalizeWhitespace(message.text);
         }
@@ -89,7 +49,10 @@ const extractMessagePreview = (message: RawTimelineMessage): string => {
         return "New message";
 };
 
-const getSenderLabel = (message: RawTimelineMessage, members: Map<string, MemberInfo>): string => {
+const getSenderLabel = (
+        message: ConversationTimelineMessage,
+        members: Map<string, ConversationDigestMember>
+): string => {
         if (message.userId) {
                 const memberInfo = members.get(message.userId);
                 return memberInfo?.name?.trim() || "Team member";
@@ -110,22 +73,12 @@ conversationsWorkflow.post(
                 const { conversationId, organizationId } = context.requestPayload;
 
                 await context.run("notify-unseen-messages", async () => {
-                        const [conversationRecord] = await db
-                                .select({
-                                        id: conversation.id,
-                                        title: conversation.title,
-                                        websiteId: conversation.websiteId,
-                                })
-                                .from(conversation)
-                                .where(
-                                        and(
-                                                eq(conversation.id, conversationId),
-                                                eq(conversation.organizationId, organizationId)
-                                        )
-                                )
-                                .limit(1);
+                        const digestData = await getConversationUnseenDigestData(db, {
+                                conversationId,
+                                organizationId,
+                        });
 
-                        if (!conversationRecord) {
+                        if (!digestData) {
                                 console.warn("Conversation not found for unseen digest", {
                                         conversationId,
                                         organizationId,
@@ -133,173 +86,57 @@ conversationsWorkflow.post(
                                 return;
                         }
 
-                        const [messagesRows, seenRows, participantRows, assigneeRows, memberRows, websiteRecord] =
-                                await Promise.all([
-                                        db
-                                                .select({
-                                                        id: conversationTimelineItem.id,
-                                                        text: conversationTimelineItem.text,
-                                                        parts: conversationTimelineItem.parts,
-                                                        createdAt: conversationTimelineItem.createdAt,
-                                                        userId: conversationTimelineItem.userId,
-                                                        visitorId: conversationTimelineItem.visitorId,
-                                                        aiAgentId: conversationTimelineItem.aiAgentId,
-                                                })
-                                                .from(conversationTimelineItem)
-                                                .where(
-                                                        and(
-                                                                eq(
-                                                                        conversationTimelineItem.organizationId,
-                                                                        organizationId
-                                                                ),
-                                                                eq(
-                                                                        conversationTimelineItem.conversationId,
-                                                                        conversationId
-                                                                ),
-                                                                eq(
-                                                                        conversationTimelineItem.type,
-                                                                        ConversationTimelineType.MESSAGE
-                                                                ),
-                                                                eq(
-                                                                        conversationTimelineItem.visibility,
-                                                                        TimelineItemVisibility.PUBLIC
-                                                                ),
-                                                                isNull(conversationTimelineItem.deletedAt)
-                                                        )
-                                                )
-                                                .orderBy(
-                                                        desc(conversationTimelineItem.createdAt),
-                                                        desc(conversationTimelineItem.id)
-                                                )
-                                                .limit(50),
-                                        db
-                                                .select({
-                                                        userId: conversationSeen.userId,
-                                                        lastSeenAt: conversationSeen.lastSeenAt,
-                                                })
-                                                .from(conversationSeen)
-                                                .where(
-                                                        and(
-                                                                eq(conversationSeen.organizationId, organizationId),
-                                                                eq(conversationSeen.conversationId, conversationId),
-                                                                isNull(conversationSeen.visitorId),
-                                                                isNull(conversationSeen.aiAgentId)
-                                                        )
-                                                ),
-                                        db
-                                                .select({ userId: conversationParticipant.userId })
-                                                .from(conversationParticipant)
-                                                .where(
-                                                        and(
-                                                                eq(
-                                                                        conversationParticipant.organizationId,
-                                                                        organizationId
-                                                                ),
-                                                                eq(
-                                                                        conversationParticipant.conversationId,
-                                                                        conversationId
-                                                                ),
-                                                                eq(
-                                                                        conversationParticipant.status,
-                                                                        ConversationParticipationStatus.ACTIVE
-                                                                ),
-                                                                isNull(conversationParticipant.leftAt)
-                                                        )
-                                                ),
-                                        db
-                                                .select({ userId: conversationAssignee.userId })
-                                                .from(conversationAssignee)
-                                                .where(
-                                                        and(
-                                                                eq(conversationAssignee.organizationId, organizationId),
-                                                                eq(conversationAssignee.conversationId, conversationId),
-                                                                isNull(conversationAssignee.unassignedAt)
-                                                        )
-                                                ),
-                                        db
-                                                .select({
-                                                        userId: member.userId,
-                                                        email: user.email,
-                                                        name: user.name,
-                                                })
-                                                .from(member)
-                                                .innerJoin(user, eq(member.userId, user.id))
-                                                .where(eq(member.organizationId, organizationId)),
-                                        db
-                                                .select({ slug: website.slug })
-                                                .from(website)
-                                                .where(eq(website.id, conversationRecord.websiteId))
-                                                .limit(1),
-                                ]);
+                        const { conversation: conversationRecord, messages, seen, participants, assignees, members } = digestData;
 
-                        if (messagesRows.length === 0) {
+                        if (messages.length === 0) {
                                 return;
                         }
 
-                        const messages: RawTimelineMessage[] = messagesRows.slice().reverse();
+                        const membersMap = new Map<string, ConversationDigestMember>();
+                        for (const member of members) {
+                                membersMap.set(member.userId, member);
+                        }
 
                         const candidateUserIds = new Set<string>();
-                        for (const row of seenRows) {
-                                if (row.userId) {
-                                        candidateUserIds.add(row.userId);
-                                }
+                        for (const entry of seen) {
+                                candidateUserIds.add(entry.userId);
                         }
-                        for (const row of participantRows) {
-                                if (row.userId) {
-                                        candidateUserIds.add(row.userId);
-                                }
+                        for (const userId of participants) {
+                                candidateUserIds.add(userId);
                         }
-                        for (const row of assigneeRows) {
-                                if (row.userId) {
-                                        candidateUserIds.add(row.userId);
-                                }
+                        for (const userId of assignees) {
+                                candidateUserIds.add(userId);
                         }
 
-                        const uniqueMembers = new Map<string, MemberInfo>();
-                        for (const memberRow of memberRows) {
-                                uniqueMembers.set(memberRow.userId, memberRow);
-                        }
-
-                        const membersMap = uniqueMembers;
-
-                        const targetMembers: MemberInfo[] =
+                        const targetMembers: ConversationDigestMember[] =
                                 candidateUserIds.size > 0
                                         ? Array.from(candidateUserIds)
                                                   .map((userId) => membersMap.get(userId))
-                                                  .filter((value): value is MemberInfo => Boolean(value))
+                                                  .filter((value): value is ConversationDigestMember => Boolean(value))
                                         : Array.from(membersMap.values());
 
                         if (targetMembers.length === 0) {
                                 return;
                         }
 
-                        const seenMap = new Map<string, string | null>();
-                        for (const row of seenRows) {
-                                if (row.userId) {
-                                        seenMap.set(row.userId, row.lastSeenAt ?? null);
-                                }
+                        const seenMap = new Map<string, Date | null>();
+                        for (const entry of seen) {
+                                seenMap.set(entry.userId, entry.lastSeenAt ?? null);
                         }
 
                         const appBaseUrl = env.PUBLIC_APP_URL.replace(/\/$/, "");
                         const conversationTitle = conversationRecord.title?.trim() || "Visitor conversation";
-                        const websiteSlug = websiteRecord[0]?.slug ?? null;
-                        const conversationUrl = websiteSlug
-                                ? `${appBaseUrl}/${websiteSlug}/inbox/${conversationId}`
-                                : `${appBaseUrl}/inbox/${conversationId}`;
+                        const conversationUrl = conversationRecord.websiteSlug
+                                ? `${appBaseUrl}/${conversationRecord.websiteSlug}/inbox/${conversationRecord.id}`
+                                : `${appBaseUrl}/inbox/${conversationRecord.id}`;
                         const notificationSettingsUrl = `${appBaseUrl}/settings/notifications`;
 
                         const notifications = targetMembers
                                 .map((memberInfo) => {
-                                        const lastSeenTimestamp = parseOptionalTimestamp(
-                                                seenMap.get(memberInfo.userId) ?? null,
-                                                Number.NEGATIVE_INFINITY
-                                        );
+                                        const lastSeenTimestamp = seenMap.get(memberInfo.userId)?.getTime() ?? Number.NEGATIVE_INFINITY;
 
                                         const unseenMessages = messages.filter((message) => {
-                                                const messageTimestamp = parseOptionalTimestamp(
-                                                        message.createdAt,
-                                                        Number.POSITIVE_INFINITY
-                                                );
+                                                const messageTimestamp = message.createdAt.getTime();
 
                                                 if (messageTimestamp <= lastSeenTimestamp) {
                                                         return false;
@@ -323,13 +160,13 @@ conversationsWorkflow.post(
                                                 messages: recentMessages.map((message) => ({
                                                         sender: getSenderLabel(message, membersMap),
                                                         preview: truncate(extractMessagePreview(message)),
-                                                        createdAt: message.createdAt,
+                                                        createdAt: message.createdAt.toISOString(),
                                                 })),
                                                 total: unseenMessages.length,
                                         };
                                 })
                                 .filter((value): value is {
-                                        member: MemberInfo;
+                                        member: ConversationDigestMember;
                                         messages: Array<{
                                                 sender: string;
                                                 preview: string;
