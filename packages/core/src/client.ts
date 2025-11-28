@@ -6,10 +6,10 @@ import {
 	type RealtimeEvent,
 } from "@cossistant/types";
 import type {
-	CreateConversationRequestBody,
-	CreateConversationResponseBody,
-	GetConversationRequest,
-	GetConversationResponse,
+        CreateConversationRequestBody,
+        CreateConversationResponseBody,
+        GetConversationRequest,
+        GetConversationResponse,
 	ListConversationsRequest,
 	ListConversationsResponse,
 	MarkConversationSeenRequestBody,
@@ -20,9 +20,13 @@ import type {
 	GetConversationTimelineItemsRequest,
 	GetConversationTimelineItemsResponse,
 	SendTimelineItemRequest,
-	SendTimelineItemResponse,
-	TimelineItem,
+        SendTimelineItemResponse,
+        TimelineItem,
 } from "@cossistant/types/api/timeline-item";
+import type {
+        GenerateUploadUrlRequest,
+        GenerateUploadUrlResponse,
+} from "@cossistant/types/api/upload";
 import {
 	ConversationStatus,
 	ConversationTimelineType,
@@ -147,14 +151,20 @@ export class CossistantClient {
 		this.restClient.setWebsiteContext(websiteId, visitorId);
 	}
 
-	setVisitorBlocked(isBlocked: boolean): void {
-		this.restClient.setVisitorBlocked(isBlocked);
-	}
+        setVisitorBlocked(isBlocked: boolean): void {
+                this.restClient.setVisitorBlocked(isBlocked);
+        }
 
-	async updateVisitorMetadata(
-		metadata: VisitorMetadata
-	): Promise<VisitorResponse> {
-		return this.restClient.updateVisitorMetadata(metadata);
+        async createUploadUrl(
+                payload: GenerateUploadUrlRequest
+        ): Promise<GenerateUploadUrlResponse> {
+                return this.restClient.createUploadUrl(payload);
+        }
+
+        async updateVisitorMetadata(
+                metadata: VisitorMetadata
+        ): Promise<VisitorResponse> {
+                return this.restClient.updateVisitorMetadata(metadata);
 	}
 
 	async identify(params: {

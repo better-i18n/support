@@ -1,7 +1,12 @@
 import type { CossistantClient } from "@cossistant/core";
 import { generateMessageId } from "@cossistant/core";
 import type { CreateConversationResponseBody } from "@cossistant/types/api/conversation";
-import type { TimelineItem } from "@cossistant/types/api/timeline-item";
+import type {
+        TimelineItem,
+        TimelinePartFile,
+        TimelinePartImage,
+} from "@cossistant/types/api/timeline-item";
+import type { GenerateUploadUrlRequest } from "@cossistant/types/api/upload";
 import { useCallback, useState } from "react";
 
 import { useSupport } from "../provider";
@@ -54,29 +59,133 @@ function toError(error: unknown): Error {
 	return new Error("Unknown error");
 }
 
-function buildTimelineItemPayload(
-	body: string,
-	conversationId: string,
-	visitorId: string | null,
-	messageId?: string
-): TimelineItem {
-	const nowIso = typeof window !== "undefined" ? new Date().toISOString() : "";
-	const id = messageId ?? generateMessageId();
+type UploadScope = Extract<GenerateUploadUrlRequest["scope"], { type: "conversation" }>;
 
-	return {
-		id,
-		conversationId,
-		organizationId: "", // Will be set by backend
-		type: "message" as const,
-		text: body,
-		parts: [{ type: "text" as const, text: body }],
-		visibility: "public" as const,
-		userId: null,
-		aiAgentId: null,
-		visitorId: visitorId ?? null,
-		createdAt: nowIso,
-		deletedAt: null,
-	} satisfies TimelineItem;
+async function buildTimelineItemPayload(
+        body: string,
+        parts: TimelineItem["parts"],
+        conversationId: string,
+        visitorId: string | null,
+        messageId?: string
+): Promise<TimelineItem> {
+        const nowIso = typeof window !== "undefined" ? new Date().toISOString() : "";
+        const id = messageId ?? generateMessageId();
+
+        const payloadParts = parts.length
+                ? parts
+                : body
+                        ? ([{ type: "text" as const, text: body }] satisfies TimelineItem["parts"])
+                        : [];
+
+        return {
+                id,
+                conversationId,
+                organizationId: "", // Will be set by backend
+                type: "message" as const,
+                text: body,
+                parts: payloadParts,
+                visibility: "public" as const,
+                userId: null,
+                aiAgentId: null,
+                visitorId: visitorId ?? null,
+                createdAt: nowIso,
+                deletedAt: null,
+        } satisfies TimelineItem;
+}
+
+async function uploadToSignedUrl({
+        file,
+        url,
+        contentType,
+}: {
+        file: File;
+        url: string;
+        contentType: string;
+}): Promise<void> {
+        const response = await fetch(url, {
+                method: "PUT",
+                headers: { "Content-Type": contentType },
+                body: file,
+        });
+
+        if (!response.ok) {
+                throw new Error(`Upload failed with status ${response.status}`);
+        }
+}
+
+async function uploadFileToTimelinePart({
+        client,
+        file,
+        scope,
+        websiteId,
+        messageId,
+}: {
+        client: CossistantClient;
+        file: File;
+        scope: UploadScope;
+        websiteId: string;
+        messageId: string;
+}): Promise<TimelinePartImage | TimelinePartFile> {
+        const contentType = file.type || "application/octet-stream";
+
+        const uploadDetails = await client.createUploadUrl({
+                contentType,
+                fileName: file.name,
+                websiteId,
+                path: `conversations/${scope.conversationId}/timeline-items/${messageId}`,
+                scope,
+                useCdn: false,
+        });
+
+        await uploadToSignedUrl({
+                file,
+                url: uploadDetails.uploadUrl,
+                contentType,
+        });
+
+        if (contentType.startsWith("image/")) {
+                return {
+                        type: "image",
+                        url: uploadDetails.publicUrl,
+                        mediaType: contentType,
+                        fileName: file.name,
+                        size: file.size,
+                } satisfies TimelinePartImage;
+        }
+
+        return {
+                type: "file",
+                url: uploadDetails.publicUrl,
+                mediaType: contentType,
+                fileName: file.name,
+                size: file.size,
+        } satisfies TimelinePartFile;
+}
+
+async function uploadFilesToTimelineParts({
+        client,
+        files,
+        scope,
+        websiteId,
+        messageId,
+}: {
+        client: CossistantClient;
+        files: File[];
+        scope: UploadScope;
+        websiteId: string;
+        messageId: string;
+}): Promise<Array<TimelinePartImage | TimelinePartFile>> {
+        return Promise.all(
+                files.map((file) =>
+                        uploadFileToTimelinePart({
+                                client,
+                                file,
+                                scope,
+                                websiteId,
+                                messageId,
+                        })
+                )
+        );
 }
 
 /**
@@ -94,49 +203,90 @@ export function useSendMessage(
 
 	const mutateAsync = useCallback(
 		async (payload: SendMessageOptions): Promise<SendMessageResult | null> => {
-			const {
-				conversationId: providedConversationId,
-				message,
-				defaultTimelineItems = [],
-				visitorId,
-				messageId: providedMessageId,
-				onSuccess,
-				onError,
-			} = payload;
+                        const {
+                                conversationId: providedConversationId,
+                                message,
+                                files = [],
+                                defaultTimelineItems = [],
+                                visitorId,
+                                messageId: providedMessageId,
+                                onSuccess,
+                                onError,
+                        } = payload;
 
-			if (!message.trim()) {
-				const emptyMessageError = new Error("Message cannot be empty");
-				setError(emptyMessageError);
-				onError?.(emptyMessageError);
-				return null;
-			}
+                        const trimmedMessage = message.trim();
+
+                        if (!trimmedMessage && files.length === 0) {
+                                const emptyMessageError = new Error(
+                                        "Please provide a message or attach files"
+                                );
+                                setError(emptyMessageError);
+                                onError?.(emptyMessageError);
+                                return null;
+                        }
 
 			setIsPending(true);
 			setError(null);
 
-			try {
-				let conversationId = providedConversationId ?? undefined;
-				let preparedDefaultTimelineItems = defaultTimelineItems;
-				let initialConversation:
-					| CreateConversationResponseBody["conversation"]
-					| undefined;
+                        try {
+                                let conversationId = providedConversationId ?? undefined;
+                                let preparedDefaultTimelineItems = defaultTimelineItems;
+                                let initialConversation:
+                                        | CreateConversationResponseBody["conversation"]
+                                        | undefined;
 
-				if (!conversationId) {
-					const initiated = client.initiateConversation({
-						defaultTimelineItems,
-						visitorId: visitorId ?? undefined,
-					});
-					conversationId = initiated.conversationId;
-					preparedDefaultTimelineItems = initiated.defaultTimelineItems;
-					initialConversation = initiated.conversation;
-				}
+                                if (!conversationId) {
+                                        const initiated = client.initiateConversation({
+                                                defaultTimelineItems,
+                                                visitorId: visitorId ?? undefined,
+                                        });
+                                        conversationId = initiated.conversationId;
+                                        preparedDefaultTimelineItems = initiated.defaultTimelineItems;
+                                        initialConversation = initiated.conversation;
+                                }
 
-				const timelineItemPayload = buildTimelineItemPayload(
-					message,
-					conversationId,
-					visitorId ?? null,
-					providedMessageId
-				);
+                                if (!conversationId) {
+                                        throw new Error("Conversation ID is required to send a message");
+                                }
+
+                                const website = await client.fetchWebsite();
+                                const messageId = providedMessageId ?? generateMessageId();
+                                const uploadScope: UploadScope = {
+                                        type: "conversation",
+                                        conversationId,
+                                        organizationId: website.organizationId,
+                                        websiteId: website.id,
+                                };
+
+                                const fileParts = files.length
+                                        ? await uploadFilesToTimelineParts({
+                                                client,
+                                                files,
+                                                scope: uploadScope,
+                                                websiteId: website.id,
+                                                messageId,
+                                        })
+                                        : [];
+
+                                const timelineParts: TimelineItem["parts"] = [
+                                        ...(trimmedMessage
+                                                ? ([
+                                                        {
+                                                                type: "text" as const,
+                                                                text: trimmedMessage,
+                                                        },
+                                                ] as const satisfies TimelineItem["parts"])
+                                                : []),
+                                        ...fileParts,
+                                ];
+
+                                const timelineItemPayload = await buildTimelineItemPayload(
+                                        trimmedMessage,
+                                        timelineParts,
+                                        conversationId,
+                                        visitorId ?? null,
+                                        messageId
+                                );
 
 				const response = await client.sendMessage({
 					conversationId,

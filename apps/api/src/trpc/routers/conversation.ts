@@ -27,11 +27,12 @@ import {
 } from "@api/utils/participant-helpers";
 import { createMessageTimelineItem } from "@api/utils/timeline-item";
 import {
-	type ContactMetadata,
-	conversationMutationResponseSchema,
-	listConversationHeadersResponseSchema,
-	visitorResponseSchema,
+        type ContactMetadata,
+        conversationMutationResponseSchema,
+        listConversationHeadersResponseSchema,
+        visitorResponseSchema,
 } from "@cossistant/types";
+import { timelineItemPartsSchema } from "@cossistant/types/api/timeline-item";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../init";
@@ -145,17 +146,18 @@ export const conversationRouter = createTRPCRouter({
 			};
 		}),
 
-	sendMessage: protectedProcedure
-		.input(
-			z.object({
-				conversationId: z.string(),
-				websiteSlug: z.string(),
-				text: z.string().min(1),
-				visibility: z.enum(["public", "private"]).default("public"),
-				timelineItemId: z.ulid().optional(),
-			})
-		)
-		.mutation(async ({ ctx: { db, user }, input }) => {
+        sendMessage: protectedProcedure
+                .input(
+                        z.object({
+                                conversationId: z.string(),
+                                websiteSlug: z.string(),
+                                text: z.string().default(""),
+                                parts: timelineItemPartsSchema.optional(),
+                                visibility: z.enum(["public", "private"]).default("public"),
+                                timelineItemId: z.ulid().optional(),
+                        })
+                )
+                .mutation(async ({ ctx: { db, user }, input }) => {
 			const [websiteData, conversation] = await Promise.all([
 				getWebsiteBySlugWithAccess(db, {
 					userId: user.id,
@@ -201,22 +203,28 @@ export const conversationRouter = createTRPCRouter({
 					organizationId: websiteData.organizationId,
 					targetUserId: user.id,
 					isAutoAdded: true,
-				});
-			}
+                                });
+                        }
 
-			const { item: createdTimelineItem } = await createMessageTimelineItem({
-				db,
-				organizationId: websiteData.organizationId,
-				websiteId: websiteData.id,
-				conversationId: input.conversationId,
-				conversationOwnerVisitorId: conversation.visitorId,
-				id: input.timelineItemId,
-				text: input.text,
-				visibility: input.visibility,
-				userId: user.id,
-				visitorId: null,
-				aiAgentId: null,
-			});
+                        const parts = input.parts ?? [];
+                        const textPart = parts.find((part) => part.type === "text");
+                        const resolvedText = (textPart?.text ?? input.text).trim();
+                        const extraParts = parts.filter((part) => part.type !== "text");
+
+                        const { item: createdTimelineItem } = await createMessageTimelineItem({
+                                db,
+                                organizationId: websiteData.organizationId,
+                                websiteId: websiteData.id,
+                                conversationId: input.conversationId,
+                                conversationOwnerVisitorId: conversation.visitorId,
+                                id: input.timelineItemId,
+                                text: resolvedText,
+                                extraParts,
+                                visibility: input.visibility,
+                                userId: user.id,
+                                visitorId: null,
+                                aiAgentId: null,
+                        });
 
 			// Mark conversation as read by user after sending timeline item
 			const { lastSeenAt } = await markConversationAsRead(db, {

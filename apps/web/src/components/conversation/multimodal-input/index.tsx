@@ -164,50 +164,62 @@ export const MultimodalInput: React.FC<MultimodalInputProps> = ({
 						/>
 					</div>
 					<div className="flex items-center justify-end pr-1 pb-1 pl-3">
-						<div className="flex items-center gap-0.5">
-							{/* File attachment button */}
-							{/* {onFileSelect && (
-                <>
-                  <TooltipOnHover content="Attach files">
-                    <Button
-                      className={cn(files.length >= maxFiles && "opacity-50")}
-                      disabled={
-                        disabled || isSubmitting || files.length >= maxFiles
-                      }
-                      onClick={handleAttachClick}
-                      size="icon"
-                      type="button"
-                      variant="ghost"
-                    >
-                      <Icon className="h-4 w-4" name="attachment" />
-                    </Button>
-                  </TooltipOnHover>
+                                                <div className="flex items-center gap-0.5">
+                                                        {/* File attachment button */}
+                                                        {onFileSelect && (
+                                                                <>
+                                                                        <TooltipOnHover content="Attach files">
+                                                                                <Button
+                                                                                        className={cn(
+                                                                                                files.length >= maxFiles &&
+                                                                                                        "opacity-50"
+                                                                                        )}
+                                                                                        disabled={
+                                                                                                disabled ||
+                                                                                                isSubmitting ||
+                                                                                                files.length >= maxFiles
+                                                                                        }
+                                                                                        onClick={handleAttachClick}
+                                                                                        size="icon"
+                                                                                        type="button"
+                                                                                        variant="ghost"
+                                                                                >
+                                                                                        <Icon
+                                                                                                className="h-4 w-4"
+                                                                                                name="attachment"
+                                                                                        />
+                                                                                </Button>
+                                                                        </TooltipOnHover>
 
-                  <input
-                    type="file"
-                    accept={allowedFileTypes.join(",")}
-                    className="hidden"
-                    disabled={
-                      disabled || isSubmitting || files.length >= maxFiles
-                    }
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files || []);
-                      if (files.length > 0 && onFileSelect) {
-                        onFileSelect(files);
-                        // Reset input to allow selecting the same file again
-                        e.target.value = "";
-                      }
-                    }}
-                    ref={fileInputRef}
-                    multiple
-                  />
-                </>
-              )} */}
+                                                                        <input
+                                                                                type="file"
+                                                                                accept={allowedFileTypes.join(",")}
+                                                                                className="hidden"
+                                                                                disabled={
+                                                                                        disabled ||
+                                                                                        isSubmitting ||
+                                                                                        files.length >= maxFiles
+                                                                                }
+                                                                                onChange={(e) => {
+                                                                                        const files = Array.from(
+                                                                                                e.target.files || []
+                                                                                        );
+                                                                                        if (files.length > 0 && onFileSelect) {
+                                                                                                onFileSelect(files);
+                                                                                                // Reset input to allow selecting the same file again
+                                                                                                e.target.value = "";
+                                                                                        }
+                                                                                }}
+                                                                                ref={fileInputRef}
+                                                                                multiple
+                                                                        />
+                                                                </>
+                                                        )}
 
-							<TooltipOnHover
-								content="Send message"
-								shortcuts={["mod", "enter"]}
-							>
+                                                        <TooltipOnHover
+                                                                content="Send message"
+                                                                shortcuts={["mod", "enter"]}
+                                                        >
 								<Button
 									className={cn(
 										canSubmit

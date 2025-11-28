@@ -22,6 +22,7 @@ import { useDashboardNewMessageSound } from "@/hooks/use-dashboard-new-message-s
 import { useSendConversationMessage } from "@/hooks/use-send-conversation-message";
 import { useSidebar } from "@/hooks/use-sidebars";
 import { useSoundPreferences } from "@/hooks/use-sound-preferences";
+import { useWebsite } from "@/contexts/website";
 
 const MESSAGES_PAGE_LIMIT = 50;
 const EMPTY_AVAILABLE_AI_AGENTS: AvailableAIAgent[] = [];
@@ -39,21 +40,25 @@ type ConversationPaneProps = {
 };
 
 export function ConversationPane({
-	conversationId,
-	visitorId,
-	websiteSlug,
-	currentUserId,
+        conversationId,
+        visitorId,
+        websiteSlug,
+        currentUserId,
 }: ConversationPaneProps) {
-	const { newMessageEnabled } = useSoundPreferences({ websiteSlug });
-	const playNewMessageSound = useDashboardNewMessageSound(newMessageEnabled);
-	const previousItemsRef = useRef<readonly TimelineItem[]>([]);
+        const { newMessageEnabled } = useSoundPreferences({ websiteSlug });
+        const playNewMessageSound = useDashboardNewMessageSound(newMessageEnabled);
+        const previousItemsRef = useRef<readonly TimelineItem[]>([]);
 
-	const { submit: submitConversationMessage } = useSendConversationMessage({
-		conversationId,
-		websiteSlug,
-		currentUserId,
-		pageLimit: MESSAGES_PAGE_LIMIT,
-	});
+        const website = useWebsite();
+
+        const { submit: submitConversationMessage } = useSendConversationMessage({
+                conversationId,
+                websiteSlug,
+                websiteId: website.id,
+                organizationId: website.organizationId,
+                currentUserId,
+                pageLimit: MESSAGES_PAGE_LIMIT,
+        });
 
 	const {
 		handleInputChange: handleTypingChange,

@@ -152,41 +152,41 @@ export const MultimodalInput: React.FC<MultimodalInputProps> = ({
 				<div className="flex items-center justify-between py-1 pr-1 pl-3">
 					<Watermark />
 
-					<div className="flex items-center gap-0.5">
-						{/* File attachment button */}
-						{/* {onFileSelect && (
-							<>
-								<button
-									aria-label={text("common.actions.attachFiles")}
-									className={cn(
-										"group flex h-8 w-8 items-center justify-center rounded-md text-co-muted-foreground hover:bg-co-muted hover:text-co-foreground disabled:cursor-not-allowed disabled:opacity-50",
-										files.length >= maxFiles && "opacity-50"
-									)}
-									disabled={
-										disabled || isSubmitting || files.length >= maxFiles
-									}
-									onClick={handleAttachClick}
-									type="button"
-								>
-									<Icon className="h-4 w-4" name="attachment" />
-								</button>
+                                                <div className="flex items-center gap-0.5">
+                                                        {/* File attachment button */}
+                                                        {onFileSelect && (
+                                                                <>
+                                                                        <button
+                                                                                aria-label={text("common.actions.attachFiles")}
+                                                                                className={cn(
+                                                                                        "group flex h-8 w-8 items-center justify-center rounded-md text-co-muted-foreground hover:bg-co-muted hover:text-co-foreground disabled:cursor-not-allowed disabled:opacity-50",
+                                                                                        files.length >= maxFiles && "opacity-50"
+                                                                                )}
+                                                                                disabled={
+                                                                                        disabled || isSubmitting || files.length >= maxFiles
+                                                                                }
+                                                                                onClick={handleAttachClick}
+                                                                                type="button"
+                                                                        >
+                                                                                <Icon className="h-4 w-4" name="attachment" />
+                                                                        </button>
 
-								<Primitive.FileInput
-									accept={allowedFileTypes.join(",")}
-									className="hidden"
-									disabled={
-										disabled || isSubmitting || files.length >= maxFiles
-									}
-									onFileSelect={onFileSelect}
-									ref={fileInputRef}
-								/>
-							</>
-						)} */}
+                                                                        <Primitive.FileInput
+                                                                                accept={allowedFileTypes.join(",")}
+                                                                                className="hidden"
+                                                                                disabled={
+                                                                                        disabled || isSubmitting || files.length >= maxFiles
+                                                                                }
+                                                                                onFileSelect={onFileSelect}
+                                                                                ref={fileInputRef}
+                                                                        />
+                                                                </>
+                                                        )}
 
-						{/* Send button */}
-						<SendButton disabled={!canSubmit} />
-					</div>
-				</div>
+                                                        {/* Send button */}
+                                                        <SendButton disabled={!canSubmit} />
+                                                </div>
+                                        </div>
 			</div>
 		</form>
 	);

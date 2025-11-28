@@ -13,11 +13,15 @@ import type {
 	SetConversationTypingResponseBody,
 } from "@cossistant/types/api/conversation";
 import type {
-	GetConversationTimelineItemsRequest,
-	GetConversationTimelineItemsResponse,
-	SendTimelineItemRequest,
-	SendTimelineItemResponse,
+        GetConversationTimelineItemsRequest,
+        GetConversationTimelineItemsResponse,
+        SendTimelineItemRequest,
+        SendTimelineItemResponse,
 } from "@cossistant/types/api/timeline-item";
+import type {
+        GenerateUploadUrlRequest,
+        GenerateUploadUrlResponse,
+} from "@cossistant/types/api/upload";
 import { logger } from "./logger";
 import {
 	CossistantAPIError,
@@ -289,13 +293,32 @@ export class CossistantRestClient {
 		}
 	}
 
-	setVisitorBlocked(isBlocked: boolean): void {
-		this.visitorBlocked = isBlocked;
-	}
+        setVisitorBlocked(isBlocked: boolean): void {
+                this.visitorBlocked = isBlocked;
+        }
 
-	getCurrentWebsiteId(): string | null {
-		return this.websiteId;
-	}
+        async createUploadUrl(
+                payload: GenerateUploadUrlRequest
+        ): Promise<GenerateUploadUrlResponse> {
+                const headers: Record<string, string> = {};
+
+                if (this.websiteId) {
+                        const storedVisitorId = getVisitorId(this.websiteId);
+                        if (storedVisitorId) {
+                                headers["X-Visitor-Id"] = storedVisitorId;
+                        }
+                }
+
+                return this.request<GenerateUploadUrlResponse>("/uploads/sign-url", {
+                        method: "POST",
+                        body: JSON.stringify(payload),
+                        headers,
+                });
+        }
+
+        getCurrentWebsiteId(): string | null {
+                return this.websiteId;
+        }
 
 	getCurrentVisitorId(): string | null {
 		if (this.visitorId) {
