@@ -7,7 +7,7 @@ import {
 } from "@api/db/schema/knowledge";
 import { generateULID } from "@api/utils/db/ids";
 import type { KnowledgeType } from "@cossistant/types";
-import { and, count, eq, isNull } from "drizzle-orm";
+import { and, count, eq, isNull, sum } from "drizzle-orm";
 
 /**
  * Generate a content hash for deduplication
@@ -460,6 +460,70 @@ export async function getTotalUrlKnowledgeCount(
 
 	const [result] = await db
 		.select({ total: count() })
+		.from(knowledge)
+		.where(and(...whereConditions));
+
+	return Number(result?.total ?? 0);
+}
+
+/**
+ * Get count of knowledge entries by type for a website/agent
+ * Used for enforcing FAQ and file count limits
+ */
+export async function getKnowledgeCountByType(
+	db: Database,
+	params: {
+		websiteId: string;
+		aiAgentId: string | null;
+		type: KnowledgeType;
+	}
+): Promise<number> {
+	const whereConditions = [
+		eq(knowledge.websiteId, params.websiteId),
+		eq(knowledge.type, params.type),
+		isNull(knowledge.deletedAt),
+	];
+
+	// Handle null aiAgentId
+	if (params.aiAgentId === null) {
+		whereConditions.push(isNull(knowledge.aiAgentId));
+	} else {
+		whereConditions.push(eq(knowledge.aiAgentId, params.aiAgentId));
+	}
+
+	const [result] = await db
+		.select({ total: count() })
+		.from(knowledge)
+		.where(and(...whereConditions));
+
+	return Number(result?.total ?? 0);
+}
+
+/**
+ * Get total size in bytes of all knowledge entries for a website/agent
+ * Used for enforcing MB limit across all knowledge types
+ */
+export async function getTotalKnowledgeSizeBytes(
+	db: Database,
+	params: {
+		websiteId: string;
+		aiAgentId: string | null;
+	}
+): Promise<number> {
+	const whereConditions = [
+		eq(knowledge.websiteId, params.websiteId),
+		isNull(knowledge.deletedAt),
+	];
+
+	// Handle null aiAgentId
+	if (params.aiAgentId === null) {
+		whereConditions.push(isNull(knowledge.aiAgentId));
+	} else {
+		whereConditions.push(eq(knowledge.aiAgentId, params.aiAgentId));
+	}
+
+	const [result] = await db
+		.select({ total: sum(knowledge.sizeBytes) })
 		.from(knowledge)
 		.where(and(...whereConditions));
 

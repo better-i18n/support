@@ -1,52 +1,198 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
+import type { KnowledgeResponse } from "@cossistant/types";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
 import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+	AddFaqDialog,
+	EditFaqDialog,
+	FaqList,
+	useFaqMutations,
+} from "@/components/faq-sources";
+import { UpgradeModal } from "@/components/plan/upgrade-modal";
+import { Button } from "@/components/ui/button";
 import Icon from "@/components/ui/icons";
 import { PageContent } from "@/components/ui/layout";
 import {
 	SettingsHeader,
 	SettingsPage,
 } from "@/components/ui/layout/settings-layout";
+import { TooltipOnHover } from "@/components/ui/tooltip";
+import { useWebsite } from "@/contexts/website";
+import { useTRPC } from "@/lib/trpc/client";
 
 export default function FaqPage() {
+	const website = useWebsite();
+	const trpc = useTRPC();
+	const [showAddDialog, setShowAddDialog] = useState(false);
+	const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+	const [editingFaq, setEditingFaq] = useState<KnowledgeResponse | null>(null);
+
+	// Data is pre-fetched in the layout, so it will be available immediately
+	const { data: aiAgent } = useQuery(
+		trpc.aiAgent.get.queryOptions({
+			websiteSlug: website.slug,
+		})
+	);
+
+	// Fetch plan info
+	const { data: planInfo } = useQuery(
+		trpc.plan.getPlanInfo.queryOptions({ websiteSlug: website.slug })
+	);
+
+	// Fetch training stats
+	const { data: stats } = useQuery(
+		trpc.linkSource.getTrainingStats.queryOptions({
+			websiteSlug: website.slug,
+			aiAgentId: aiAgent?.id ?? null,
+		})
+	);
+
+	const isFreePlan = planInfo?.plan.name === "free";
+
+	// Check if user is at FAQ limit
+	const isAtFaqLimit =
+		stats?.planLimitFaqs !== null &&
+		stats?.faqKnowledgeCount !== undefined &&
+		stats.faqKnowledgeCount >= (stats.planLimitFaqs ?? 0);
+
+	// Mutations hook
+	const {
+		handleCreate,
+		handleUpdate,
+		handleDelete,
+		handleToggleIncluded,
+		isCreating,
+		isUpdating,
+		isDeleting,
+		isToggling,
+	} = useFaqMutations({
+		websiteSlug: website.slug,
+		aiAgentId: aiAgent?.id ?? null,
+		onCreateSuccess: () => {
+			setShowAddDialog(false);
+		},
+		onUpdateSuccess: () => {
+			setEditingFaq(null);
+		},
+	});
+
+	const handleAddFaq = useCallback(
+		async (params: {
+			question: string;
+			answer: string;
+			categories?: string[];
+		}) => {
+			await handleCreate(params);
+		},
+		[handleCreate]
+	);
+
+	const handleEditFaq = useCallback(
+		async (
+			id: string,
+			params: {
+				question: string;
+				answer: string;
+				categories?: string[];
+			}
+		) => {
+			await handleUpdate(id, params);
+		},
+		[handleUpdate]
+	);
+
 	return (
 		<SettingsPage>
-			<SettingsHeader>FAQ</SettingsHeader>
-			<PageContent className="py-6">
-				<Card className="border-dashed">
-					<CardHeader>
-						<div className="flex items-center gap-2">
-							<CardTitle>Frequently Asked Questions</CardTitle>
-							<Badge variant="secondary">Coming Soon</Badge>
+			<SettingsHeader>
+				FAQ
+				<div className="flex items-center gap-2 pr-1">
+					<TooltipOnHover content="Add FAQ">
+						<Button
+							aria-label="Add FAQ"
+							onClick={() =>
+								isAtFaqLimit
+									? setShowUpgradeModal(true)
+									: setShowAddDialog(true)
+							}
+							size="sm"
+							type="button"
+							variant="secondary"
+						>
+							<Icon filledOnHover name="plus" />
+							Add FAQ
+						</Button>
+					</TooltipOnHover>
+				</div>
+			</SettingsHeader>
+			<PageContent className="py-6 pt-20">
+				<div className="space-y-6">
+					{/* Stats info */}
+					{stats && stats.planLimitFaqs !== null && (
+						<div className="flex items-center justify-between text-sm">
+							<p className="text-muted-foreground">
+								<span className="font-medium">{stats.faqKnowledgeCount}</span> /{" "}
+								{stats.planLimitFaqs} FAQs
+							</p>
+							{isFreePlan && (
+								<button
+									className="font-medium text-cossistant-orange hover:cursor-pointer hover:underline"
+									onClick={() => setShowUpgradeModal(true)}
+									type="button"
+								>
+									Upgrade for unlimited FAQs
+								</button>
+							)}
 						</div>
-						<CardDescription>
-							Add frequently asked questions and answers to train your AI agent
-							on common customer inquiries.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="flex flex-col items-center justify-center py-12">
-						<Icon
-							className="mb-4 size-12 text-muted-foreground/50"
-							name="help"
+					)}
+
+					{/* FAQ List */}
+					{aiAgent && (
+						<FaqList
+							aiAgentId={aiAgent.id}
+							isDeleting={isDeleting}
+							isToggling={isToggling}
+							onDelete={handleDelete}
+							onEdit={setEditingFaq}
+							onToggleIncluded={handleToggleIncluded}
+							websiteSlug={website.slug}
 						/>
-						<p className="mb-2 text-center font-medium">
-							FAQ management is coming soon
-						</p>
-						<p className="max-w-md text-center text-muted-foreground text-sm">
-							You'll be able to create and organize FAQs that your AI agent can
-							use to provide quick, accurate answers to common questions from
-							your visitors.
-						</p>
-					</CardContent>
-				</Card>
+					)}
+				</div>
 			</PageContent>
+
+			{/* Add FAQ Dialog */}
+			<AddFaqDialog
+				faqLimit={stats?.planLimitFaqs}
+				isAtLimit={isAtFaqLimit}
+				isSubmitting={isCreating}
+				onOpenChange={setShowAddDialog}
+				onSubmit={handleAddFaq}
+				onUpgradeClick={() => setShowUpgradeModal(true)}
+				open={showAddDialog}
+				websiteSlug={website.slug}
+			/>
+
+			{/* Edit FAQ Dialog */}
+			<EditFaqDialog
+				faq={editingFaq}
+				isSubmitting={isUpdating}
+				onOpenChange={(open) => !open && setEditingFaq(null)}
+				onSubmit={handleEditFaq}
+				open={editingFaq !== null}
+			/>
+
+			{/* Upgrade Modal */}
+			{planInfo && (
+				<UpgradeModal
+					currentPlan={planInfo.plan}
+					highlightedFeatureKey="ai-agent-training-faqs"
+					initialPlanName="hobby"
+					onOpenChange={setShowUpgradeModal}
+					open={showUpgradeModal}
+					websiteSlug={website.slug}
+				/>
+			)}
 		</SettingsPage>
 	);
 }

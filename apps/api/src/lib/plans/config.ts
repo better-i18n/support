@@ -23,7 +23,9 @@ export type FeatureKey =
 	| "ai-agent-training-links"
 	| "ai-agent-training-mb"
 	| "ai-agent-crawl-pages-per-source"
-	| "ai-agent-training-pages-total";
+	| "ai-agent-training-pages-total"
+	| "ai-agent-training-faqs"
+	| "ai-agent-training-files";
 
 export type PlanName = "free" | "hobby" | "pro";
 
@@ -208,6 +210,20 @@ export const FEATURE_CONFIG: Record<FeatureKey, FeatureConfig> = {
 		unit: "pages",
 		category: "secondary",
 	},
+	"ai-agent-training-faqs": {
+		key: "ai-agent-training-faqs",
+		name: "FAQ Entries",
+		description: "Number of FAQ entries for AI agent training",
+		unit: "FAQs",
+		category: "secondary",
+	},
+	"ai-agent-training-files": {
+		key: "ai-agent-training-files",
+		name: "File Entries",
+		description: "Number of file/article entries for AI agent training",
+		unit: "files",
+		category: "secondary",
+	},
 };
 
 // Polar product IDs by environment
@@ -263,6 +279,8 @@ export const PLAN_CONFIG: Record<PlanName, PlanConfig> = {
 			"ai-agent-training-mb": 0.5, // 0.5 MB KB size
 			"ai-agent-crawl-pages-per-source": 10, // 10 pages per crawl
 			"ai-agent-training-pages-total": 10, // 10 pages total across all sources
+			"ai-agent-training-faqs": 10, // 10 FAQs
+			"ai-agent-training-files": 5, // 5 files
 		},
 	},
 	hobby: {
@@ -297,6 +315,8 @@ export const PLAN_CONFIG: Record<PlanName, PlanConfig> = {
 			"ai-agent-training-mb": 10, // 10 MB KB size
 			"ai-agent-crawl-pages-per-source": 1000, // 1000 pages per crawl
 			"ai-agent-training-pages-total": null, // Unlimited total pages
+			"ai-agent-training-faqs": null, // Unlimited FAQs
+			"ai-agent-training-files": null, // Unlimited files
 		},
 	},
 	pro: {
@@ -331,6 +351,8 @@ export const PLAN_CONFIG: Record<PlanName, PlanConfig> = {
 			"ai-agent-training-mb": 40, // 40 MB KB size
 			"ai-agent-crawl-pages-per-source": 1000, // 1000 pages per crawl
 			"ai-agent-training-pages-total": null, // Unlimited total pages
+			"ai-agent-training-faqs": null, // Unlimited FAQs
+			"ai-agent-training-files": null, // Unlimited files
 		},
 	},
 };

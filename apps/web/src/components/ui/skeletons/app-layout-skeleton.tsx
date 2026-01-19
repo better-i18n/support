@@ -12,7 +12,7 @@ export function AppLayoutSkeleton({ className }: { className?: string }) {
 				className
 			)}
 		>
-			<FakeNavigationTopbar amountOfVisitors={0} />
+			<FakeNavigationTopbar />
 			<FakeCentralContainer>
 				<FakeInboxNavigationSidebar
 					activeView="inbox"

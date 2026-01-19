@@ -98,11 +98,6 @@ export function AgentsNavigationSidebar() {
 							label: "Files",
 							href: `${trainingPath}/files`,
 							active: isFilesActive,
-							rightItem: (
-								<Badge className="ml-auto" variant="secondary">
-									Soon
-								</Badge>
-							),
 						},
 					]}
 				>

@@ -1,57 +1,210 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
+import type { KnowledgeResponse } from "@cossistant/types";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
 import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+	AddFileDialog,
+	EditFileDialog,
+	FileList,
+	useFileMutations,
+} from "@/components/file-sources";
+import { UpgradeModal } from "@/components/plan/upgrade-modal";
+import { Button } from "@/components/ui/button";
 import Icon from "@/components/ui/icons";
 import { PageContent } from "@/components/ui/layout";
 import {
 	SettingsHeader,
 	SettingsPage,
 } from "@/components/ui/layout/settings-layout";
+import { TooltipOnHover } from "@/components/ui/tooltip";
+import { useWebsite } from "@/contexts/website";
+import { useTRPC } from "@/lib/trpc/client";
 
 export default function FilesPage() {
+	const website = useWebsite();
+	const trpc = useTRPC();
+	const [showAddDialog, setShowAddDialog] = useState(false);
+	const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+	const [editingFile, setEditingFile] = useState<KnowledgeResponse | null>(
+		null
+	);
+
+	// Data is pre-fetched in the layout, so it will be available immediately
+	const { data: aiAgent } = useQuery(
+		trpc.aiAgent.get.queryOptions({
+			websiteSlug: website.slug,
+		})
+	);
+
+	// Fetch plan info
+	const { data: planInfo } = useQuery(
+		trpc.plan.getPlanInfo.queryOptions({ websiteSlug: website.slug })
+	);
+
+	// Fetch training stats
+	const { data: stats } = useQuery(
+		trpc.linkSource.getTrainingStats.queryOptions({
+			websiteSlug: website.slug,
+			aiAgentId: aiAgent?.id ?? null,
+		})
+	);
+
+	const isFreePlan = planInfo?.plan.name === "free";
+
+	// Check if user is at file limit
+	const isAtFileLimit =
+		stats?.planLimitFiles !== null &&
+		stats?.articleKnowledgeCount !== undefined &&
+		stats.articleKnowledgeCount >= (stats.planLimitFiles ?? 0);
+
+	// Mutations hook
+	const {
+		handleCreate,
+		handleUpload,
+		handleUpdate,
+		handleDelete,
+		handleToggleIncluded,
+		isCreating,
+		isUploading,
+		isUpdating,
+		isDeleting,
+		isToggling,
+	} = useFileMutations({
+		websiteSlug: website.slug,
+		aiAgentId: aiAgent?.id ?? null,
+		onCreateSuccess: () => {
+			setShowAddDialog(false);
+		},
+		onUploadSuccess: () => {
+			// Don't close the dialog on upload success so user can upload more files
+		},
+		onUpdateSuccess: () => {
+			setEditingFile(null);
+		},
+	});
+
+	const handleAddFile = useCallback(
+		async (params: { title: string; markdown: string; summary?: string }) => {
+			await handleCreate(params);
+		},
+		[handleCreate]
+	);
+
+	const handleUploadFiles = useCallback(
+		async (files: File[]) => {
+			for (const file of files) {
+				await handleUpload(file);
+			}
+		},
+		[handleUpload]
+	);
+
+	const handleEditFile = useCallback(
+		async (
+			id: string,
+			params: { title: string; markdown: string; summary?: string }
+		) => {
+			await handleUpdate(id, params);
+		},
+		[handleUpdate]
+	);
+
 	return (
 		<SettingsPage>
-			<SettingsHeader>Files</SettingsHeader>
-			<PageContent className="py-6">
-				<Card className="border-dashed">
-					<CardHeader>
-						<div className="flex items-center gap-2">
-							<CardTitle>File Upload</CardTitle>
-							<Badge variant="secondary">Coming Soon</Badge>
+			<SettingsHeader>
+				Files
+				<div className="flex items-center gap-2 pr-1">
+					<TooltipOnHover content="Add File">
+						<Button
+							aria-label="Add File"
+							onClick={() =>
+								isAtFileLimit
+									? setShowUpgradeModal(true)
+									: setShowAddDialog(true)
+							}
+							size="sm"
+							type="button"
+							variant="secondary"
+						>
+							<Icon filledOnHover name="plus" />
+							Add File
+						</Button>
+					</TooltipOnHover>
+				</div>
+			</SettingsHeader>
+			<PageContent className="py-6 pt-20">
+				<div className="space-y-6">
+					{/* Stats info */}
+					{stats && stats.planLimitFiles !== null && (
+						<div className="flex items-center justify-between text-sm">
+							<p className="text-muted-foreground">
+								<span className="font-medium">
+									{stats.articleKnowledgeCount}
+								</span>{" "}
+								/ {stats.planLimitFiles} Files
+							</p>
+							{isFreePlan && (
+								<button
+									className="font-medium text-cossistant-orange hover:cursor-pointer hover:underline"
+									onClick={() => setShowUpgradeModal(true)}
+									type="button"
+								>
+									Upgrade for unlimited files
+								</button>
+							)}
 						</div>
-						<CardDescription>
-							Upload documents to train your AI agent on your internal
-							documentation and knowledge base.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="flex flex-col items-center justify-center py-12">
-						<Icon
-							className="mb-4 size-12 text-muted-foreground/50"
-							name="file"
+					)}
+
+					{/* File List */}
+					{aiAgent && (
+						<FileList
+							aiAgentId={aiAgent.id}
+							isDeleting={isDeleting}
+							isToggling={isToggling}
+							onDelete={handleDelete}
+							onEdit={setEditingFile}
+							onToggleIncluded={handleToggleIncluded}
+							websiteSlug={website.slug}
 						/>
-						<p className="mb-2 text-center font-medium">
-							File upload is coming soon
-						</p>
-						<p className="max-w-md text-center text-muted-foreground text-sm">
-							You'll be able to upload PDF documents, Word files, and text files
-							to train your AI agent on your internal documentation.
-						</p>
-						<div className="mt-4 flex flex-wrap justify-center gap-2">
-							<Badge variant="outline">PDF</Badge>
-							<Badge variant="outline">DOCX</Badge>
-							<Badge variant="outline">TXT</Badge>
-							<Badge variant="outline">MD</Badge>
-						</div>
-					</CardContent>
-				</Card>
+					)}
+				</div>
 			</PageContent>
+
+			{/* Add File Dialog */}
+			<AddFileDialog
+				fileLimit={stats?.planLimitFiles}
+				isAtLimit={isAtFileLimit}
+				isSubmitting={isCreating}
+				isUploading={isUploading}
+				onOpenChange={setShowAddDialog}
+				onSubmit={handleAddFile}
+				onUpgradeClick={() => setShowUpgradeModal(true)}
+				onUpload={handleUploadFiles}
+				open={showAddDialog}
+				websiteSlug={website.slug}
+			/>
+
+			{/* Edit File Dialog */}
+			<EditFileDialog
+				file={editingFile}
+				isSubmitting={isUpdating}
+				onOpenChange={(open) => !open && setEditingFile(null)}
+				onSubmit={handleEditFile}
+				open={editingFile !== null}
+			/>
+
+			{/* Upgrade Modal */}
+			{planInfo && (
+				<UpgradeModal
+					currentPlan={planInfo.plan}
+					highlightedFeatureKey="ai-agent-training-files"
+					initialPlanName="hobby"
+					onOpenChange={setShowUpgradeModal}
+					open={showUpgradeModal}
+					websiteSlug={website.slug}
+				/>
+			)}
 		</SettingsPage>
 	);
 }

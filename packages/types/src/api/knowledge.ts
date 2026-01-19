@@ -589,3 +589,69 @@ export const deleteKnowledgeRequestSchema = z
 	.openapi({
 		description: "Request to delete a knowledge entry",
 	});
+
+export type DeleteKnowledgeRequest = z.infer<
+	typeof deleteKnowledgeRequestSchema
+>;
+
+/**
+ * Toggle knowledge entry included request schema (TRPC)
+ * Named differently from link-source's toggleKnowledgeIncludedRequestSchema to avoid export conflict
+ */
+export const toggleKnowledgeEntryIncludedRequestSchema = z
+	.object({
+		websiteSlug: z.string().openapi({
+			description: "The website slug",
+			example: "my-website",
+		}),
+		id: z.ulid().openapi({
+			description: "Knowledge entry ID",
+			example: "01JG00000000000000000000A",
+		}),
+		isIncluded: z.boolean().openapi({
+			description: "Whether this entry should be included in training",
+			example: true,
+		}),
+	})
+	.openapi({
+		description: "Request to toggle knowledge entry inclusion in training",
+	});
+
+export type ToggleKnowledgeEntryIncludedRequest = z.infer<
+	typeof toggleKnowledgeEntryIncludedRequestSchema
+>;
+
+/**
+ * Upload knowledge file request schema (TRPC)
+ */
+export const uploadKnowledgeFileRequestSchema = z
+	.object({
+		websiteSlug: z.string().openapi({
+			description: "The website slug",
+			example: "my-website",
+		}),
+		aiAgentId: z.ulid().nullable().optional().openapi({
+			description:
+				"Optional AI agent ID; null/omit for shared at website scope",
+			example: "01JG000000000000000000002",
+		}),
+		fileName: z.string().min(1).openapi({
+			description: "Original file name",
+			example: "getting-started.md",
+		}),
+		fileContent: z.string().min(1).openapi({
+			description: "Raw file content",
+			example: "# Getting Started\n\nWelcome to our documentation...",
+		}),
+		fileExtension: z.enum(["md", "txt"]).openapi({
+			description: "File extension",
+			example: "md",
+		}),
+	})
+	.openapi({
+		description: "Request to upload a file as a knowledge entry",
+	});
+
+export type UploadKnowledgeFileRequest = z.infer<
+	typeof uploadKnowledgeFileRequestSchema
+>;

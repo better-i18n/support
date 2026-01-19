@@ -1,5 +1,7 @@
 import {
 	getKnowledgeById,
+	getKnowledgeCountByType,
+	getTotalKnowledgeSizeBytes,
 	getTotalUrlKnowledgeCount,
 	listKnowledge,
 	listKnowledgeByLinkSource,
@@ -1198,6 +1200,12 @@ export const linkSourceRouter = createTRPCRouter({
 			const totalPagesLimit = toNumericLimit(
 				planInfo.features["ai-agent-training-pages-total"]
 			);
+			const faqLimit = toNumericLimit(
+				planInfo.features["ai-agent-training-faqs"]
+			);
+			const fileLimit = toNumericLimit(
+				planInfo.features["ai-agent-training-files"]
+			);
 
 			// Get link source count
 			const linkSourcesCount = await getLinkSourceCount(db, {
@@ -1205,39 +1213,30 @@ export const linkSourceRouter = createTRPCRouter({
 				aiAgentId: input.aiAgentId ?? undefined,
 			});
 
-			// Get knowledge counts by type
-			const knowledgeList = await listKnowledge(db, {
-				organizationId: websiteData.organizationId,
+			// Get knowledge counts by type using efficient queries
+			const [urlKnowledgeCount, faqKnowledgeCount, articleKnowledgeCount] =
+				await Promise.all([
+					getKnowledgeCountByType(db, {
+						websiteId: websiteData.id,
+						aiAgentId: input.aiAgentId ?? null,
+						type: "url",
+					}),
+					getKnowledgeCountByType(db, {
+						websiteId: websiteData.id,
+						aiAgentId: input.aiAgentId ?? null,
+						type: "faq",
+					}),
+					getKnowledgeCountByType(db, {
+						websiteId: websiteData.id,
+						aiAgentId: input.aiAgentId ?? null,
+						type: "article",
+					}),
+				]);
+
+			// Get total size from knowledge table (includes all knowledge types)
+			const totalSizeBytes = await getTotalKnowledgeSizeBytes(db, {
 				websiteId: websiteData.id,
-				aiAgentId: input.aiAgentId ?? undefined,
-				limit: 1000, // Get all for counting
-			});
-
-			let urlKnowledgeCount = 0;
-			let faqKnowledgeCount = 0;
-			let articleKnowledgeCount = 0;
-
-			for (const item of knowledgeList.items) {
-				switch (item.type) {
-					case "url":
-						urlKnowledgeCount++;
-						break;
-					case "faq":
-						faqKnowledgeCount++;
-						break;
-					case "article":
-						articleKnowledgeCount++;
-						break;
-					default:
-						// Unknown type, ignore
-						break;
-				}
-			}
-
-			// Get total size
-			const totalSizeBytes = await getLinkSourceTotalSize(db, {
-				websiteId: websiteData.id,
-				aiAgentId: input.aiAgentId ?? undefined,
+				aiAgentId: input.aiAgentId ?? null,
 			});
 
 			return {
@@ -1250,6 +1249,8 @@ export const linkSourceRouter = createTRPCRouter({
 				planLimitLinks: linkLimit,
 				crawlPagesPerSourceLimit,
 				totalPagesLimit,
+				planLimitFaqs: faqLimit,
+				planLimitFiles: fileLimit,
 			};
 		}),
 });

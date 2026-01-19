@@ -393,6 +393,14 @@ export const trainingStatsResponseSchema = z
 				"Plan limit for total pages across all sources (null = unlimited)",
 			example: 10,
 		}),
+		planLimitFaqs: z.number().int().nonnegative().nullable().openapi({
+			description: "Plan limit for number of FAQs (null = unlimited)",
+			example: 10,
+		}),
+		planLimitFiles: z.number().int().nonnegative().nullable().openapi({
+			description: "Plan limit for number of files (null = unlimited)",
+			example: 5,
+		}),
 	})
 	.openapi({
 		description: "Training statistics for the AI agent",
