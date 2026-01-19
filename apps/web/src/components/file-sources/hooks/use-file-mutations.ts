@@ -487,7 +487,13 @@ export function useFileMutations({
 	const handleUpload = useCallback(
 		async (file: File) => {
 			const content = await file.text();
-			const extension = file.name.endsWith(".txt") ? "txt" : "md";
+			const match = file.name.match(FILE_EXTENSION_REGEX);
+			if (!match) {
+				throw new Error(
+					"Unsupported file type. Only .md and .txt files are allowed."
+				);
+			}
+			const extension = match[1] as "md" | "txt";
 
 			await uploadMutation.mutateAsync({
 				websiteSlug,
