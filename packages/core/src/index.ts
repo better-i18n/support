@@ -1,6 +1,42 @@
 export type { CossistantConfig, CossistantError } from "@cossistant/types";
+// AI SDK v6 conversion utilities
+export {
+	type AISDKFilePart,
+	type AISDKPart,
+	type AISDKReasoningPart,
+	type AISDKSourceDocumentPart,
+	type AISDKSourceUrlPart,
+	type AISDKStepStartPart,
+	type AISDKTextPart,
+	type AISDKToolPart,
+	type CossistantMessageMetadata,
+	type CossistantPartMetadata,
+	type CossistantUIMessage,
+	extractSources,
+	extractToolCalls,
+	type FromUIMessageContext,
+	fromUIMessage,
+	fromUIMessages,
+	hasProcessingParts,
+	isAISDKCompatiblePart,
+	toUIMessage,
+	toUIMessages,
+} from "./ai-sdk-utils";
 export { CossistantClient, CossistantClient as default } from "./client";
 export { normalizeLocale } from "./locale-utils";
+// Privacy filter utilities
+export {
+	type Audience,
+	countVisibleParts,
+	extractVisibleText,
+	type FilterOptions,
+	filterMessageForAudience,
+	filterMessagesForAudience,
+	filterTimelineItemForAudience,
+	filterTimelineItemsForAudience,
+	hasVisibleContent,
+	PrivacyPresets,
+} from "./privacy-filter";
 export { CossistantRestClient } from "./rest-client";
 export {
 	type ConversationPagination,

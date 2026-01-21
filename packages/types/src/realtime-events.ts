@@ -133,6 +133,94 @@ export const realtimeSchema = {
 		}),
 		aiAgentId: z.string().nullable(),
 	}),
+
+	// =========================================================================
+	// AI AGENT PROCESSING EVENTS
+	// For progressive UI updates during AI agent responses
+	// =========================================================================
+
+	// Emitted when AI agent starts processing a message
+	aiAgentProcessingStarted: baseRealtimeEvent.extend({
+		conversationId: z.string(),
+		aiAgentId: z.string(),
+		/** ID of the timeline item being created/updated */
+		timelineItemId: z.string(),
+		/** Initial phase of processing */
+		phase: z.string().optional(),
+	}),
+
+	// Emitted for progress updates during AI agent processing
+	aiAgentProcessingProgress: baseRealtimeEvent.extend({
+		conversationId: z.string(),
+		aiAgentId: z.string(),
+		timelineItemId: z.string(),
+		/** Current phase: 'thinking', 'searching', 'tool-executing', 'generating', etc. */
+		phase: z.string(),
+		/** Human-readable message for display (filtered by audience at API layer) */
+		message: z.string().nullable(),
+		/** Tool information when phase is tool-related */
+		tool: z
+			.object({
+				toolCallId: z.string(),
+				toolName: z.string(),
+				/** Tool state: partial (executing), result (success), error (failed) */
+				state: z.enum(["partial", "result", "error"]),
+			})
+			.optional(),
+	}),
+
+	// Emitted when AI agent finishes processing
+	aiAgentProcessingCompleted: baseRealtimeEvent.extend({
+		conversationId: z.string(),
+		aiAgentId: z.string(),
+		timelineItemId: z.string(),
+		/** Whether processing completed successfully or with error */
+		status: z.enum(["success", "error"]),
+		/** Error message if status is 'error' */
+		errorMessage: z.string().nullable().optional(),
+	}),
+
+	// =========================================================================
+	// TIMELINE ITEM UPDATE EVENTS
+	// For updating timeline items with new parts or state changes
+	// =========================================================================
+
+	// Emitted when an entire timeline item is updated (e.g., parts added)
+	timelineItemUpdated: baseRealtimeEvent.extend({
+		conversationId: z.string(),
+		item: z.object({
+			id: z.string(),
+			conversationId: z.string(),
+			organizationId: z.string(),
+			visibility: z.enum([
+				TimelineItemVisibility.PUBLIC,
+				TimelineItemVisibility.PRIVATE,
+			]),
+			type: z.enum([
+				ConversationTimelineType.MESSAGE,
+				ConversationTimelineType.EVENT,
+				ConversationTimelineType.IDENTIFICATION,
+			]),
+			text: z.string().nullable(),
+			parts: z.array(z.unknown()),
+			userId: z.string().nullable(),
+			visitorId: z.string().nullable(),
+			aiAgentId: z.string().nullable(),
+			createdAt: z.string(),
+			deletedAt: z.string().nullable(),
+			tool: z.string().nullable().optional(),
+		}),
+	}),
+
+	// Emitted for granular part updates (e.g., tool state changes)
+	timelineItemPartUpdated: baseRealtimeEvent.extend({
+		conversationId: z.string(),
+		timelineItemId: z.string(),
+		/** Index of the part in the parts array */
+		partIndex: z.number(),
+		/** The updated part data */
+		part: z.unknown(),
+	}),
 	// Web crawling events
 	crawlStarted: baseRealtimeEvent.extend({
 		linkSourceId: z.string(),

@@ -6,15 +6,189 @@ import {
 	TimelineItemVisibility,
 } from "../enums";
 
-const timelinePartImageSchema = z.object({
+// ============================================================================
+// AI SDK v6 COMPATIBLE PART SCHEMAS
+// These follow Vercel AI SDK v6 patterns for UIMessagePart types.
+// Cossistant extensions use providerMetadata.cossistant namespace.
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// Cossistant Provider Metadata (extension point for all parts)
+// ----------------------------------------------------------------------------
+const cossistantProviderMetadataSchema = z
+	.object({
+		cossistant: z
+			.object({
+				visibility: z.enum(["public", "private"]).optional().openapi({
+					description: "Part-level visibility control for filtering",
+				}),
+				progressMessage: z.string().optional().openapi({
+					description: "Custom progress message to display during execution",
+				}),
+				knowledgeId: z.string().optional().openapi({
+					description: "Reference to a Cossistant knowledge entry",
+				}),
+			})
+			.optional(),
+	})
+	.passthrough()
+	.optional();
+
+// ----------------------------------------------------------------------------
+// TEXT PART (AI SDK compatible)
+// ----------------------------------------------------------------------------
+const textPartSchema = z.object({
+	type: z.literal("text").openapi({
+		description: "Text content part - matches AI SDK TextUIPart",
+	}),
+	text: z.string().openapi({
+		description: "The text content",
+	}),
+	state: z.enum(["streaming", "done"]).optional().openapi({
+		description:
+			"AI SDK state: 'streaming' = still processing, 'done' = complete",
+	}),
+});
+
+// ----------------------------------------------------------------------------
+// REASONING PART (AI SDK compatible - for AI chain-of-thought)
+// ----------------------------------------------------------------------------
+const reasoningPartSchema = z.object({
+	type: z.literal("reasoning").openapi({
+		description:
+			"AI reasoning/chain-of-thought - matches AI SDK ReasoningUIPart",
+	}),
+	text: z.string().openapi({
+		description: "The reasoning text content",
+	}),
+	state: z.enum(["streaming", "done"]).optional().openapi({
+		description:
+			"AI SDK state: 'streaming' = still processing, 'done' = complete",
+	}),
+	providerMetadata: cossistantProviderMetadataSchema,
+});
+
+// ----------------------------------------------------------------------------
+// TOOL PART (AI SDK compatible - for tool invocations)
+// AI SDK uses type: `tool-${toolName}` pattern, but we use a generic schema
+// with toolName field for flexibility. Type checking happens at runtime.
+// ----------------------------------------------------------------------------
+const toolStateSchema = z.enum(["partial", "result", "error"]).openapi({
+	description:
+		"AI SDK tool state: 'partial' = executing, 'result' = success, 'error' = failed",
+});
+
+const toolPartSchema = z.object({
+	type: z
+		.string()
+		.regex(/^tool-.+$/)
+		.openapi({
+			description: "Tool type following AI SDK pattern: tool-{toolName}",
+		}),
+	toolCallId: z.string().openapi({
+		description: "Unique identifier for this tool invocation",
+	}),
+	toolName: z.string().openapi({
+		description: "Name of the tool being invoked",
+	}),
+	input: z.record(z.string(), z.unknown()).openapi({
+		description: "Input parameters passed to the tool",
+	}),
+	output: z.unknown().optional().openapi({
+		description: "Output returned by the tool (when state is 'result')",
+	}),
+	state: toolStateSchema,
+	errorText: z.string().optional().openapi({
+		description: "Error message when state is 'error'",
+	}),
+	providerMetadata: cossistantProviderMetadataSchema,
+});
+
+// ----------------------------------------------------------------------------
+// SOURCE URL PART (AI SDK compatible - for citations)
+// ----------------------------------------------------------------------------
+const sourceUrlPartSchema = z.object({
+	type: z.literal("source-url").openapi({
+		description: "URL source citation - matches AI SDK SourceUrlUIPart",
+	}),
+	sourceId: z.string().openapi({
+		description: "Unique identifier for this source",
+	}),
+	url: z.string().url().openapi({
+		description: "URL of the source",
+	}),
+	title: z.string().optional().openapi({
+		description: "Title of the source",
+	}),
+	providerMetadata: cossistantProviderMetadataSchema,
+});
+
+// ----------------------------------------------------------------------------
+// SOURCE DOCUMENT PART (AI SDK compatible - for document citations)
+// ----------------------------------------------------------------------------
+const sourceDocumentPartSchema = z.object({
+	type: z.literal("source-document").openapi({
+		description:
+			"Document source citation - matches AI SDK SourceDocumentUIPart",
+	}),
+	sourceId: z.string().openapi({
+		description: "Unique identifier for this source",
+	}),
+	mediaType: z.string().openapi({
+		description: "IANA media type of the document",
+	}),
+	title: z.string().openapi({
+		description: "Title of the document",
+	}),
+	filename: z.string().optional().openapi({
+		description: "Filename of the document",
+	}),
+	providerMetadata: cossistantProviderMetadataSchema,
+});
+
+// ----------------------------------------------------------------------------
+// STEP START PART (AI SDK compatible - for multi-step boundaries)
+// ----------------------------------------------------------------------------
+const stepStartPartSchema = z.object({
+	type: z.literal("step-start").openapi({
+		description: "Step boundary marker - matches AI SDK StepStartUIPart",
+	}),
+});
+
+// ----------------------------------------------------------------------------
+// FILE PART (AI SDK compatible)
+// ----------------------------------------------------------------------------
+const filePartSchema = z.object({
+	type: z.literal("file").openapi({
+		description: "File attachment - matches AI SDK FileUIPart",
+	}),
+	url: z.string().openapi({
+		description: "URL of the file (can be hosted URL or Data URL)",
+	}),
+	mediaType: z.string().openapi({
+		description: "IANA media type of the file",
+	}),
+	filename: z.string().optional().openapi({
+		description: "Original filename",
+	}),
+	// Cossistant extension: additional file metadata
+	size: z.number().optional().openapi({
+		description: "Size of the file in bytes",
+	}),
+});
+
+// ----------------------------------------------------------------------------
+// IMAGE PART (Cossistant extension - more detailed than AI SDK file)
+// ----------------------------------------------------------------------------
+const imagePartSchema = z.object({
 	type: z.literal("image").openapi({
-		description: "Type of timeline part - always 'image' for image parts",
+		description: "Image attachment with dimensions",
 	}),
 	url: z.string().openapi({
 		description: "URL of the image",
 	}),
 	mediaType: z.string().openapi({
-		description: "MIME type of the image",
+		description: "IANA media type of the image",
 	}),
 	fileName: z.string().optional().openapi({
 		description: "Original filename of the image",
@@ -30,32 +204,10 @@ const timelinePartImageSchema = z.object({
 	}),
 });
 
-const timelinePartTextSchema = z.object({
-	type: z.literal("text").openapi({
-		description: "Type of timeline part - always 'text' for text parts",
-	}),
-	text: z.string().openapi({
-		description: "The text content of this timeline part",
-	}),
-});
-
-const timelineFileSchema = z.object({
-	type: z.literal("file").openapi({
-		description: "Type of timeline part - always 'file' for file parts",
-	}),
-	url: z.string().openapi({
-		description: "URL of the file",
-	}),
-	mediaType: z.string().openapi({
-		description: "MIME type of the file",
-	}),
-	fileName: z.string().optional().openapi({
-		description: "Original filename of the file",
-	}),
-	size: z.number().optional().openapi({
-		description: "Size of the file in bytes",
-	}),
-});
+// ============================================================================
+// COSSISTANT-SPECIFIC PART SCHEMAS
+// These are Cossistant-specific parts not in AI SDK
+// ============================================================================
 
 const timelinePartEventSchema = z.object({
 	type: z.literal("event").openapi({
@@ -107,19 +259,31 @@ const timelinePartMetadataSchema = z.object({
 	}),
 });
 
+// ============================================================================
+// TIMELINE ITEM PARTS UNION
+// Combines AI SDK compatible parts with Cossistant-specific parts
+// ============================================================================
+
 export const timelineItemPartsSchema = z
 	.array(
 		z.union([
-			timelinePartTextSchema,
+			// AI SDK compatible parts
+			textPartSchema,
+			reasoningPartSchema,
+			toolPartSchema,
+			sourceUrlPartSchema,
+			sourceDocumentPartSchema,
+			stepStartPartSchema,
+			filePartSchema,
+			imagePartSchema,
+			// Cossistant-specific parts
 			timelinePartEventSchema,
-			timelinePartImageSchema,
-			timelineFileSchema,
 			timelinePartMetadataSchema,
 		])
 	)
 	.openapi({
 		description:
-			"Array of timeline parts that make up the timeline item content",
+			"Array of timeline parts that make up the timeline item content. Includes AI SDK compatible parts (text, reasoning, tool-*, source-url, source-document, step-start, file, image) and Cossistant-specific parts (event, metadata).",
 	});
 
 export const timelineItemSchema = z.object({
@@ -179,11 +343,43 @@ export type timelineItemSchema = z.infer<typeof timelineItemSchema>;
 export type TimelineItem = z.infer<typeof timelineItemSchema>;
 export type TimelineItemParts = z.infer<typeof timelineItemPartsSchema>;
 
-export type TimelinePartText = z.infer<typeof timelinePartTextSchema>;
-export type TimelinePartImage = z.infer<typeof timelinePartImageSchema>;
-export type TimelinePartFile = z.infer<typeof timelineFileSchema>;
+// AI SDK compatible part types
+export type TextPart = z.infer<typeof textPartSchema>;
+export type ReasoningPart = z.infer<typeof reasoningPartSchema>;
+export type ToolPart = z.infer<typeof toolPartSchema>;
+export type SourceUrlPart = z.infer<typeof sourceUrlPartSchema>;
+export type SourceDocumentPart = z.infer<typeof sourceDocumentPartSchema>;
+export type StepStartPart = z.infer<typeof stepStartPartSchema>;
+export type FilePart = z.infer<typeof filePartSchema>;
+export type ImagePart = z.infer<typeof imagePartSchema>;
+
+// Cossistant-specific part types
 export type TimelinePartEvent = z.infer<typeof timelinePartEventSchema>;
 export type TimelinePartMetadata = z.infer<typeof timelinePartMetadataSchema>;
+
+// Provider metadata type for extensions
+export type CossistantProviderMetadata = z.infer<
+	typeof cossistantProviderMetadataSchema
+>;
+
+// Tool state type
+export type ToolState = z.infer<typeof toolStateSchema>;
+
+// Export schemas for external use
+export {
+	textPartSchema,
+	reasoningPartSchema,
+	toolPartSchema,
+	toolStateSchema,
+	sourceUrlPartSchema,
+	sourceDocumentPartSchema,
+	stepStartPartSchema,
+	filePartSchema,
+	imagePartSchema,
+	timelinePartEventSchema,
+	timelinePartMetadataSchema,
+	cossistantProviderMetadataSchema,
+};
 
 // REST API Schemas
 export const getConversationTimelineItemsRequestSchema = z
