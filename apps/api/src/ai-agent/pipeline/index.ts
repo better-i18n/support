@@ -18,10 +18,9 @@ import { isWorkflowRunActive } from "@cossistant/jobs/workflow-state";
 import type { Redis } from "@cossistant/redis";
 import {
 	emitDecisionMade,
-	emitTypingStart,
-	emitTypingStop,
 	emitWorkflowCancelled,
 	emitWorkflowCompleted,
+	TypingHeartbeat,
 } from "../events";
 import { type IntakeResult, intake } from "./1-intake";
 import { type DecisionResult, decide } from "./2-decision";
@@ -90,7 +89,7 @@ export async function runAiAgentPipeline(
 	let decisionResult: DecisionResult | null = null;
 	let generationResult: GenerationResult | null = null;
 	let executionResult: ExecutionResult | null = null;
-	let typingStarted = false;
+	let typingHeartbeat: TypingHeartbeat | null = null;
 
 	try {
 		// Step 1: Intake - Gather context and validate
@@ -151,12 +150,13 @@ export async function runAiAgentPipeline(
 			};
 		}
 
-		// Decision says we should act - start typing indicator now
-		await emitTypingStart({
+		// Decision says we should act - start typing heartbeat
+		// Heartbeat keeps the typing indicator alive during long LLM calls
+		typingHeartbeat = new TypingHeartbeat({
 			conversation: intakeResult.conversation,
 			aiAgentId: intakeResult.aiAgent.id,
 		});
-		typingStarted = true;
+		await typingHeartbeat.start();
 
 		// CHECK: Has this job been superseded by a newer message?
 		const isActiveBeforeGeneration = await isWorkflowRunActive(
@@ -169,12 +169,9 @@ export async function runAiAgentPipeline(
 			console.log(
 				`[ai-agent] conv=${convId} | Superseded before generation, aborting`
 			);
-			// Stop typing since we started but won't respond
-			await emitTypingStop({
-				conversation: intakeResult.conversation,
-				aiAgentId: intakeResult.aiAgent.id,
-			});
-			typingStarted = false;
+			// Stop typing heartbeat since we won't respond
+			await typingHeartbeat.stop();
+			typingHeartbeat = null;
 
 			// Emit cancelled event (dashboard only)
 			await emitWorkflowCancelled({
@@ -218,12 +215,9 @@ export async function runAiAgentPipeline(
 			console.log(
 				`[ai-agent] conv=${convId} | Superseded before execution, aborting`
 			);
-			// Stop typing since we started but won't respond
-			await emitTypingStop({
-				conversation: intakeResult.conversation,
-				aiAgentId: intakeResult.aiAgent.id,
-			});
-			typingStarted = false;
+			// Stop typing heartbeat since we won't respond
+			await typingHeartbeat.stop();
+			typingHeartbeat = null;
 
 			// Emit cancelled event (dashboard only)
 			await emitWorkflowCancelled({
@@ -262,12 +256,9 @@ export async function runAiAgentPipeline(
 		});
 		metrics.executionMs = Date.now() - executionStart;
 
-		// Stop typing indicator after execution completes
-		await emitTypingStop({
-			conversation: intakeResult.conversation,
-			aiAgentId: intakeResult.aiAgent.id,
-		});
-		typingStarted = false;
+		// Stop typing heartbeat after execution completes
+		await typingHeartbeat.stop();
+		typingHeartbeat = null;
 
 		// Step 5: Followup - Cleanup and emit events
 		const followupStart = Date.now();
@@ -303,13 +294,10 @@ export async function runAiAgentPipeline(
 			metrics: finalMetrics,
 		};
 	} catch (error) {
-		// Stop typing indicator if it was started
-		if (typingStarted && intakeResult?.status === "ready") {
+		// Stop typing heartbeat if it was running
+		if (typingHeartbeat?.running) {
 			try {
-				await emitTypingStop({
-					conversation: intakeResult.conversation,
-					aiAgentId: intakeResult.aiAgent.id,
-				});
+				await typingHeartbeat.stop();
 			} catch {
 				// Ignore typing cleanup errors
 			}
@@ -336,6 +324,21 @@ export async function runAiAgentPipeline(
 		const errorMessage =
 			error instanceof Error ? error.message : "Unknown error";
 		console.error(`[ai-agent] conv=${convId} | Error | ${errorMessage}`);
+
+		// Emit error completion event (dashboard only)
+		if (intakeResult?.status === "ready") {
+			try {
+				await emitWorkflowCompleted({
+					conversation: intakeResult.conversation,
+					aiAgentId: intakeResult.aiAgent.id,
+					workflowRunId: ctx.input.workflowRunId,
+					status: "error",
+					reason: errorMessage,
+				});
+			} catch {
+				// Ignore event emission errors during error handling
+			}
+		}
 
 		return {
 			status: "error",

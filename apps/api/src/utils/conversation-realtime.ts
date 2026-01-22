@@ -87,6 +87,12 @@ export async function emitConversationTypingEvent({
 			? visitorPreview.slice(0, 2000)
 			: null;
 
+	const visitorId = actorPayload.visitorId ?? conversation.visitorId ?? null;
+
+	console.log(
+		`[realtime:typing] conv=${conversation.id} | isTyping=${isTyping} | actor=${actorPayload.actorType} | visitorId=${visitorId}`
+	);
+
 	await realtime.emit("conversationTyping", {
 		conversationId: conversation.id,
 		websiteId: conversation.websiteId,
@@ -94,7 +100,7 @@ export async function emitConversationTypingEvent({
 		isTyping,
 		visitorPreview: previewForEvent,
 		...actorPayload,
-		visitorId: actorPayload.visitorId ?? conversation.visitorId ?? null,
+		visitorId,
 	});
 }
 

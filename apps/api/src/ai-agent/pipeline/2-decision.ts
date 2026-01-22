@@ -48,6 +48,7 @@ export async function decide(input: DecisionInput): Promise<DecisionResult> {
 
 	// Check for human command first (highest priority)
 	const humanCommand = detectHumanCommand(triggerMessage);
+
 	if (humanCommand) {
 		console.log(
 			`[ai-agent:decision] conv=${convId} | Human command detected: "${humanCommand.slice(0, 50)}${humanCommand.length > 50 ? "..." : ""}"`

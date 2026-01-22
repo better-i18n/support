@@ -7,7 +7,7 @@
 export { emitDecisionMade } from "./decision";
 export { emitGenerationProgress, emitToolProgress } from "./progress";
 export { emitSeen } from "./seen";
-export { emitTypingStart, emitTypingStop } from "./typing";
+export { emitTypingStart, emitTypingStop, TypingHeartbeat } from "./typing";
 export {
 	emitWorkflowCancelled,
 	emitWorkflowCompleted,
