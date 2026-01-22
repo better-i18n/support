@@ -16,7 +16,13 @@ import type { Database } from "@api/db";
 import { generateVisitorName } from "@cossistant/core";
 import { isWorkflowRunActive } from "@cossistant/jobs/workflow-state";
 import type { Redis } from "@cossistant/redis";
-import { emitTypingStart, emitTypingStop } from "../events";
+import {
+	emitDecisionMade,
+	emitTypingStart,
+	emitTypingStop,
+	emitWorkflowCancelled,
+	emitWorkflowCompleted,
+} from "../events";
 import { type IntakeResult, intake } from "./1-intake";
 import { type DecisionResult, decide } from "./2-decision";
 import { type GenerationResult, generate } from "./3-generation";
@@ -114,10 +120,30 @@ export async function runAiAgentPipeline(
 		});
 		metrics.decisionMs = Date.now() - decisionStart;
 
+		// Emit decision event
+		await emitDecisionMade({
+			conversation: intakeResult.conversation,
+			aiAgentId: intakeResult.aiAgent.id,
+			workflowRunId: ctx.input.workflowRunId,
+			shouldAct: decisionResult.shouldAct,
+			reason: decisionResult.reason,
+			mode: decisionResult.mode,
+		});
+
 		if (!decisionResult.shouldAct) {
 			console.log(
 				`[ai-agent] conv=${convId} | Skipped at decision | reason="${decisionResult.reason}"`
 			);
+
+			// Emit completion event (dashboard only since shouldAct=false)
+			await emitWorkflowCompleted({
+				conversation: intakeResult.conversation,
+				aiAgentId: intakeResult.aiAgent.id,
+				workflowRunId: ctx.input.workflowRunId,
+				status: "skipped",
+				reason: decisionResult.reason,
+			});
+
 			return {
 				status: "skipped",
 				reason: decisionResult.reason,
@@ -149,6 +175,15 @@ export async function runAiAgentPipeline(
 				aiAgentId: intakeResult.aiAgent.id,
 			});
 			typingStarted = false;
+
+			// Emit cancelled event (dashboard only)
+			await emitWorkflowCancelled({
+				conversation: intakeResult.conversation,
+				aiAgentId: intakeResult.aiAgent.id,
+				workflowRunId: ctx.input.workflowRunId,
+				reason: "Superseded by newer message",
+			});
+
 			return {
 				status: "skipped",
 				reason: "Superseded by newer message",
@@ -189,6 +224,15 @@ export async function runAiAgentPipeline(
 				aiAgentId: intakeResult.aiAgent.id,
 			});
 			typingStarted = false;
+
+			// Emit cancelled event (dashboard only)
+			await emitWorkflowCancelled({
+				conversation: intakeResult.conversation,
+				aiAgentId: intakeResult.aiAgent.id,
+				workflowRunId: ctx.input.workflowRunId,
+				reason: "Superseded by newer message",
+			});
+
 			return {
 				status: "skipped",
 				reason: "Superseded by newer message",
@@ -238,6 +282,15 @@ export async function runAiAgentPipeline(
 			websiteId: ctx.input.websiteId,
 		});
 		metrics.followupMs = Date.now() - followupStart;
+
+		// Emit completion event (success - notify widget)
+		await emitWorkflowCompleted({
+			conversation: intakeResult.conversation,
+			aiAgentId: intakeResult.aiAgent.id,
+			workflowRunId: ctx.input.workflowRunId,
+			status: "success",
+			action: generationResult.decision.action,
+		});
 
 		const finalMetrics = finalizeMetrics(metrics, startTime);
 		console.log(

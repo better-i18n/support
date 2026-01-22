@@ -87,8 +87,10 @@ const dispatchRules: Partial<Record<RealtimeEventType, DispatchRuleOverrides>> =
 		linkSourceUpdated: { website: true, visitor: false },
 		crawlPagesDiscovered: { website: true, visitor: false },
 		crawlPageCompleted: { website: true, visitor: false },
-		// AI agent processing events - dispatch to both for progress updates
+		// AI agent processing events
+		// These use audience filtering: 'all' goes to both, 'dashboard' goes only to website
 		aiAgentProcessingStarted: { website: true, visitor: true },
+		aiAgentDecisionMade: { website: true, visitor: true },
 		aiAgentProcessingProgress: { website: true, visitor: true },
 		aiAgentProcessingCompleted: { website: true, visitor: true },
 		// Timeline item update events
@@ -115,6 +117,23 @@ function resolveWebsiteDispatchOptions(
 	return;
 }
 
+/**
+ * Check if an event should be sent to visitors based on audience field
+ * AI agent events use audience filtering: 'all' goes to both, 'dashboard' goes only to website
+ */
+function shouldSendToVisitor<T extends RealtimeEventType>(
+	event: RealtimeEvent<T>
+): boolean {
+	const payload = event.payload as Record<string, unknown>;
+
+	// If the event has an audience field and it's 'dashboard', don't send to visitor
+	if ("audience" in payload && payload.audience === "dashboard") {
+		return false;
+	}
+
+	return true;
+}
+
 function dispatchEvent<T extends RealtimeEventType>(
 	ctx: EventContext,
 	event: RealtimeEvent<T>,
@@ -126,7 +145,13 @@ function dispatchEvent<T extends RealtimeEventType>(
 		ctx.sendToWebsite(websiteTarget, event as AnyRealtimeEvent, options);
 	}
 
-	if (rules.visitor && event.payload.visitorId && ctx.sendToVisitor) {
+	// Check audience filter before sending to visitor
+	if (
+		rules.visitor &&
+		event.payload.visitorId &&
+		ctx.sendToVisitor &&
+		shouldSendToVisitor(event)
+	) {
 		ctx.sendToVisitor(event.payload.visitorId, event as AnyRealtimeEvent);
 	}
 }
@@ -250,17 +275,24 @@ const eventHandlers: EventHandlers = {
 		// Event is broadcast to website - no additional logic needed
 	},
 	// AI agent processing events
+	// These use audience filtering: 'all' goes to both, 'dashboard' goes only to website
 	aiAgentProcessingStarted: (_ctx, event) => {
 		const _data = event.payload;
-		// Event is broadcast to website and visitor - no additional logic needed
+		// Event is broadcast based on audience field
+	},
+	aiAgentDecisionMade: (_ctx, event) => {
+		const _data = event.payload;
+		// Event is broadcast based on audience field
+		// shouldAct=true → audience='all' (widget shows typing)
+		// shouldAct=false → audience='dashboard' (visitor doesn't know)
 	},
 	aiAgentProcessingProgress: (_ctx, event) => {
 		const _data = event.payload;
-		// Event is broadcast to website and visitor - no additional logic needed
+		// Event is broadcast based on audience field
 	},
 	aiAgentProcessingCompleted: (_ctx, event) => {
 		const _data = event.payload;
-		// Event is broadcast to website and visitor - no additional logic needed
+		// Event is broadcast based on audience field
 	},
 	// Timeline item update events
 	timelineItemUpdated: (_ctx, event) => {

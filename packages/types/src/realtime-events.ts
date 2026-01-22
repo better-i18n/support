@@ -137,26 +137,54 @@ export const realtimeSchema = {
 	// =========================================================================
 	// AI AGENT PROCESSING EVENTS
 	// For progressive UI updates during AI agent responses
+	//
+	// AUDIENCE FIELD:
+	// - 'all': Send to both dashboard and widget
+	// - 'dashboard': Send only to dashboard (human agents)
+	//
+	// Widget (visitor) connections only receive events with audience='all'
 	// =========================================================================
 
 	// Emitted when AI agent starts processing a message
 	aiAgentProcessingStarted: baseRealtimeEvent.extend({
 		conversationId: z.string(),
 		aiAgentId: z.string(),
-		/** ID of the timeline item being created/updated */
-		timelineItemId: z.string(),
+		workflowRunId: z.string(),
+		/** ID of the trigger message that started this workflow */
+		triggerMessageId: z.string(),
 		/** Initial phase of processing */
 		phase: z.string().optional(),
+		/** Audience: 'all' = everyone, 'dashboard' = team only */
+		audience: z.enum(["all", "dashboard"]).default("dashboard"),
+	}),
+
+	// Emitted when AI agent makes a decision about whether to act
+	aiAgentDecisionMade: baseRealtimeEvent.extend({
+		conversationId: z.string(),
+		aiAgentId: z.string(),
+		workflowRunId: z.string(),
+		/** Whether the AI decided to take action */
+		shouldAct: z.boolean(),
+		/** Human-readable reason for the decision */
+		reason: z.string(),
+		/** Response mode: how the AI is responding */
+		mode: z.enum([
+			"respond_to_visitor",
+			"respond_to_command",
+			"background_only",
+		]),
+		/** Audience: 'all' = everyone, 'dashboard' = team only */
+		audience: z.enum(["all", "dashboard"]),
 	}),
 
 	// Emitted for progress updates during AI agent processing
 	aiAgentProcessingProgress: baseRealtimeEvent.extend({
 		conversationId: z.string(),
 		aiAgentId: z.string(),
-		timelineItemId: z.string(),
+		workflowRunId: z.string(),
 		/** Current phase: 'thinking', 'searching', 'tool-executing', 'generating', etc. */
 		phase: z.string(),
-		/** Human-readable message for display (filtered by audience at API layer) */
+		/** Human-readable message for display (widget sees this) */
 		message: z.string().nullable(),
 		/** Tool information when phase is tool-related */
 		tool: z
@@ -167,17 +195,23 @@ export const realtimeSchema = {
 				state: z.enum(["partial", "result", "error"]),
 			})
 			.optional(),
+		/** Audience: 'all' = everyone, 'dashboard' = team only */
+		audience: z.enum(["all", "dashboard"]).default("all"),
 	}),
 
 	// Emitted when AI agent finishes processing
 	aiAgentProcessingCompleted: baseRealtimeEvent.extend({
 		conversationId: z.string(),
 		aiAgentId: z.string(),
-		timelineItemId: z.string(),
-		/** Whether processing completed successfully or with error */
-		status: z.enum(["success", "error"]),
-		/** Error message if status is 'error' */
-		errorMessage: z.string().nullable().optional(),
+		workflowRunId: z.string(),
+		/** Whether processing completed successfully, was skipped, cancelled, or errored */
+		status: z.enum(["success", "skipped", "cancelled", "error"]),
+		/** Action taken (if status is 'success') */
+		action: z.string().nullable().optional(),
+		/** Reason for skip/cancel/error */
+		reason: z.string().nullable().optional(),
+		/** Audience: 'all' = everyone, 'dashboard' = team only */
+		audience: z.enum(["all", "dashboard"]).default("all"),
 	}),
 
 	// =========================================================================

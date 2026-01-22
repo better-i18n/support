@@ -13,6 +13,7 @@
  */
 
 import { runAiAgentPipeline } from "@api/ai-agent";
+import { emitWorkflowStarted } from "@api/ai-agent/events";
 import { getBehaviorSettings } from "@api/ai-agent/settings";
 import { markConversationAsSeen } from "@api/db/mutations/conversation";
 import { getAiAgentById } from "@api/db/queries/ai-agent";
@@ -217,6 +218,14 @@ export function createAiAgentWorker({
 			conversation,
 			actor,
 			lastSeenAt,
+		});
+
+		// Emit workflow started event (dashboard only)
+		await emitWorkflowStarted({
+			conversation,
+			aiAgentId,
+			workflowRunId,
+			triggerMessageId: messageId,
 		});
 
 		// Apply response delay from behavior settings (before pipeline starts)

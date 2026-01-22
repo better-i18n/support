@@ -106,6 +106,8 @@ When responding to visitors:
 
 	/**
 	 * Conversation context instructions
+	 * @deprecated Use CORE_SECURITY_PROMPT from security.ts instead
+	 * Kept for backward compatibility but no longer used in buildSystemPrompt
 	 */
 	CONVERSATION_CONTEXT: `## Conversation Context
 

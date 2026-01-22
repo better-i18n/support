@@ -17,6 +17,10 @@ import type { ConversationSelect } from "@api/db/schema/conversation";
 import { env } from "@api/env";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText, Output, stepCountIs } from "ai";
+import {
+	detectPromptInjection,
+	logInjectionAttempt,
+} from "../analysis/injection";
 import type { RoleAwareMessage } from "../context/conversation";
 import type { VisitorContext } from "../context/visitor";
 import { type AiDecision, aiDecisionSchema } from "../output/schemas";
@@ -91,12 +95,30 @@ export async function generate(
 		tools,
 	});
 
-	// Format conversation history for LLM
-	const messages = formatMessagesForLlm(conversationHistory);
+	// Format conversation history for LLM with multi-party prefixes
+	const visitorName = visitorContext?.name ?? null;
+	const messages = formatMessagesForLlm(conversationHistory, visitorName);
 
 	console.log(
 		`[ai-agent:generate] conv=${convId} | model=${aiAgent.model} | messages=${messages.length} | mode=${mode} | tools=${tools ? Object.keys(tools).length : 0}`
 	);
+
+	// Check for potential prompt injection in the latest visitor message (for monitoring)
+	const latestVisitorMessage = conversationHistory
+		.filter((m) => m.senderType === "visitor")
+		.pop();
+	if (latestVisitorMessage) {
+		const injectionResult = detectPromptInjection(latestVisitorMessage.content);
+		if (injectionResult.detected) {
+			logInjectionAttempt(
+				convId,
+				injectionResult,
+				latestVisitorMessage.content
+			);
+			// Note: We don't block the message - the AI handles it via security prompt
+			// The logging is for monitoring and improving detection patterns
+		}
+	}
 
 	// In development, log the full system prompt for debugging
 	if (env.NODE_ENV === "development") {
@@ -208,22 +230,63 @@ export async function generate(
 }
 
 /**
+ * Build message prefix based on sender type and visibility
+ *
+ * Prefix Protocol:
+ * - [VISITOR] or [VISITOR:name] for visitor messages
+ * - [TEAM:name] for human agent messages
+ * - [AI] for AI agent messages
+ * - [PRIVATE] prefix for private/internal messages
+ *
+ * This helps the AI reliably understand who is speaking and
+ * which messages are internal team communications.
+ */
+function buildMessagePrefix(
+	msg: RoleAwareMessage,
+	visitorName: string | null
+): string {
+	const isPrivate = msg.visibility === "private";
+	const privatePrefix = isPrivate ? "[PRIVATE]" : "";
+
+	switch (msg.senderType) {
+		case "visitor":
+			// Visitor messages are always public
+			return visitorName ? `[VISITOR:${visitorName}]` : "[VISITOR]";
+
+		case "human_agent": {
+			const humanName = msg.senderName || "Team Member";
+			return `${privatePrefix}[TEAM:${humanName}]`;
+		}
+
+		case "ai_agent":
+			return `${privatePrefix}[AI]`;
+
+		default:
+			return "";
+	}
+}
+
+/**
  * Format role-aware messages for LLM consumption
+ *
+ * Uses AI SDK message format with prefixed content for multi-party context:
+ * - Visitor messages → role: "user" with [VISITOR] or [VISITOR:name] prefix
+ * - Human/AI messages → role: "assistant" with [TEAM:name] or [AI] prefix
+ * - Private messages get [PRIVATE] prefix
  */
 function formatMessagesForLlm(
-	messages: RoleAwareMessage[]
+	messages: RoleAwareMessage[],
+	visitorName: string | null
 ): Array<{ role: "user" | "assistant"; content: string }> {
 	return messages.map((msg) => {
 		// Visitor messages are "user", everything else is "assistant"
 		const role = msg.senderType === "visitor" ? "user" : "assistant";
 
-		// Add sender context to the message
-		let content = msg.content;
-		if (msg.senderType === "human_agent" && msg.senderName) {
-			content = `[Support Agent ${msg.senderName}]: ${content}`;
-		} else if (msg.senderType === "ai_agent") {
-			content = `[AI Assistant]: ${content}`;
-		}
+		// Build prefix based on sender type and visibility
+		const prefix = buildMessagePrefix(msg, visitorName);
+
+		// Combine prefix with content
+		const content = prefix ? `${prefix} ${msg.content}` : msg.content;
 
 		return { role, content };
 	});

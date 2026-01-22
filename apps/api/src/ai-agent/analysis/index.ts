@@ -13,3 +13,8 @@ export {
 	type EscalationSummary,
 	generateEscalationSummary,
 } from "./escalation-summary";
+export {
+	detectPromptInjection,
+	type InjectionDetectionResult,
+	logInjectionAttempt,
+} from "./injection";
