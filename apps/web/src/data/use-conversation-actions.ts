@@ -408,10 +408,37 @@ export function useConversationActions({
 			const context = await prepareContext();
 			const now = new Date().toISOString();
 
-			applyOptimisticUpdate((existing) => ({
-				...existing,
-				lastSeenAt: now,
-			}));
+			applyOptimisticUpdate((existing) => {
+				// Update both lastSeenAt (for unread indicator) and seenData (for read receipts)
+				const existingEntryIndex = existing.seenData.findIndex(
+					(s) => s.userId === user.id
+				);
+				const newEntry: ConversationHeader["seenData"][number] = {
+					id: `${conversationId}:user:${user.id}`,
+					conversationId,
+					userId: user.id,
+					visitorId: null,
+					aiAgentId: null,
+					lastSeenAt: now,
+					createdAt:
+						existingEntryIndex === -1
+							? now
+							: (existing.seenData[existingEntryIndex]?.createdAt ?? now),
+					updatedAt: now,
+					deletedAt: null,
+				};
+				const newSeenData =
+					existingEntryIndex === -1
+						? [...existing.seenData, newEntry]
+						: existing.seenData.map((s, i) =>
+								i === existingEntryIndex ? newEntry : s
+							);
+				return {
+					...existing,
+					lastSeenAt: now,
+					seenData: newSeenData,
+				};
+			});
 
 			return context;
 		},

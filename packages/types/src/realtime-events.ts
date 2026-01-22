@@ -42,7 +42,7 @@ export const realtimeSchema = {
 	conversationSeen: baseRealtimeEvent.extend({
 		conversationId: z.string(),
 		aiAgentId: z.string().nullable(),
-		lastSeenAt: z.string(),
+		lastSeenAt: z.string().nullable(), // null indicates unread (seen entry removed)
 	}),
 	conversationTyping: baseRealtimeEvent.extend({
 		conversationId: z.string(),

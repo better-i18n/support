@@ -47,10 +47,14 @@ type RenderProps<State, Tag extends IntrinsicTag> = {
 	asChild?: boolean;
 };
 
+type DataAttributes = {
+	[key: `data-${string}`]: string | number | boolean | undefined;
+};
+
 type RenderParams<State, Tag extends IntrinsicTag> = {
 	state?: State;
 	ref?: React.Ref<any>;
-	props?: Partial<JSX.IntrinsicElements[Tag]>;
+	props?: Partial<JSX.IntrinsicElements[Tag]> & DataAttributes;
 	enabled?: boolean;
 };
 

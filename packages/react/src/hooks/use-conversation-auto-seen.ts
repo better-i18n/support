@@ -44,6 +44,14 @@ export type UseConversationAutoSeenOptions = {
 	 * Default: true
 	 */
 	isWidgetOpen?: boolean;
+
+	/**
+	 * Whether the last message is visible in the viewport.
+	 * When provided, messages are only marked as seen when actually visible.
+	 * This enables true read receipt behavior.
+	 * When not provided, falls back to the legacy timeout-based behavior.
+	 */
+	isLastMessageVisible?: boolean;
 };
 
 /**
@@ -52,6 +60,7 @@ export type UseConversationAutoSeenOptions = {
  * - The page is visible
  * - The support widget is open/visible
  * - The visitor is the current user
+ * - (Optional) The last message is visible in the viewport
  *
  * Also handles:
  * - Fetching and hydrating initial seen data
@@ -61,11 +70,21 @@ export type UseConversationAutoSeenOptions = {
  *
  * @example
  * ```tsx
+ * // Legacy behavior (timeout-based)
  * useConversationAutoSeen({
  *   client,
  *   conversationId: realConversationId,
  *   visitorId: visitor?.id,
  *   lastTimelineItem: items[items.length - 1] ?? null,
+ * });
+ *
+ * // True read receipts (visibility-based)
+ * useConversationAutoSeen({
+ *   client,
+ *   conversationId: realConversationId,
+ *   visitorId: visitor?.id,
+ *   lastTimelineItem: items[items.length - 1] ?? null,
+ *   isLastMessageVisible, // from useLastMessageVisibility hook
  * });
  * ```
  */
@@ -79,7 +98,12 @@ export function useConversationAutoSeen(
 		lastTimelineItem,
 		enabled = true,
 		isWidgetOpen = true,
+		isLastMessageVisible,
 	} = options;
+
+	// If isLastMessageVisible is provided, use it. Otherwise, fall back to legacy behavior (always true when widget is open)
+	const effectiveMessageVisible =
+		isLastMessageVisible !== undefined ? isLastMessageVisible : true;
 
 	const lastSeenItemIdRef = useRef<string | null>(null);
 	const markSeenInFlightRef = useRef(false);
@@ -131,6 +155,7 @@ export function useConversationAutoSeen(
 		const canMarkSeen =
 			enabled &&
 			isWidgetOpen &&
+			effectiveMessageVisible &&
 			client &&
 			conversationId &&
 			visitorId &&
@@ -168,6 +193,7 @@ export function useConversationAutoSeen(
 				const stillCanMark =
 					enabled &&
 					isWidgetOpen &&
+					effectiveMessageVisible &&
 					client &&
 					conversationId &&
 					visitorId &&
@@ -220,6 +246,7 @@ export function useConversationAutoSeen(
 	}, [
 		enabled,
 		isWidgetOpen,
+		effectiveMessageVisible,
 		client,
 		conversationId,
 		visitorId,

@@ -13,7 +13,7 @@ type BaseRealtimeContext = {
 
 type SeenEventParams = BaseRealtimeContext & {
 	actor: ConversationRealtimeActor;
-	lastSeenAt: string;
+	lastSeenAt: string | null; // null indicates unread (seen entry removed)
 };
 
 type TypingEventParams = BaseRealtimeContext & {

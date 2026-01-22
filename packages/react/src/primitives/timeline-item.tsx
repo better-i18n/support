@@ -85,6 +85,7 @@ export const TimelineItem = (() => {
 					props: {
 						role: "article",
 						"aria-label": `${item.type === "message" ? "Message" : "Event"} from ${itemTypeLabel}`,
+						"data-timeline-item-id": item.id,
 						...props,
 						children: content,
 					},

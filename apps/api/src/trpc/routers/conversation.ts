@@ -492,6 +492,13 @@ export const conversationRouter = createTRPCRouter({
 				actorUserId: user.id,
 			});
 
+			// Emit event with null lastSeenAt to indicate unread
+			await emitConversationSeenEvent({
+				conversation: updatedConversation,
+				actor: { type: "user", userId: user.id },
+				lastSeenAt: null,
+			});
+
 			return { conversation: toConversationOutput(updatedConversation) };
 		}),
 

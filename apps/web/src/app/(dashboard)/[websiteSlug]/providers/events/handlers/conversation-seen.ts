@@ -1,5 +1,8 @@
 import type { RealtimeEvent } from "@cossistant/types/realtime-events";
-import type { ConversationHeader } from "@/data/conversation-header-cache";
+import {
+	type ConversationHeader,
+	forEachConversationHeadersQuery,
+} from "@/data/conversation-header-cache";
 import { updateConversationSeenInCache } from "@/hooks/use-conversation-seen";
 import type { DashboardRealtimeContext } from "../types";
 
@@ -16,7 +19,7 @@ const pendingSeenUpdates = new Map<
 	}
 >();
 
-const SEEN_UPDATE_DELAY = 2000; // 2s delay to let message animations settle
+const SEEN_UPDATE_DELAY = 0; // Apply immediately - delay causes stale data on refresh
 
 type UpdateResult = {
 	header: ConversationHeader;
@@ -26,12 +29,13 @@ type UpdateResult = {
 /**
  * Updates the current user's lastSeenAt in the conversation header.
  * This is the user-specific "last seen" timestamp for unread indicators.
+ * If lastSeenAtTime is null, sets lastSeenAt to null (marking as unread).
  */
 function maybeUpdateCurrentUserLastSeen(
 	header: ConversationHeader,
 	event: ConversationSeenEvent,
 	currentUserId: string | null | undefined,
-	lastSeenAtTime: number
+	lastSeenAtTime: number | null
 ): UpdateResult {
 	if (!(event.payload.userId && currentUserId)) {
 		return { header, changed: false };
@@ -39,6 +43,20 @@ function maybeUpdateCurrentUserLastSeen(
 
 	if (event.payload.userId !== currentUserId) {
 		return { header, changed: false };
+	}
+
+	// Handle unread case (null lastSeenAt)
+	if (lastSeenAtTime === null) {
+		if (header.lastSeenAt === null) {
+			return { header, changed: false };
+		}
+		return {
+			header: {
+				...header,
+				lastSeenAt: null,
+			},
+			changed: true,
+		};
 	}
 
 	const currentLastSeen = header.lastSeenAt
@@ -83,11 +101,12 @@ function buildActorPredicates(event: ConversationSeenEvent) {
 /**
  * Updates the seenData array in the conversation header.
  * This tracks who has seen which messages in the conversation.
+ * If lastSeenAtTime is null, removes the entry (marking as unread).
  */
 function maybeUpdateSeenEntries(
 	header: ConversationHeader,
 	event: ConversationSeenEvent,
-	lastSeenAtTime: number
+	lastSeenAtTime: number | null
 ): UpdateResult {
 	const predicates = buildActorPredicates(event);
 
@@ -95,12 +114,31 @@ function maybeUpdateSeenEntries(
 		return { header, changed: false };
 	}
 
-	const nextDate = new Date(lastSeenAtTime).toISOString();
-
 	// Check if an entry exists for this actor
 	const existingEntryIndex = header.seenData.findIndex((seen) =>
 		predicates.some((predicate) => predicate(seen))
 	);
+
+	// Handle unread case (null lastSeenAt) - remove the entry
+	if (lastSeenAtTime === null) {
+		if (existingEntryIndex === -1) {
+			// No entry exists, nothing to remove
+			return { header, changed: false };
+		}
+		// Remove the entry
+		const nextSeenData = header.seenData.filter(
+			(_, index) => index !== existingEntryIndex
+		);
+		return {
+			header: {
+				...header,
+				seenData: nextSeenData,
+			},
+			changed: true,
+		};
+	}
+
+	const nextDate = new Date(lastSeenAtTime).toISOString();
 
 	// If no entry exists, create a new one
 	if (existingEntryIndex === -1) {
@@ -174,8 +212,10 @@ function applySeenUpdate(
 	event: ConversationSeenEvent,
 	context: DashboardRealtimeContext
 ) {
-	const lastSeenAt = new Date(event.payload.lastSeenAt);
-	const lastSeenAtTime = lastSeenAt.getTime();
+	// Handle null lastSeenAt (unread case)
+	const lastSeenAtTime = event.payload.lastSeenAt
+		? new Date(event.payload.lastSeenAt).getTime()
+		: null;
 
 	const existingHeader =
 		context.queryNormalizer.getObjectById<ConversationHeader>(
@@ -183,6 +223,14 @@ function applySeenUpdate(
 		);
 
 	if (!existingHeader) {
+		// Conversation not in cache - invalidate queries to ensure fresh data on next fetch
+		forEachConversationHeadersQuery(
+			context.queryClient,
+			context.website.slug,
+			(queryKey) => {
+				void context.queryClient.invalidateQueries({ queryKey });
+			}
+		);
 		return;
 	}
 

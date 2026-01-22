@@ -71,8 +71,15 @@ function hasSameEntries(
 	return true;
 }
 
+type RemoveSeenOptions = {
+	conversationId: string;
+	actorType: SeenActorType;
+	actorId: string;
+};
+
 export type SeenStore = Store<SeenState> & {
 	upsert(options: UpsertSeenOptions): void;
+	remove(options: RemoveSeenOptions): void;
 	hydrate(conversationId: string, entries: ConversationSeen[]): void;
 	clear(conversationId: string): void;
 };
@@ -145,6 +152,35 @@ export function createSeenStore(
 					conversations: {
 						...state.conversations,
 						[conversationId]: nextConversation,
+					},
+				} satisfies SeenState;
+			});
+		},
+		remove({ conversationId, actorType, actorId }) {
+			store.setState((state) => {
+				const existingConversation = state.conversations[conversationId];
+				if (!existingConversation) {
+					return state;
+				}
+
+				const key = makeKey(conversationId, actorType, actorId);
+				if (!(key in existingConversation)) {
+					return state;
+				}
+
+				const { [key]: _, ...remaining } = existingConversation;
+
+				// If no entries remain, remove the conversation entirely
+				if (Object.keys(remaining).length === 0) {
+					const { [conversationId]: __, ...remainingConversations } =
+						state.conversations;
+					return { conversations: remainingConversations } satisfies SeenState;
+				}
+
+				return {
+					conversations: {
+						...state.conversations,
+						[conversationId]: remaining,
 					},
 				} satisfies SeenState;
 			});
@@ -282,7 +318,17 @@ export function applyConversationSeenEvent(
 		return;
 	}
 
-	const lastSeenAt = payload.lastSeenAt;
+	const { lastSeenAt } = payload;
+
+	// null lastSeenAt indicates unread - remove the seen entry
+	if (lastSeenAt === null) {
+		store.remove({
+			conversationId: payload.conversationId,
+			actorType: identity.actorType,
+			actorId: identity.actorId,
+		});
+		return;
+	}
 
 	upsertConversationSeen(store, {
 		conversationId: payload.conversationId,

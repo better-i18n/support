@@ -65,6 +65,7 @@ export function useConversationSeen(
 /**
  * Helper to update conversation seen data in React Query cache.
  * Used by the real-time event handler.
+ * If lastSeenAt is null, removes the entry (marking as unread).
  */
 export function updateConversationSeenInCache(
 	queryClient: ReturnType<typeof useQueryClient>,
@@ -73,7 +74,7 @@ export function updateConversationSeenInCache(
 		userId?: string | null;
 		visitorId?: string | null;
 		aiAgentId?: string | null;
-		lastSeenAt: string;
+		lastSeenAt: string | null;
 	}
 ) {
 	const queryKey = ["conversation-seen", conversationId];
@@ -97,6 +98,16 @@ export function updateConversationSeenInCache(
 	});
 
 	const existingEntry = existingIndex >= 0 ? currentData[existingIndex] : null;
+
+	// Handle unread case (null lastSeenAt) - remove the entry
+	if (payload.lastSeenAt === null) {
+		if (existingIndex === -1) {
+			return; // No entry to remove
+		}
+		const updated = currentData.filter((_, i) => i !== existingIndex);
+		queryClient.setQueryData(queryKey, updated);
+		return;
+	}
 
 	// Skip update if the incoming lastSeenAt is not newer than existing
 	if (existingEntry) {
