@@ -88,6 +88,10 @@ export function buildSystemPrompt(input: BuildPromptInput): string {
 		parts.push(buildToolInstructions(tools));
 	}
 
+	// Add grounding instructions to prevent hallucinations
+	// This is critical for ensuring AI doesn't make up information
+	parts.push(PROMPT_TEMPLATES.GROUNDING_INSTRUCTIONS);
+
 	// Add structured output instructions
 	parts.push(PROMPT_TEMPLATES.STRUCTURED_OUTPUT);
 

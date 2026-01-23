@@ -13,6 +13,7 @@ import {
 	conversationTimelineItem,
 } from "@api/db/schema/conversation";
 import { realtime } from "@api/realtime/emitter";
+import { createParticipantRequestedEvent } from "@api/utils/conversation-events";
 import { generateShortPrimaryId } from "@api/utils/db/ids";
 import {
 	ConversationTimelineType,
@@ -109,7 +110,7 @@ export async function escalate(params: EscalateParams): Promise<void> {
 		});
 	}
 
-	// Create escalation event (private - AI_ESCALATED)
+	// Create escalation event (private - AI_ESCALATED) for team visibility
 	await db.insert(conversationTimelineItem).values({
 		id: generateShortPrimaryId(),
 		conversationId: conv.id,
@@ -121,6 +122,16 @@ export async function escalate(params: EscalateParams): Promise<void> {
 		userId: null,
 		visitorId: null,
 		createdAt: now,
+	});
+
+	// Create public PARTICIPANT_REQUESTED event so visitor knows human help is coming
+	await createParticipantRequestedEvent(db, {
+		conversationId: conv.id,
+		organizationId,
+		websiteId,
+		visitorId: conv.visitorId,
+		actorAiAgentId: aiAgentId,
+		reason,
 	});
 
 	// Emit conversationUpdated event for real-time dashboard updates

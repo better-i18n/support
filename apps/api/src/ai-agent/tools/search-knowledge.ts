@@ -28,7 +28,7 @@ const inputSchema = z.object({
 export function createSearchKnowledgeBaseTool(ctx: ToolContext) {
 	return tool({
 		description:
-			"Search the knowledge base for help articles, FAQs, and documentation relevant to the visitor's question. Use this when the visitor asks about features, troubleshooting, or needs information that might be documented.",
+			"IMPORTANT: Search the knowledge base BEFORE answering factual questions about the product, company, pricing, features, or policies. Only provide information found in search results - never make up answers. Use for: product questions, troubleshooting, feature inquiries, pricing questions, company policies.",
 		inputSchema,
 		execute: async ({
 			query,

@@ -233,10 +233,12 @@ messagesRouter.openapi(
 					reason: "Sent message",
 				});
 
-				// Create participant joined event
+				// Create participant joined event (PUBLIC so visitor sees it)
 				await createParticipantJoinedEvent(db, {
 					conversationId: body.conversationId,
 					organizationId: organization.id,
+					websiteId: website.id,
+					visitorId: conversation.visitorId,
 					targetUserId: body.item.userId,
 					isAutoAdded: true,
 				});

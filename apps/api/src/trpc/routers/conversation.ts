@@ -232,10 +232,12 @@ export const conversationRouter = createTRPCRouter({
 					reason: "Sent message",
 				});
 
-				// Create participant joined event
+				// Create participant joined event (PUBLIC so visitor sees it)
 				await createParticipantJoinedEvent(db, {
 					conversationId: input.conversationId,
 					organizationId: websiteData.organizationId,
+					websiteId: websiteData.id,
+					visitorId: conversation.visitorId,
 					targetUserId: user.id,
 					isAutoAdded: true,
 				});
@@ -530,8 +532,11 @@ export const conversationRouter = createTRPCRouter({
 				await createParticipantJoinedEvent(db, {
 					conversationId: input.conversationId,
 					organizationId: website.organizationId,
+					websiteId: website.id,
+					visitorId: conversation.visitorId,
 					targetUserId: user.id,
 					isAutoAdded: false,
+					customMessage: "joined to help",
 				});
 			}
 

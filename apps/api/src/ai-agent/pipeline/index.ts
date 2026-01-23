@@ -151,13 +151,23 @@ export async function runAiAgentPipeline(
 			};
 		}
 
-		// Decision says we should act - start typing heartbeat
-		// Heartbeat keeps the typing indicator alive during long LLM calls
+		// Decision says we should act - prepare typing heartbeat
+		// DON'T start typing immediately - only when AI actually sends a message
+		// This prevents showing typing indicator during tool calls like searchKnowledgeBase
 		typingHeartbeat = new TypingHeartbeat({
 			conversation: intakeResult.conversation,
 			aiAgentId: intakeResult.aiAgent.id,
 		});
-		await typingHeartbeat.start();
+
+		// Callback to start typing - passed to tools, called on first sendMessage
+		const onTypingStart = async () => {
+			if (typingHeartbeat && !typingHeartbeat.running) {
+				console.log(
+					`[ai-agent] conv=${convId} | Starting typing (triggered by first sendMessage)`
+				);
+				await typingHeartbeat.start();
+			}
+		};
 
 		// CHECK: Has this job been superseded by a newer message?
 		const isActiveBeforeGeneration = await isWorkflowRunActive(
@@ -170,8 +180,10 @@ export async function runAiAgentPipeline(
 			console.log(
 				`[ai-agent] conv=${convId} | Superseded before generation, aborting`
 			);
-			// Stop typing heartbeat since we won't respond
-			await typingHeartbeat.stop();
+			// Stop typing heartbeat if it was running (it may not have started yet)
+			if (typingHeartbeat.running) {
+				await typingHeartbeat.stop();
+			}
 			typingHeartbeat = null;
 
 			// Emit cancelled event (dashboard only)
@@ -190,21 +202,86 @@ export async function runAiAgentPipeline(
 		}
 
 		// Step 3: Generation - Call LLM with tools
+		// Set up AbortController for interruption handling during long LLM calls
+		const abortController = new AbortController();
+		let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+		// Poll workflow state every 2 seconds during generation
+		// If a new message arrives, the workflow state will change and we abort
+		const POLL_INTERVAL_MS = 2000;
+		pollInterval = setInterval(async () => {
+			try {
+				const isStillActive = await isWorkflowRunActive(
+					ctx.redis,
+					convId,
+					"ai-agent-response",
+					ctx.input.workflowRunId
+				);
+				if (!isStillActive) {
+					console.log(
+						`[ai-agent] conv=${convId} | Workflow superseded during generation, aborting`
+					);
+					abortController.abort();
+				}
+			} catch (error) {
+				// Log but don't abort on polling errors
+				console.warn(
+					`[ai-agent] conv=${convId} | Error polling workflow state:`,
+					error
+				);
+			}
+		}, POLL_INTERVAL_MS);
+
 		const generationStart = Date.now();
-		generationResult = await generate({
-			db: ctx.db,
-			aiAgent: intakeResult.aiAgent,
-			conversation: intakeResult.conversation,
-			conversationHistory: intakeResult.conversationHistory,
-			visitorContext: intakeResult.visitorContext,
-			mode: decisionResult.mode,
-			humanCommand: decisionResult.humanCommand,
-			organizationId: ctx.input.organizationId,
-			websiteId: ctx.input.websiteId,
-			visitorId: ctx.input.visitorId,
-			triggerMessageId: ctx.input.messageId,
-		});
+		try {
+			generationResult = await generate({
+				db: ctx.db,
+				aiAgent: intakeResult.aiAgent,
+				conversation: intakeResult.conversation,
+				conversationHistory: intakeResult.conversationHistory,
+				visitorContext: intakeResult.visitorContext,
+				mode: decisionResult.mode,
+				humanCommand: decisionResult.humanCommand,
+				organizationId: ctx.input.organizationId,
+				websiteId: ctx.input.websiteId,
+				visitorId: ctx.input.visitorId,
+				triggerMessageId: ctx.input.messageId,
+				abortSignal: abortController.signal,
+				onTypingStart, // Start typing only when sendMessage is called
+			});
+		} finally {
+			// Always clean up the polling interval
+			if (pollInterval) {
+				clearInterval(pollInterval);
+				pollInterval = null;
+			}
+		}
 		metrics.generationMs = Date.now() - generationStart;
+
+		// Handle aborted generation - new message arrived during LLM call
+		if (generationResult.aborted) {
+			console.log(
+				`[ai-agent] conv=${convId} | Generation was aborted, stopping pipeline`
+			);
+			// Stop typing if it was started
+			if (typingHeartbeat.running) {
+				await typingHeartbeat.stop();
+			}
+			typingHeartbeat = null;
+
+			await emitWorkflowCancelled({
+				conversation: intakeResult.conversation,
+				aiAgentId: intakeResult.aiAgent.id,
+				workflowRunId: ctx.input.workflowRunId,
+				reason: "Interrupted by new message",
+			});
+
+			return {
+				status: "skipped",
+				reason: "Interrupted by new message",
+				metrics: finalizeMetrics(metrics, startTime),
+			};
+		}
 
 		// FALLBACK: If AI returned respond/escalate/resolve but didn't call sendMessage,
 		// send a fallback message so the visitor isn't left without a response
@@ -269,8 +346,10 @@ export async function runAiAgentPipeline(
 			console.log(
 				`[ai-agent] conv=${convId} | Superseded before execution, aborting`
 			);
-			// Stop typing heartbeat since we won't respond
-			await typingHeartbeat.stop();
+			// Stop typing heartbeat if it was started
+			if (typingHeartbeat.running) {
+				await typingHeartbeat.stop();
+			}
 			typingHeartbeat = null;
 
 			// Emit cancelled event (dashboard only)
@@ -310,8 +389,10 @@ export async function runAiAgentPipeline(
 		});
 		metrics.executionMs = Date.now() - executionStart;
 
-		// Stop typing heartbeat after execution completes
-		await typingHeartbeat.stop();
+		// Stop typing heartbeat after execution completes (if it was started)
+		if (typingHeartbeat.running) {
+			await typingHeartbeat.stop();
+		}
 		typingHeartbeat = null;
 
 		// Step 5: Followup - Cleanup and emit events

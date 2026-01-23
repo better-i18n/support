@@ -9,9 +9,6 @@ import { z } from "zod";
 import { addInternalNote } from "../actions/internal-note";
 import type { ToolContext, ToolResult } from "./types";
 
-/** Counter for unique note IDs within a single generation */
-let noteCounter = 0;
-
 const inputSchema = z.object({
 	message: z
 		.string()
@@ -22,11 +19,11 @@ const inputSchema = z.object({
 
 /**
  * Create the sendPrivateMessage tool
+ *
+ * Uses counters from ToolContext instead of module-level state to ensure
+ * proper isolation in worker/serverless environments.
  */
 export function createSendPrivateMessageTool(ctx: ToolContext) {
-	// Reset counter for each new tool creation (new generation)
-	noteCounter = 0;
-
 	return tool({
 		description:
 			"Send an internal note visible ONLY to the support team (visitor cannot see). Use when escalating to provide context, or to document important information for human agents.",
@@ -35,11 +32,22 @@ export function createSendPrivateMessageTool(ctx: ToolContext) {
 			message,
 		}): Promise<ToolResult<{ sent: boolean; noteId: string }>> => {
 			try {
-				noteCounter++;
-				const uniqueKey = `${ctx.triggerMessageId}-private-${noteCounter}`;
+				// Defensive initialization for counters (handles hot reload edge cases)
+				const counters = ctx.counters ?? {
+					sendMessage: 0,
+					sendPrivateMessage: 0,
+				};
+				if (!ctx.counters) {
+					ctx.counters = counters;
+				}
+
+				// Increment counter in context (shared mutable object)
+				counters.sendPrivateMessage++;
+				const noteNumber = counters.sendPrivateMessage;
+				const uniqueKey = `${ctx.triggerMessageId}-private-${noteNumber}`;
 
 				console.log(
-					`[tool:sendPrivateMessage] conv=${ctx.conversationId} | sending #${noteCounter}`
+					`[tool:sendPrivateMessage] conv=${ctx.conversationId} | sending #${noteNumber}`
 				);
 
 				const result = await addInternalNote({

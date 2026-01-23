@@ -8,6 +8,21 @@ import type { Database } from "@api/db";
 import type { ConversationSelect } from "@api/db/schema/conversation";
 
 /**
+ * Mutable counters for message idempotency within a single generation.
+ * Using an object allows counters to be shared and mutated across tool calls.
+ */
+export type MessageCounters = {
+	sendMessage: number;
+	sendPrivateMessage: number;
+};
+
+/**
+ * Callback for managing typing indicator.
+ * Called when first message is about to be sent.
+ */
+export type OnTypingStartCallback = () => Promise<void>;
+
+/**
  * Context passed to all tools via experimental_context
  */
 export type ToolContext = {
@@ -20,6 +35,13 @@ export type ToolContext = {
 	aiAgentId: string;
 	/** Trigger message ID - used for idempotency keys in send-message tool */
 	triggerMessageId: string;
+	/**
+	 * Mutable counters for message idempotency - shared across tool calls.
+	 * May be undefined in edge cases (hot reload), tools should initialize defensively.
+	 */
+	counters?: MessageCounters;
+	/** Callback to start typing indicator - called on first sendMessage */
+	onTypingStart?: OnTypingStartCallback;
 };
 
 /**

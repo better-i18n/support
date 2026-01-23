@@ -37,6 +37,8 @@ import type { ResponseMode } from "./2-decision";
 
 export type GenerationResult = {
 	decision: AiDecision;
+	/** Whether generation was aborted due to new message */
+	aborted?: boolean;
 	usage?: {
 		inputTokens: number;
 		outputTokens: number;
@@ -62,6 +64,10 @@ type GenerationInput = {
 	visitorId: string;
 	/** Trigger message ID - used for idempotency keys in tools */
 	triggerMessageId: string;
+	/** Optional abort signal for interruption handling */
+	abortSignal?: AbortSignal;
+	/** Callback to start typing indicator - called on first sendMessage */
+	onTypingStart?: () => Promise<void>;
 };
 
 /**
@@ -69,6 +75,9 @@ type GenerationInput = {
  *
  * The AI must use tools for everything - there's no structured output.
  * This ensures the model actually calls sendMessage() to respond.
+ *
+ * Supports interruption via AbortSignal - if a new message arrives during
+ * generation, the abort signal will be triggered and generation stops gracefully.
  */
 export async function generate(
 	input: GenerationInput
@@ -85,10 +94,13 @@ export async function generate(
 		websiteId,
 		visitorId,
 		triggerMessageId,
+		abortSignal,
+		onTypingStart,
 	} = input;
 	const convId = conversation.id;
 
 	// Build tool context for passing to tool execute functions
+	// Counters are mutable objects that track message idempotency within this generation
 	const toolContext: ToolContext = {
 		db,
 		conversation,
@@ -98,6 +110,12 @@ export async function generate(
 		visitorId,
 		aiAgentId: aiAgent.id,
 		triggerMessageId,
+		counters: {
+			sendMessage: 0,
+			sendPrivateMessage: 0,
+		},
+		// Callback to start typing - only triggered on first sendMessage
+		onTypingStart,
 	};
 
 	// Reset captured action before generation
@@ -166,26 +184,53 @@ export async function generate(
 	// Key configurations:
 	// - toolChoice: 'required' forces the model to call tools (can't skip them)
 	// - stopWhen: stops generation when an action tool is called OR after 10 steps
-	const result = await generateText({
-		model: openrouter.chat(aiAgent.model),
-		tools,
-		toolChoice: "required", // Force the model to call tools
-		stopWhen: [
-			// Stop when any action tool is called
-			hasToolCall("respond"),
-			hasToolCall("escalate"),
-			hasToolCall("resolve"),
-			hasToolCall("markSpam"),
-			hasToolCall("skip"),
-			// Safety limit: stop after 10 steps regardless
-			stepCountIs(10),
-		],
-		system: systemPrompt,
-		messages,
-		// Use temperature 0 for deterministic tool calling (AI SDK best practice)
-		// This reduces randomness and improves tool call reliability
-		temperature: 0,
-	});
+	// - abortSignal: allows interruption when new message arrives
+	let result: Awaited<ReturnType<typeof generateText>>;
+	try {
+		result = await generateText({
+			model: openrouter.chat(aiAgent.model),
+			tools,
+			toolChoice: "required", // Force the model to call tools
+			stopWhen: [
+				// Stop when any action tool is called
+				hasToolCall("respond"),
+				hasToolCall("escalate"),
+				hasToolCall("resolve"),
+				hasToolCall("markSpam"),
+				hasToolCall("skip"),
+				// Safety limit: stop after 10 steps regardless
+				stepCountIs(10),
+			],
+			system: systemPrompt,
+			messages,
+			// Use temperature 0 for deterministic tool calling (AI SDK best practice)
+			// This reduces randomness and improves tool call reliability
+			temperature: 0,
+			// Support interruption via AbortSignal
+			abortSignal,
+		});
+	} catch (error) {
+		// Handle abort gracefully - this means a new message arrived
+		if (error instanceof Error && error.name === "AbortError") {
+			console.log(
+				`[ai-agent:generate] conv=${convId} | Generation aborted - new message arrived`
+			);
+			return {
+				decision: {
+					action: "skip" as const,
+					reasoning: "Generation aborted due to new message arriving",
+					confidence: 1,
+				},
+				aborted: true,
+				toolCalls: {
+					sendMessage: toolContext.counters?.sendMessage ?? 0,
+					sendPrivateMessage: toolContext.counters?.sendPrivateMessage ?? 0,
+				},
+			};
+		}
+		// Re-throw other errors
+		throw error;
+	}
 
 	// Log tool call information for debugging
 	const allToolCalls =

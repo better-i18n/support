@@ -9,9 +9,6 @@ import { z } from "zod";
 import { sendMessage as sendMessageAction } from "../actions/send-message";
 import type { ToolContext, ToolResult } from "./types";
 
-/** Counter for unique message IDs within a single generation */
-let messageCounter = 0;
-
 const inputSchema = z.object({
 	message: z
 		.string()
@@ -22,11 +19,11 @@ const inputSchema = z.object({
 
 /**
  * Create the sendMessage tool
+ *
+ * Uses counters from ToolContext instead of module-level state to ensure
+ * proper isolation in worker/serverless environments.
  */
 export function createSendMessageTool(ctx: ToolContext) {
-	// Reset counter for each new tool creation (new generation)
-	messageCounter = 0;
-
 	return tool({
 		description:
 			"REQUIRED: Send a visible message to the visitor. The visitor ONLY sees messages sent through this tool. Call this BEFORE any action tool (respond, escalate, resolve). You can call multiple times for multi-part responses.",
@@ -35,11 +32,28 @@ export function createSendMessageTool(ctx: ToolContext) {
 			message,
 		}): Promise<ToolResult<{ sent: boolean; messageId: string }>> => {
 			try {
-				messageCounter++;
-				const uniqueKey = `${ctx.triggerMessageId}-msg-${messageCounter}`;
+				// Defensive initialization for counters (handles hot reload edge cases)
+				const counters = ctx.counters ?? {
+					sendMessage: 0,
+					sendPrivateMessage: 0,
+				};
+				if (!ctx.counters) {
+					ctx.counters = counters;
+				}
+
+				// Increment counter in context (shared mutable object)
+				counters.sendMessage++;
+				const messageNumber = counters.sendMessage;
+				const uniqueKey = `${ctx.triggerMessageId}-msg-${messageNumber}`;
+
+				// Start typing indicator on first message (if callback provided)
+				// This ensures typing only shows when AI is actually sending a message
+				if (messageNumber === 1 && ctx.onTypingStart) {
+					await ctx.onTypingStart();
+				}
 
 				console.log(
-					`[tool:sendMessage] conv=${ctx.conversationId} | sending #${messageCounter}`
+					`[tool:sendMessage] conv=${ctx.conversationId} | sending #${messageNumber}`
 				);
 
 				const result = await sendMessageAction({
