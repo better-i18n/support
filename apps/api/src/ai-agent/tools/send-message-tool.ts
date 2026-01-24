@@ -46,6 +46,22 @@ export function createSendMessageTool(ctx: ToolContext) {
 				const messageNumber = counters.sendMessage;
 				const uniqueKey = `${ctx.triggerMessageId}-msg-${messageNumber}`;
 
+				// CHECK: Is this workflow still active? Prevents duplicate messages
+				// when a newer message has superseded this workflow during generation.
+				if (ctx.checkWorkflowActive) {
+					const isActive = await ctx.checkWorkflowActive();
+					if (!isActive) {
+						console.log(
+							`[tool:sendMessage] conv=${ctx.conversationId} | Workflow superseded, skipping message #${messageNumber}`
+						);
+						return {
+							success: false,
+							error: "Workflow superseded by newer message",
+							data: { sent: false, messageId: "" },
+						};
+					}
+				}
+
 				// Start typing indicator on first message (if callback provided)
 				// This ensures typing only shows when AI is actually sending a message
 				if (messageNumber === 1 && ctx.onTypingStart) {

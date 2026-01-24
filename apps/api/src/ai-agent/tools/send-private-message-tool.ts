@@ -46,6 +46,22 @@ export function createSendPrivateMessageTool(ctx: ToolContext) {
 				const noteNumber = counters.sendPrivateMessage;
 				const uniqueKey = `${ctx.triggerMessageId}-private-${noteNumber}`;
 
+				// CHECK: Is this workflow still active? Prevents duplicate notes
+				// when a newer message has superseded this workflow during generation.
+				if (ctx.checkWorkflowActive) {
+					const isActive = await ctx.checkWorkflowActive();
+					if (!isActive) {
+						console.log(
+							`[tool:sendPrivateMessage] conv=${ctx.conversationId} | Workflow superseded, skipping note #${noteNumber}`
+						);
+						return {
+							success: false,
+							error: "Workflow superseded by newer message",
+							data: { sent: false, noteId: "" },
+						};
+					}
+				}
+
 				console.log(
 					`[tool:sendPrivateMessage] conv=${ctx.conversationId} | sending #${noteNumber}`
 				);

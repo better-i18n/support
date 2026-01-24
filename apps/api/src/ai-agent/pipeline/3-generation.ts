@@ -68,6 +68,8 @@ type GenerationInput = {
 	abortSignal?: AbortSignal;
 	/** Callback to start typing indicator - called on first sendMessage */
 	onTypingStart?: () => Promise<void>;
+	/** Callback to check if workflow is still active - prevents duplicate messages */
+	checkWorkflowActive?: () => Promise<boolean>;
 };
 
 /**
@@ -96,6 +98,7 @@ export async function generate(
 		triggerMessageId,
 		abortSignal,
 		onTypingStart,
+		checkWorkflowActive,
 	} = input;
 	const convId = conversation.id;
 
@@ -116,6 +119,8 @@ export async function generate(
 		},
 		// Callback to start typing - only triggered on first sendMessage
 		onTypingStart,
+		// Callback to check workflow state - prevents duplicate messages when superseded
+		checkWorkflowActive,
 	};
 
 	// Reset captured action before generation
