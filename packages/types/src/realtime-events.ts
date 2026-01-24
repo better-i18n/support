@@ -323,6 +323,46 @@ export const realtimeSchema = {
 			knowledgeId: z.string(),
 		}),
 	}),
+
+	// =========================================================================
+	// AI TRAINING EVENTS
+	// For knowledge base embedding generation and progress tracking
+	// =========================================================================
+
+	// Emitted when AI training starts
+	trainingStarted: baseRealtimeEvent.extend({
+		aiAgentId: z.string(),
+		totalItems: z.number(),
+	}),
+
+	// Emitted for progress updates during AI training
+	trainingProgress: baseRealtimeEvent.extend({
+		aiAgentId: z.string(),
+		processedItems: z.number(),
+		totalItems: z.number(),
+		currentItem: z
+			.object({
+				id: z.string(),
+				title: z.string().nullable(),
+				type: z.enum(["url", "faq", "article"]),
+			})
+			.optional(),
+		percentage: z.number(),
+	}),
+
+	// Emitted when AI training completes successfully
+	trainingCompleted: baseRealtimeEvent.extend({
+		aiAgentId: z.string(),
+		totalItems: z.number(),
+		totalChunks: z.number(),
+		duration: z.number(), // milliseconds
+	}),
+
+	// Emitted when AI training fails
+	trainingFailed: baseRealtimeEvent.extend({
+		aiAgentId: z.string(),
+		error: z.string(),
+	}),
 } as const;
 
 export type RealtimeEventType = keyof typeof realtimeSchema;

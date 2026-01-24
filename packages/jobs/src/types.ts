@@ -3,6 +3,7 @@ export const QUEUE_NAMES = {
 	MESSAGE_NOTIFICATION: "message-notification",
 	AI_AGENT: "ai-agent",
 	WEB_CRAWL: "web-crawl",
+	AI_TRAINING: "ai-training",
 } as const;
 
 /**
@@ -85,4 +86,24 @@ export type WebCrawlJobData = {
  */
 export function generateWebCrawlJobId(linkSourceId: string): string {
 	return `web-crawl-${linkSourceId}`;
+}
+
+/**
+ * Job data for AI training queue
+ *
+ * Processes knowledge base items to generate embeddings
+ * and store them in the vector database for RAG.
+ */
+export type AiTrainingJobData = {
+	websiteId: string;
+	organizationId: string;
+	aiAgentId: string;
+	triggeredBy: string; // userId who triggered
+};
+
+/**
+ * Generate a unique job ID for AI training
+ */
+export function generateAiTrainingJobId(aiAgentId: string): string {
+	return `ai-training-${aiAgentId}`;
 }

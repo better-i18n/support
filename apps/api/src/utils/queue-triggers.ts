@@ -7,7 +7,9 @@
 
 import { env } from "@api/env";
 import {
+	type AiTrainingJobData,
 	createAiAgentTriggers,
+	createAiTrainingTriggers,
 	createMessageNotificationTriggers,
 	createWebCrawlTriggers,
 	type WebCrawlJobData,
@@ -19,6 +21,8 @@ let messageNotificationTriggers: ReturnType<
 	typeof createMessageNotificationTriggers
 > | null = null;
 let aiAgentTriggers: ReturnType<typeof createAiAgentTriggers> | null = null;
+let aiTrainingTriggers: ReturnType<typeof createAiTrainingTriggers> | null =
+	null;
 let webCrawlTriggers: ReturnType<typeof createWebCrawlTriggers> | null = null;
 
 const bullConnectionOptions = getBullConnectionOptions(env.REDIS_URL);
@@ -41,6 +45,16 @@ export function getAiAgentQueueTriggers() {
 		});
 	}
 	return aiAgentTriggers;
+}
+
+function getAiTrainingTriggers() {
+	if (!aiTrainingTriggers) {
+		aiTrainingTriggers = createAiTrainingTriggers({
+			connection: bullConnectionOptions,
+			redisUrl: env.REDIS_URL,
+		});
+	}
+	return aiTrainingTriggers;
 }
 
 function getWebCrawlTriggers() {
@@ -145,6 +159,46 @@ export async function cancelWebCrawl(linkSourceId: string): Promise<boolean> {
 	}
 }
 
+export async function triggerAiTraining(
+	data: AiTrainingJobData
+): Promise<string> {
+	console.log(
+		`[queue-triggers] triggerAiTraining called for AI agent ${data.aiAgentId}`
+	);
+	try {
+		const jobId = await getAiTrainingTriggers().enqueueAiTraining(data);
+		console.log(
+			`[queue-triggers] triggerAiTraining completed for AI agent ${data.aiAgentId}, jobId ${jobId}`
+		);
+		return jobId;
+	} catch (error) {
+		console.error(
+			`[queue-triggers] triggerAiTraining FAILED for AI agent ${data.aiAgentId}:`,
+			error
+		);
+		throw error;
+	}
+}
+
+export async function cancelAiTraining(aiAgentId: string): Promise<boolean> {
+	console.log(
+		`[queue-triggers] cancelAiTraining called for AI agent ${aiAgentId}`
+	);
+	try {
+		const cancelled = await getAiTrainingTriggers().cancelAiTraining(aiAgentId);
+		console.log(
+			`[queue-triggers] cancelAiTraining completed for AI agent ${aiAgentId}, cancelled: ${cancelled}`
+		);
+		return cancelled;
+	} catch (error) {
+		console.error(
+			`[queue-triggers] cancelAiTraining FAILED for AI agent ${aiAgentId}:`,
+			error
+		);
+		throw error;
+	}
+}
+
 export async function closeQueueProducers(): Promise<void> {
 	await Promise.all([
 		(async () => {
@@ -157,6 +211,12 @@ export async function closeQueueProducers(): Promise<void> {
 			if (aiAgentTriggers) {
 				await aiAgentTriggers.close();
 				aiAgentTriggers = null;
+			}
+		})(),
+		(async () => {
+			if (aiTrainingTriggers) {
+				await aiTrainingTriggers.close();
+				aiTrainingTriggers = null;
 			}
 		})(),
 		(async () => {

@@ -96,6 +96,11 @@ const dispatchRules: Partial<Record<RealtimeEventType, DispatchRuleOverrides>> =
 		// Timeline item update events
 		timelineItemUpdated: { website: true, visitor: true },
 		timelineItemPartUpdated: { website: true, visitor: true },
+		// AI training events - only dispatch to website (dashboard users)
+		trainingStarted: { website: true, visitor: false },
+		trainingProgress: { website: true, visitor: false },
+		trainingCompleted: { website: true, visitor: false },
+		trainingFailed: { website: true, visitor: false },
 	};
 
 function resolveWebsiteDispatchOptions(
@@ -302,6 +307,23 @@ const eventHandlers: EventHandlers = {
 	timelineItemPartUpdated: (_ctx, event) => {
 		const _data = event.payload;
 		// Event is broadcast to website and visitor - no additional logic needed
+	},
+	// AI training event handlers
+	trainingStarted: (_ctx, event) => {
+		const _data = event.payload;
+		// Event is broadcast to website - no additional logic needed
+	},
+	trainingProgress: (_ctx, event) => {
+		const _data = event.payload;
+		// Event is broadcast to website - no additional logic needed
+	},
+	trainingCompleted: (_ctx, event) => {
+		const _data = event.payload;
+		// Event is broadcast to website - no additional logic needed
+	},
+	trainingFailed: (_ctx, event) => {
+		const _data = event.payload;
+		// Event is broadcast to website - no additional logic needed
 	},
 };
 

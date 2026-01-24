@@ -1,6 +1,7 @@
 // Triggers
 export {
 	createAiAgentTriggers,
+	createAiTrainingTriggers,
 	createMessageNotificationTriggers,
 	createWebCrawlTriggers,
 	type EnqueueAiAgentResult,
@@ -9,7 +10,9 @@ export {
 // Types
 export {
 	type AiAgentJobData,
+	type AiTrainingJobData,
 	generateAiAgentJobId,
+	generateAiTrainingJobId,
 	generateMessageNotificationJobId,
 	generateWebCrawlJobId,
 	type MessageNotificationDirection,

@@ -253,6 +253,13 @@
       "when": 1768271233512,
       "tag": "0035_brainy_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1769245223446,
+      "tag": "0036_bizarre_red_hulk",
+      "breakpoints": true
     }
   ]
 }

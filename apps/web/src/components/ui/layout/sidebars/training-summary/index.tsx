@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import Icon from "@/components/ui/icons";
 import { Progress } from "@/components/ui/progress";
@@ -34,11 +35,41 @@ export function TrainingSummarySidebar({
 }: TrainingSummarySidebarProps) {
 	const website = useWebsite();
 	const trpc = useTRPC();
+	const queryClient = useQueryClient();
 
-	const { data: stats, isLoading } = useQuery(
+	// Fetch training stats
+	const { data: stats, isLoading: isLoadingStats } = useQuery(
 		trpc.linkSource.getTrainingStats.queryOptions({
 			websiteSlug: website.slug,
 			aiAgentId: aiAgentId ?? null,
+		})
+	);
+
+	// Fetch AI agent to get its ID
+	const { data: agent } = useQuery(
+		trpc.aiAgent.get.queryOptions({
+			websiteSlug: website.slug,
+		})
+	);
+
+	// Fetch training status
+	const { data: trainingStatus, isLoading: isLoadingTrainingStatus } = useQuery(
+		trpc.aiAgent.getTrainingStatus.queryOptions({
+			websiteSlug: website.slug,
+		})
+	);
+
+	// Start training mutation
+	const startTrainingMutation = useMutation(
+		trpc.aiAgent.startTraining.mutationOptions({
+			onSuccess: () => {
+				// Invalidate training status to trigger refetch
+				queryClient.invalidateQueries({
+					queryKey: trpc.aiAgent.getTrainingStatus.queryKey({
+						websiteSlug: website.slug,
+					}),
+				});
+			},
 		})
 	);
 
@@ -57,6 +88,37 @@ export function TrainingSummarySidebar({
 	const isNearLimit = usagePercentage >= 80;
 	const isAtLimit = usagePercentage >= 100;
 
+	// Calculate total sources count
+	const totalSources =
+		(stats?.urlKnowledgeCount ?? 0) +
+		(stats?.faqKnowledgeCount ?? 0) +
+		(stats?.articleKnowledgeCount ?? 0);
+
+	// Determine training state
+	const isTraining =
+		trainingStatus?.trainingStatus === "training" ||
+		trainingStatus?.trainingStatus === "pending";
+	const hasFailedTraining = trainingStatus?.trainingStatus === "failed";
+	const hasCompletedTraining = trainingStatus?.trainingStatus === "completed";
+	const canTrain = totalSources > 0 && agent?.id && !isTraining;
+
+	// Format last trained date
+	const lastTrainedText = trainingStatus?.lastTrainedAt
+		? formatDistanceToNow(new Date(trainingStatus.lastTrainedAt), {
+				addSuffix: true,
+			})
+		: null;
+
+	const handleStartTraining = () => {
+		if (!agent?.id) {
+			return;
+		}
+		startTrainingMutation.mutate({
+			websiteSlug: website.slug,
+			aiAgentId: agent.id,
+		});
+	};
+
 	return (
 		<ResizableSidebar
 			className="hidden lg:flex"
@@ -67,7 +129,7 @@ export function TrainingSummarySidebar({
 				<div className="flex flex-col gap-6">
 					<div className="px-1 pt-2">
 						<h3 className="mb-4 font-medium text-sm">Sources</h3>
-						{isLoading ? (
+						{isLoadingStats ? (
 							<div className="flex flex-col gap-3">
 								<Skeleton className="h-5 w-full" />
 								<Skeleton className="h-5 w-full" />
@@ -132,13 +194,62 @@ export function TrainingSummarySidebar({
 						)}
 					</div>
 
-					<Button className="w-full" disabled size="sm" variant="secondary">
-						<Icon className="mr-2 size-4" name="play" />
-						Retrain Agent
+					{/* Training progress bar (shown during training) */}
+					{isTraining && (
+						<div className="px-1">
+							<div className="mb-2 flex items-center justify-between">
+								<span className="text-muted-foreground text-xs">
+									Training progress
+								</span>
+								<span className="font-medium text-xs">
+									{trainingStatus?.trainingProgress ?? 0}%
+								</span>
+							</div>
+							<Progress
+								className="h-2"
+								value={trainingStatus?.trainingProgress ?? 0}
+							/>
+						</div>
+					)}
+
+					<Button
+						className="w-full"
+						disabled={!canTrain || startTrainingMutation.isPending}
+						onClick={handleStartTraining}
+						size="sm"
+						variant="secondary"
+					>
+						{isTraining ? (
+							<>
+								<div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+								Training...
+							</>
+						) : (
+							<>
+								<Icon className="mr-2 size-4" name="play" />
+								{hasCompletedTraining ? "Retrain Agent" : "Train Agent"}
+							</>
+						)}
 					</Button>
-					<p className="text-center text-muted-foreground text-xs">
-						Training will be available once you add sources.
-					</p>
+
+					{/* Status message */}
+					{!isLoadingTrainingStatus && (
+						<p className="text-center text-muted-foreground text-xs">
+							{totalSources === 0 ? (
+								"Add sources to train your AI agent."
+							) : isTraining ? (
+								"Processing your knowledge base..."
+							) : hasFailedTraining ? (
+								<span className="text-destructive">
+									Training failed. Please try again.
+								</span>
+							) : lastTrainedText ? (
+								`Last trained ${lastTrainedText}`
+							) : (
+								"Click to train your AI agent."
+							)}
+						</p>
+					)}
 				</div>
 			</SidebarContainer>
 		</ResizableSidebar>

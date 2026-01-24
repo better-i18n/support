@@ -234,6 +234,57 @@ export async function deleteAiAgent(
 }
 
 /**
+ * Update AI agent training status
+ */
+export async function updateAiAgentTrainingStatus(
+	db: Database,
+	params: {
+		aiAgentId: string;
+		trainingStatus: "idle" | "pending" | "training" | "completed" | "failed";
+		trainingProgress?: number;
+		trainingError?: string | null;
+		trainingStartedAt?: string | null;
+		trainedItemsCount?: number | null;
+		lastTrainedAt?: string | null;
+	}
+): Promise<AiAgentSelect | null> {
+	const now = new Date().toISOString();
+
+	const updateData: Record<string, unknown> = {
+		trainingStatus: params.trainingStatus,
+		updatedAt: now,
+	};
+
+	if (params.trainingProgress !== undefined) {
+		updateData.trainingProgress = params.trainingProgress;
+	}
+
+	if (params.trainingError !== undefined) {
+		updateData.trainingError = params.trainingError;
+	}
+
+	if (params.trainingStartedAt !== undefined) {
+		updateData.trainingStartedAt = params.trainingStartedAt;
+	}
+
+	if (params.trainedItemsCount !== undefined) {
+		updateData.trainedItemsCount = params.trainedItemsCount;
+	}
+
+	if (params.lastTrainedAt !== undefined) {
+		updateData.lastTrainedAt = params.lastTrainedAt;
+	}
+
+	const [agent] = await db
+		.update(aiAgent)
+		.set(updateData)
+		.where(and(eq(aiAgent.id, params.aiAgentId), isNull(aiAgent.deletedAt)))
+		.returning();
+
+	return agent ?? null;
+}
+
+/**
  * Update AI agent behavior settings
  *
  * Merges the provided settings with existing settings.

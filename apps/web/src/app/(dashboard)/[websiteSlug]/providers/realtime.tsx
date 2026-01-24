@@ -23,6 +23,12 @@ import {
 	handleLinkSourceUpdated,
 } from "./events/handlers/crawl-progress";
 import { handleMessageCreated } from "./events/handlers/timeline-item-created";
+import {
+	handleTrainingCompleted,
+	handleTrainingFailed,
+	handleTrainingProgress,
+	handleTrainingStarted,
+} from "./events/handlers/training-progress";
 import { handleVisitorIdentified } from "./events/handlers/visitor-identified";
 import type { DashboardRealtimeContext } from "./events/types";
 
@@ -170,6 +176,39 @@ export function Realtime({ children }: { children: ReactNode }) {
 			crawlPageCompleted: [
 				(_data, meta) => {
 					handleCrawlPageCompleted({
+						event: meta.event,
+						context: meta.context,
+					});
+				},
+			],
+			// AI training events
+			trainingStarted: [
+				(_data, meta) => {
+					handleTrainingStarted({
+						event: meta.event,
+						context: meta.context,
+					});
+				},
+			],
+			trainingProgress: [
+				(_data, meta) => {
+					handleTrainingProgress({
+						event: meta.event,
+						context: meta.context,
+					});
+				},
+			],
+			trainingCompleted: [
+				(_data, meta) => {
+					handleTrainingCompleted({
+						event: meta.event,
+						context: meta.context,
+					});
+				},
+			],
+			trainingFailed: [
+				(_data, meta) => {
+					handleTrainingFailed({
 						event: meta.event,
 						context: meta.context,
 					});

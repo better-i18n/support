@@ -71,6 +71,12 @@ export const aiAgent = pgTable(
 		isActive: boolean("is_active").default(true).notNull(),
 		lastUsedAt: timestamp("last_used_at"),
 		lastTrainedAt: timestamp("last_trained_at"),
+		// Training status fields
+		trainingStatus: text("training_status").default("idle").notNull(),
+		trainingProgress: integer("training_progress").default(0).notNull(),
+		trainingError: text("training_error"),
+		trainingStartedAt: timestamp("training_started_at"),
+		trainedItemsCount: integer("trained_items_count"),
 		usageCount: integer("usage_count").default(0).notNull(),
 		goals: text("goals").array(),
 		metadata: jsonb("metadata"),
@@ -94,6 +100,8 @@ export const aiAgent = pgTable(
 		index("ai_agent_active_idx").on(table.isActive),
 		// Index for soft delete queries
 		index("ai_agent_deleted_at_idx").on(table.deletedAt),
+		// Index for training status queries
+		index("ai_agent_training_status_idx").on(table.trainingStatus),
 	]
 );
 

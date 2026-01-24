@@ -548,3 +548,28 @@ export async function getTotalKnowledgeSizeBytes(
 
 	return Number(result?.total ?? 0);
 }
+
+/**
+ * List all knowledge entries included in training for a website
+ * Returns all items where isIncluded = true
+ */
+export async function listKnowledgeForTraining(
+	db: Database,
+	params: {
+		websiteId: string;
+	}
+): Promise<KnowledgeSelect[]> {
+	const items = await db
+		.select()
+		.from(knowledge)
+		.where(
+			and(
+				eq(knowledge.websiteId, params.websiteId),
+				eq(knowledge.isIncluded, true),
+				isNull(knowledge.deletedAt)
+			)
+		)
+		.orderBy(knowledge.createdAt);
+
+	return items;
+}

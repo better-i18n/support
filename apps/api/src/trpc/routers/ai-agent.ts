@@ -6,6 +6,7 @@ import {
 	toggleAiAgentActive,
 	updateAiAgent,
 	updateAiAgentBehaviorSettings,
+	updateAiAgentTrainingStatus,
 } from "@api/db/queries/ai-agent";
 import {
 	getWebsiteBySlugWithAccess,
@@ -13,6 +14,7 @@ import {
 } from "@api/db/queries/website";
 import { firecrawlService } from "@api/services/firecrawl";
 import { generateAgentBasePrompt } from "@api/services/prompt-generator";
+import { triggerAiTraining } from "@api/utils/queue-triggers";
 import {
 	aiAgentResponseSchema,
 	createAiAgentRequestSchema,
@@ -28,6 +30,7 @@ import {
 	updateBehaviorSettingsResponseSchema,
 } from "@cossistant/types";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../init";
 
 function toAiAgentResponse(agent: {
@@ -478,5 +481,145 @@ export const aiAgentRouter = createTRPCRouter({
 
 			// Return the updated settings merged with defaults
 			return getBehaviorSettings(agent);
+		}),
+
+	/**
+	 * Start training the AI agent's knowledge base
+	 * Processes all included knowledge items and generates embeddings
+	 */
+	startTraining: protectedProcedure
+		.input(
+			z.object({
+				websiteSlug: z.string(),
+				aiAgentId: z.string(),
+			})
+		)
+		.output(
+			z.object({
+				jobId: z.string(),
+				status: z.string(),
+			})
+		)
+		.mutation(async ({ ctx: { db, user }, input }) => {
+			const websiteData = await getWebsiteBySlugWithAccess(db, {
+				userId: user.id,
+				websiteSlug: input.websiteSlug,
+			});
+
+			if (!websiteData) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "Website not found or access denied",
+				});
+			}
+
+			const agent = await getAiAgentForWebsite(db, {
+				websiteId: websiteData.id,
+				organizationId: websiteData.organizationId,
+			});
+
+			if (!agent || agent.id !== input.aiAgentId) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "AI agent not found",
+				});
+			}
+
+			// Check if already training
+			if (
+				agent.trainingStatus === "training" ||
+				agent.trainingStatus === "pending"
+			) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message: "Training is already in progress",
+				});
+			}
+
+			// Update status to pending
+			await updateAiAgentTrainingStatus(db, {
+				aiAgentId: agent.id,
+				trainingStatus: "pending",
+				trainingProgress: 0,
+				trainingError: null,
+			});
+
+			// Enqueue the training job
+			const jobId = await triggerAiTraining({
+				websiteId: websiteData.id,
+				organizationId: websiteData.organizationId,
+				aiAgentId: agent.id,
+				triggeredBy: user.id,
+			});
+
+			return {
+				jobId,
+				status: "pending",
+			};
+		}),
+
+	/**
+	 * Get the current training status for an AI agent
+	 */
+	getTrainingStatus: protectedProcedure
+		.input(
+			z.object({
+				websiteSlug: z.string(),
+			})
+		)
+		.output(
+			z.object({
+				trainingStatus: z.enum([
+					"idle",
+					"pending",
+					"training",
+					"completed",
+					"failed",
+				]),
+				trainingProgress: z.number(),
+				trainingError: z.string().nullable(),
+				trainingStartedAt: z.string().nullable(),
+				trainedItemsCount: z.number().nullable(),
+				lastTrainedAt: z.string().nullable(),
+			})
+		)
+		.query(async ({ ctx: { db, user }, input }) => {
+			const websiteData = await getWebsiteBySlugWithAccess(db, {
+				userId: user.id,
+				websiteSlug: input.websiteSlug,
+			});
+
+			if (!websiteData) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "Website not found or access denied",
+				});
+			}
+
+			const agent = await getAiAgentForWebsite(db, {
+				websiteId: websiteData.id,
+				organizationId: websiteData.organizationId,
+			});
+
+			if (!agent) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "AI agent not found",
+				});
+			}
+
+			return {
+				trainingStatus: (agent.trainingStatus ?? "idle") as
+					| "idle"
+					| "pending"
+					| "training"
+					| "completed"
+					| "failed",
+				trainingProgress: agent.trainingProgress ?? 0,
+				trainingError: agent.trainingError ?? null,
+				trainingStartedAt: agent.trainingStartedAt ?? null,
+				trainedItemsCount: agent.trainedItemsCount ?? null,
+				lastTrainedAt: agent.lastTrainedAt ?? null,
+			};
 		}),
 });
