@@ -24,6 +24,13 @@ const LEADING_SLASH_REGEX = /^\//;
 const POLL_INTERVAL_MS = 5000; // 5 seconds
 const MAX_POLL_ATTEMPTS = 360; // 30 minutes max (360 * 5s)
 
+const WORKER_CONFIG = {
+	concurrency: 3,
+	lockDuration: 120_000,
+	stalledInterval: 30_000,
+	maxStalledCount: 2,
+};
+
 // Convert MB to bytes
 const MB_TO_BYTES = 1024 * 1024;
 
@@ -117,7 +124,10 @@ export function createWebCrawlWorker({
 				},
 				{
 					connection: buildConnectionOptions(),
-					concurrency: 3, // Limit parallel crawls
+					concurrency: WORKER_CONFIG.concurrency, // Limit parallel crawls
+					lockDuration: WORKER_CONFIG.lockDuration,
+					stalledInterval: WORKER_CONFIG.stalledInterval,
+					maxStalledCount: WORKER_CONFIG.maxStalledCount,
 				}
 			);
 

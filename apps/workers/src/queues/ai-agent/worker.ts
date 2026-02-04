@@ -29,6 +29,7 @@ import {
 	type RedisOptions,
 } from "@cossistant/redis";
 import { db } from "@workers/db";
+import { env } from "@workers/env";
 import { type Job, Queue, QueueEvents, Worker } from "bullmq";
 
 const AI_AGENT_DIRECTION: WorkflowDirection = "ai-agent-response";
@@ -37,10 +38,10 @@ const AI_AGENT_DIRECTION: WorkflowDirection = "ai-agent-response";
  * Worker configuration for reliability
  */
 const WORKER_CONFIG = {
-	concurrency: 10, // Process 10 jobs in parallel per worker
-	lockDuration: 60_000, // 60s lock to prevent duplicate processing
-	stalledInterval: 30_000, // Check for stalled jobs every 30s
-	maxStalledCount: 2, // Retry stalled jobs up to 2 times
+	concurrency: env.AI_AGENT_CONCURRENCY,
+	lockDuration: env.AI_AGENT_LOCK_DURATION_MS,
+	stalledInterval: env.AI_AGENT_STALLED_INTERVAL_MS,
+	maxStalledCount: env.AI_AGENT_MAX_STALLED_COUNT,
 };
 
 type WorkerConfig = {

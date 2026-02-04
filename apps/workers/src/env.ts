@@ -30,6 +30,19 @@ export const env = {
 	NODE_ENV: getEnvVariable("NODE_ENV"),
 	PORT: +getEnvVariable("PORT", "8790"),
 	REDIS_URL: getEnvVariable("REDIS_URL"),
+	AI_AGENT_CONCURRENCY: +getEnvVariable("AI_AGENT_CONCURRENCY", "10"),
+	AI_AGENT_LOCK_DURATION_MS: +getEnvVariable(
+		"AI_AGENT_LOCK_DURATION_MS",
+		"120000"
+	),
+	AI_AGENT_STALLED_INTERVAL_MS: +getEnvVariable(
+		"AI_AGENT_STALLED_INTERVAL_MS",
+		"30000"
+	),
+	AI_AGENT_MAX_STALLED_COUNT: +getEnvVariable(
+		"AI_AGENT_MAX_STALLED_COUNT",
+		"2"
+	),
 	// Database (needed for notification queries)
 	DATABASE_HOST: getEnvVariable("DATABASE_HOST"),
 	DATABASE_PORT: +getEnvVariable("DATABASE_PORT"),

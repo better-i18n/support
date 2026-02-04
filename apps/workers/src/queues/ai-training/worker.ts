@@ -21,6 +21,13 @@ import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 // Batch size for embedding generation (to avoid hitting API limits)
 const EMBEDDING_BATCH_SIZE = 20;
 
+const WORKER_CONFIG = {
+	concurrency: 1,
+	lockDuration: 600_000,
+	stalledInterval: 30_000,
+	maxStalledCount: 2,
+};
+
 type WorkerConfig = {
 	connectionOptions: RedisOptions;
 	redisUrl: string;
@@ -37,15 +44,22 @@ export function createAiTrainingWorker({
 		start: async () => {
 			console.log(`[ai-training] Starting worker for queue: ${queueName}`);
 
+			const buildConnectionOptions = (): RedisOptions => ({
+				...connectionOptions,
+				tls: connectionOptions.tls ? { ...connectionOptions.tls } : undefined,
+			});
+
 			worker = new Worker<AiTrainingJobData>(
 				queueName,
 				async (job: Job<AiTrainingJobData>) => {
 					await processTrainingJob(job);
 				},
 				{
-					connection: connectionOptions,
-					concurrency: 1, // Only one training job at a time
-					lockDuration: 300_000, // 5 minutes lock
+					connection: buildConnectionOptions(),
+					concurrency: WORKER_CONFIG.concurrency, // Only one training job at a time
+					lockDuration: WORKER_CONFIG.lockDuration,
+					stalledInterval: WORKER_CONFIG.stalledInterval,
+					maxStalledCount: WORKER_CONFIG.maxStalledCount,
 				}
 			);
 

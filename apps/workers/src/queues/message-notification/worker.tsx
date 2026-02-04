@@ -19,6 +19,13 @@ import { db } from "../../db";
 // Constants
 const MAX_MESSAGES_IN_EMAIL = 3;
 
+const WORKER_CONFIG = {
+	concurrency: 10,
+	lockDuration: 60_000,
+	stalledInterval: 30_000,
+	maxStalledCount: 2,
+};
+
 type MemberRecipient = {
 	kind: "member";
 	userId: string;
@@ -92,7 +99,10 @@ export function createMessageNotificationWorker({
 				},
 				{
 					connection: buildConnectionOptions(),
-					concurrency: 10,
+					concurrency: WORKER_CONFIG.concurrency,
+					lockDuration: WORKER_CONFIG.lockDuration,
+					stalledInterval: WORKER_CONFIG.stalledInterval,
+					maxStalledCount: WORKER_CONFIG.maxStalledCount,
 				}
 			);
 

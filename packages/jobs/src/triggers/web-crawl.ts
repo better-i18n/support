@@ -5,6 +5,7 @@ import {
 	QUEUE_NAMES,
 	type WebCrawlJobData,
 } from "../types";
+import { addUniqueJob } from "../utils/unique-job";
 
 // Retry configuration for web crawl jobs
 // 3 attempts with exponential backoff starting at 1 minute
@@ -38,8 +39,8 @@ export function createWebCrawlTriggers({
 			queue = new Queue<WebCrawlJobData>(queueName, {
 				connection: buildConnectionOptions(),
 				defaultJobOptions: {
-					removeOnComplete: true,
-					removeOnFail: 100, // Keep failed jobs for investigation
+					removeOnComplete: { count: 100 },
+					removeOnFail: { count: 100 }, // Keep failed jobs for investigation
 				},
 			});
 		}
@@ -80,10 +81,21 @@ export function createWebCrawlTriggers({
 			},
 		};
 
-		const job = await q.add("web-crawl", data, jobOptions);
+		const result = await addUniqueJob({
+			queue: q,
+			jobId,
+			jobName: "web-crawl",
+			data,
+			options: jobOptions,
+			logPrefix: "[jobs:web-crawl]",
+		});
+
+		if (result.status === "skipped") {
+			return result.existingJob.id ?? jobId;
+		}
 
 		const [state, counts] = await Promise.all([
-			job.getState().catch(() => "unknown"),
+			result.job.getState().catch(() => "unknown"),
 			q.getJobCounts("delayed", "waiting", "active").catch(() => null),
 		]);
 
@@ -95,7 +107,7 @@ export function createWebCrawlTriggers({
 			`[jobs:web-crawl] Enqueued job ${jobId} for link source ${data.linkSourceId} (state:${state}) ${countSummary}`
 		);
 
-		return jobId;
+		return result.job.id ?? jobId;
 	}
 
 	async function cancelWebCrawl(linkSourceId: string): Promise<boolean> {

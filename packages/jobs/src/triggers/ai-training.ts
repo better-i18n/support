@@ -5,6 +5,7 @@ import {
 	generateAiTrainingJobId,
 	QUEUE_NAMES,
 } from "../types";
+import { addUniqueJob } from "../utils/unique-job";
 
 // Retry configuration for AI training jobs
 // 2 attempts with exponential backoff starting at 30 seconds
@@ -38,8 +39,8 @@ export function createAiTrainingTriggers({
 			queue = new Queue<AiTrainingJobData>(queueName, {
 				connection: buildConnectionOptions(),
 				defaultJobOptions: {
-					removeOnComplete: true,
-					removeOnFail: 100, // Keep failed jobs for investigation
+					removeOnComplete: { count: 100 },
+					removeOnFail: { count: 100 }, // Keep failed jobs for investigation
 				},
 			});
 		}
@@ -82,10 +83,21 @@ export function createAiTrainingTriggers({
 			},
 		};
 
-		const job = await q.add("ai-training", data, jobOptions);
+		const result = await addUniqueJob({
+			queue: q,
+			jobId,
+			jobName: "ai-training",
+			data,
+			options: jobOptions,
+			logPrefix: "[jobs:ai-training]",
+		});
+
+		if (result.status === "skipped") {
+			return result.existingJob.id ?? jobId;
+		}
 
 		const [state, counts] = await Promise.all([
-			job.getState().catch(() => "unknown"),
+			result.job.getState().catch(() => "unknown"),
 			q.getJobCounts("delayed", "waiting", "active").catch(() => null),
 		]);
 
@@ -97,7 +109,7 @@ export function createAiTrainingTriggers({
 			`[jobs:ai-training] Enqueued job ${jobId} for AI agent ${data.aiAgentId} (state:${state}) ${countSummary}`
 		);
 
-		return jobId;
+		return result.job.id ?? jobId;
 	}
 
 	async function cancelAiTraining(aiAgentId: string): Promise<boolean> {
