@@ -94,7 +94,7 @@ export function ConversationPane({
 		stop: stopTyping,
 	} = useAgentTypingReporter({
 		conversationId,
-		visitorId: selectedConversation?.visitorId,
+		visitorId,
 		websiteSlug,
 	});
 
