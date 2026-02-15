@@ -102,7 +102,7 @@ export const TimelineMessageGroup: React.FC<TimelineMessageGroupProps> = ({
 						)}
 
 						{items.map((item, index) => (
-							<div className="co-animate-slide-up-fade" key={item.id}>
+							<div className="co-animate-slide-up-fade w-full" key={item.id}>
 								<TimelineMessageItem
 									isLast={index === items.length - 1}
 									isSentByViewer={isSentByViewer}
