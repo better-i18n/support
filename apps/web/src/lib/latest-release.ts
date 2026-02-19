@@ -22,7 +22,7 @@ export function getLatestRelease(): LatestRelease | null {
 	}
 
 	return {
-		version: latest.data.version,
+		version: latest.data.version ?? "",
 		description: latest.data.description,
 		tinyExcerpt: latest.data["tiny-excerpt"] ?? "New release available",
 		date: latest.data.date,
