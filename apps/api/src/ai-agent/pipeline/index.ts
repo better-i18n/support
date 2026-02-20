@@ -46,6 +46,7 @@ import { type DecisionResult, decide } from "./2-decision";
 import { type GenerationResult, generate } from "./3-generation";
 import { type ExecutionResult, execute } from "./4-execution";
 import { followup } from "./5-followup";
+import { logAiSkillUsageTimeline } from "./skill-usage-timeline";
 
 export type AiAgentPipelineInput = {
 	conversationId: string;
@@ -576,6 +577,29 @@ export async function runAiAgentPipeline(
 			clearTimeout(generationTimeout);
 			metrics.generationMs = Date.now() - generationStart;
 			await finalizeAiCreditUsage(generationResult);
+		}
+
+		const selectedSkills = generationResult.selectedSkills;
+		if (selectedSkills && selectedSkills.length > 0) {
+			try {
+				await logAiSkillUsageTimeline({
+					db: ctx.db,
+					organizationId: ctx.input.organizationId,
+					websiteId: ctx.input.websiteId,
+					conversationId: ctx.input.conversationId,
+					visitorId: ctx.input.visitorId,
+					aiAgentId: intakeResult.aiAgent.id,
+					workflowRunId: ctx.input.workflowRunId,
+					triggerMessageId: ctx.input.messageId,
+					triggerVisibility: intakeResult.triggerMessage?.visibility,
+					selectedSkills,
+				});
+			} catch (error) {
+				console.warn(
+					`[ai-agent] conv=${convId} | Failed to log AI skill usage timeline`,
+					error
+				);
+			}
 		}
 
 		// FALLBACK: If AI returned respond/escalate/resolve but didn't call sendMessage,

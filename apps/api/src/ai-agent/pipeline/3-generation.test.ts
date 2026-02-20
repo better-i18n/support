@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { AI_AGENT_TOOL_CATALOG } from "@cossistant/types";
 import {
 	buildRuntimeSkillDocuments,
+	buildSelectedSkillUsage,
 	buildToolCallsByName,
 	getNonFinishToolCallCount,
 	getTotalToolCalls,
@@ -162,5 +163,58 @@ describe("generation tool call accounting", () => {
 			resolveTool.defaultSkill.content
 		);
 		expect(byName.get("high.md")?.source).toBe("custom");
+	});
+
+	it("builds selected skill usage metadata with deterministic order", () => {
+		const selected = buildRuntimeSkillDocuments({
+			enabledSkills: [
+				{
+					id: "tool:send-message.md",
+					name: "send-message.md",
+					content: "override send guidance",
+					priority: 6,
+					source: "tool",
+				},
+				{
+					id: "custom:high.md",
+					name: "high.md",
+					content: "custom high",
+					priority: 10,
+					source: "custom",
+				},
+				{
+					id: "custom:mid.md",
+					name: "mid.md",
+					content: "custom mid",
+					priority: 5,
+					source: "custom",
+				},
+			],
+			runtimeToolIds: ["sendMessage", "respond"],
+			maxCustomSkills: 1,
+		});
+
+		const selectedSkills = buildSelectedSkillUsage(selected);
+
+		expect(selectedSkills).toEqual([
+			{
+				name: "send-message.md",
+				source: "tool",
+				toolId: "sendMessage",
+				toolLabel: "Send Public Message",
+			},
+			{
+				name: "respond.md",
+				source: "tool",
+				toolId: "respond",
+				toolLabel: "Finish: Respond",
+			},
+			{
+				name: "high.md",
+				source: "custom",
+				toolId: undefined,
+				toolLabel: undefined,
+			},
+		]);
 	});
 });

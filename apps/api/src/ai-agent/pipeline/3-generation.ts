@@ -72,6 +72,15 @@ export type GenerationResult = {
 	toolCallsByName?: Record<string, number>;
 	/** Total number of tool calls from this generation */
 	totalToolCalls?: number;
+	/** Skills included in the prompt context for this run */
+	selectedSkills?: SelectedSkillUsage[];
+};
+
+export type SelectedSkillUsage = {
+	name: string;
+	source: "tool" | "custom";
+	toolId?: string;
+	toolLabel?: string;
 };
 
 type GenerationInput = {
@@ -300,6 +309,23 @@ export function buildRuntimeSkillDocuments(input: {
 	return [...runtimeToolSkills, ...customSkills];
 }
 
+export function buildSelectedSkillUsage(
+	selectedSkillDocuments: ResolvedSkillPromptDocument[]
+): SelectedSkillUsage[] {
+	return selectedSkillDocuments.map((skill) => {
+		const toolMetadata =
+			skill.source === "tool"
+				? TOOL_METADATA_BY_DEFAULT_SKILL_NAME.get(skill.name)
+				: undefined;
+		return {
+			name: skill.name,
+			source: skill.source,
+			toolId: toolMetadata?.id,
+			toolLabel: toolMetadata?.label,
+		};
+	});
+}
+
 export function buildToolCallsByName(
 	toolCalls: ToolCallLike[]
 ): Record<string, number> {
@@ -511,6 +537,7 @@ export async function generate(
 		runtimeToolIds: Object.keys(runtimeTools),
 		maxCustomSkills: MAX_CUSTOM_SKILLS_IN_PROMPT,
 	});
+	const selectedSkills = buildSelectedSkillUsage(selectedSkillDocuments);
 	const runtimeFinishTools = getFinishToolsInToolset(runtimeTools);
 
 	const buildResolvedSkillDocuments = (): PromptSkillDocument[] =>
@@ -575,7 +602,7 @@ export async function generate(
 	// Format conversation history for LLM with multi-party prefixes
 	const visitorName = visitorContext?.name ?? null;
 	const messages = formatMessagesForLlm(conversationHistory, visitorName);
-	const selectedSkillNames = selectedSkillDocuments.map((skill) => skill.name);
+	const selectedSkillNames = selectedSkills.map((skill) => skill.name);
 
 	console.log(
 		`[ai-agent:generate] conv=${convId} | model=${aiAgent.model} | messages=${messages.length} | mode=${mode} | tools=${Object.keys(runtimeTools).length} | toolBudget=${maxToolInvocationsPerRun} | selectedSkills=${selectedSkillNames.join(",") || "none"}`
@@ -652,6 +679,7 @@ export async function generate(
 				},
 				toolCallsByName,
 				totalToolCalls: getTotalToolCalls(toolCallsByName),
+				selectedSkills,
 			};
 		}
 		// Re-throw other errors
@@ -726,6 +754,7 @@ export async function generate(
 					},
 					toolCallsByName,
 					totalToolCalls,
+					selectedSkills,
 				};
 			}
 
@@ -752,6 +781,7 @@ export async function generate(
 				},
 				toolCallsByName,
 				totalToolCalls,
+				selectedSkills,
 			};
 		}
 
@@ -843,6 +873,7 @@ export async function generate(
 						totalToolCalls: getTotalToolCalls(
 							combinedRepairAbortToolCallsByName
 						),
+						selectedSkills,
 					};
 				}
 				throw error;
@@ -891,6 +922,7 @@ export async function generate(
 					},
 					toolCallsByName: combinedRepairToolCallsByName,
 					totalToolCalls: repairTotalToolCalls,
+					selectedSkills,
 				};
 			}
 
@@ -917,6 +949,7 @@ export async function generate(
 				},
 				toolCallsByName: combinedRepairToolCallsByName,
 				totalToolCalls: repairTotalToolCalls,
+				selectedSkills,
 			};
 		}
 	}
@@ -948,6 +981,7 @@ export async function generate(
 			},
 			toolCallsByName,
 			totalToolCalls,
+			selectedSkills,
 		};
 	}
 
@@ -985,6 +1019,7 @@ export async function generate(
 		},
 		toolCallsByName,
 		totalToolCalls,
+		selectedSkills,
 	};
 }
 

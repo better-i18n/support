@@ -43,6 +43,12 @@ const ingestAiCreditUsageMock = mock((async () => ({
 const logAiCreditUsageTimelineMock = mock((async () => {}) as (
 	...args: unknown[]
 ) => Promise<void>);
+const createTimelineItemMock = mock((async () => ({})) as (
+	...args: unknown[]
+) => Promise<unknown>);
+const updateTimelineItemMock = mock((async () => ({})) as (
+	...args: unknown[]
+) => Promise<unknown>);
 const resolvePromptBundleMock = mock((async () => ({
 	coreDocuments: {
 		"decision.md": {
@@ -141,6 +147,11 @@ mock.module("@api/lib/ai-credits/timeline", () => ({
 	logAiCreditUsageTimeline: logAiCreditUsageTimelineMock,
 }));
 
+mock.module("@api/utils/timeline-item", () => ({
+	createTimelineItem: createTimelineItemMock,
+	updateTimelineItem: updateTimelineItemMock,
+}));
+
 mock.module("../prompts/resolver", () => ({
 	resolvePromptBundle: resolvePromptBundleMock,
 }));
@@ -212,6 +223,8 @@ describe("runAiAgentPipeline retryability and typing cleanup", () => {
 		guardAiCreditRunMock.mockReset();
 		ingestAiCreditUsageMock.mockReset();
 		logAiCreditUsageTimelineMock.mockReset();
+		createTimelineItemMock.mockReset();
+		updateTimelineItemMock.mockReset();
 		resolvePromptBundleMock.mockReset();
 		fallbackSendMessageMock.mockReset();
 
@@ -242,6 +255,8 @@ describe("runAiAgentPipeline retryability and typing cleanup", () => {
 			status: "ingested",
 		});
 		logAiCreditUsageTimelineMock.mockResolvedValue(undefined);
+		createTimelineItemMock.mockResolvedValue({});
+		updateTimelineItemMock.mockResolvedValue({});
 		fallbackSendMessageMock.mockResolvedValue({
 			messageId: "fallback-msg",
 			created: true,
@@ -386,6 +401,18 @@ describe("runAiAgentPipeline retryability and typing cleanup", () => {
 				sendMessage: 0,
 				sendPrivateMessage: 0,
 			},
+			selectedSkills: [
+				{
+					name: "send-message.md",
+					source: "tool",
+					toolId: "sendMessage",
+					toolLabel: "Send Public Message",
+				},
+				{
+					name: "custom-playbook.md",
+					source: "custom",
+				},
+			],
 		});
 
 		const result = await runAiAgentPipeline({
@@ -413,8 +440,49 @@ describe("runAiAgentPipeline retryability and typing cleanup", () => {
 		expect(logDecisionTimelineStateMock.mock.calls[1]?.[0]).toMatchObject({
 			state: "result",
 		});
+		expect(createTimelineItemMock).toHaveBeenCalledTimes(1);
+		expect(createTimelineItemMock.mock.calls[0]?.[0]).toMatchObject({
+			conversationId: "conv-1",
+			item: {
+				tool: "aiSkillUsage",
+				visibility: "private",
+				type: "tool",
+			},
+		});
 		expect(typingHeartbeatStopMock).toHaveBeenCalledTimes(1);
 		expect(emitTypingStopMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not log skill usage when decision skips before generation", async () => {
+		const { runAiAgentPipeline } = await pipelineModulePromise;
+		decideMock.mockResolvedValue({
+			shouldAct: false,
+			reason: "no action needed",
+			mode: "background_only",
+			humanCommand: null,
+			isEscalated: false,
+			escalationReason: null,
+			smartDecision: null,
+		});
+
+		const result = await runAiAgentPipeline({
+			db: {} as never,
+			input: {
+				conversationId: "conv-1",
+				messageId: "trigger-msg-1",
+				messageCreatedAt: new Date().toISOString(),
+				websiteId: "site-1",
+				organizationId: "org-1",
+				visitorId: "visitor-1",
+				aiAgentId: "ai-1",
+				workflowRunId: "workflow-decision-skip",
+				jobId: "job-decision-skip",
+			},
+		});
+
+		expect(result.status).toBe("skipped");
+		expect(generateMock).not.toHaveBeenCalled();
+		expect(createTimelineItemMock).not.toHaveBeenCalled();
 	});
 
 	it("does not send fallback when authoritative public send already happened", async () => {
@@ -506,6 +574,7 @@ describe("runAiAgentPipeline retryability and typing cleanup", () => {
 		expect(result.status).toBe("skipped");
 		expect(result.reason).toContain("AI credit guard blocked run");
 		expect(generateMock).not.toHaveBeenCalled();
+		expect(createTimelineItemMock).not.toHaveBeenCalled();
 		expect(ingestAiCreditUsageMock).not.toHaveBeenCalled();
 		expect(logAiCreditUsageTimelineMock).toHaveBeenCalledTimes(1);
 	});
@@ -598,5 +667,49 @@ describe("runAiAgentPipeline retryability and typing cleanup", () => {
 				ingestStatus: "skipped_backoff",
 			},
 		});
+	});
+
+	it("continues successfully when skill usage timeline logging fails", async () => {
+		const { runAiAgentPipeline } = await pipelineModulePromise;
+		createTimelineItemMock.mockRejectedValueOnce(
+			new Error("timeline unavailable")
+		);
+		generateMock.mockResolvedValue({
+			decision: {
+				action: "skip",
+				reasoning: "nothing to send",
+				confidence: 0.8,
+			},
+			toolCalls: {
+				sendMessage: 0,
+				sendPrivateMessage: 0,
+			},
+			selectedSkills: [
+				{
+					name: "respond.md",
+					source: "tool",
+					toolId: "respond",
+					toolLabel: "Finish Respond",
+				},
+			],
+		});
+
+		const result = await runAiAgentPipeline({
+			db: {} as never,
+			input: {
+				conversationId: "conv-1",
+				messageId: "trigger-msg-1",
+				messageCreatedAt: new Date().toISOString(),
+				websiteId: "site-1",
+				organizationId: "org-1",
+				visitorId: "visitor-1",
+				aiAgentId: "ai-1",
+				workflowRunId: "workflow-skill-log-fail-open",
+				jobId: "job-skill-log-fail-open",
+			},
+		});
+
+		expect(result.status).toBe("completed");
+		expect(createTimelineItemMock).toHaveBeenCalledTimes(1);
 	});
 });
