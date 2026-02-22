@@ -84,7 +84,7 @@ export default async function Landing() {
 				</div>
 			</div>
 			<Install />
-			<Benefits />
+			{/* <Benefits /> */}
 		</>
 	);
 }

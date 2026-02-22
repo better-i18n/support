@@ -10,6 +10,11 @@
     ·
     <a href="https://discord.gg/vQkPjgvzcc">Discord</a>
 </p>
+<br />
+<br />
+<a href="https://vercel.com/oss">
+  <img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge.svg" />
+</a>
 
 ## About Cossistant
 
