@@ -1,4 +1,5 @@
 import { ensureWebsiteAccess } from "@/lib/auth/website-access";
+import { getConversationDebugJsonResponse } from "../_conversation-debug-json";
 import InboxClientRouter from "./client-router";
 
 type DashboardPageProps = {
@@ -9,7 +10,7 @@ type DashboardPageProps = {
 };
 
 export default async function InboxPage({ params }: DashboardPageProps) {
-	const { websiteSlug } = await params;
+	const { websiteSlug, slug } = await params;
 
 	await ensureWebsiteAccess(websiteSlug);
 
