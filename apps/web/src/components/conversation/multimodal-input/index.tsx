@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	extractFilesFromClipboard,
 	FILE_INPUT_ACCEPT,
 	formatFileSize,
 	MAX_FILE_SIZE,
@@ -229,6 +230,14 @@ export const MultimodalInput: React.FC<MultimodalInputProps> = ({
 		}
 	};
 
+	const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+		const filesFromClipboard = extractFilesFromClipboard(e.clipboardData);
+		if (filesFromClipboard.length > 0 && onFileSelect) {
+			e.preventDefault();
+			onFileSelect(filesFromClipboard);
+		}
+	};
+
 	return (
 		<div className="absolute right-0 bottom-4 left-0 z-10 mx-auto w-full px-4 xl:max-w-xl xl:px-0 2xl:max-w-2xl">
 			<form
@@ -399,6 +408,7 @@ export const MultimodalInput: React.FC<MultimodalInputProps> = ({
 									disabled={disabled}
 									onChange={mentionEditor.handleChange}
 									onKeyDown={handleKeyDown}
+									onPaste={handlePaste}
 									onScroll={mentionEditor.handleScroll}
 									onSelect={mentionEditor.handleSelect}
 									placeholder={

@@ -154,6 +154,7 @@ export {
 export {
 	ALLOWED_FILE_TYPES_DESCRIPTION,
 	ALLOWED_MIME_TYPES,
+	extractFilesFromClipboard,
 	FILE_INPUT_ACCEPT,
 	formatFileSize,
 	isAllowedMimeType,

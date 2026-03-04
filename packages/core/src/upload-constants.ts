@@ -33,6 +33,125 @@ export const ALLOWED_FILE_TYPES_DESCRIPTION =
 /** Accept string for file input elements */
 export const FILE_INPUT_ACCEPT = ALLOWED_MIME_TYPES.join(",");
 
+const MIME_TYPE_EXTENSION_MAP: Record<string, string> = {
+	"image/jpeg": "jpg",
+	"image/png": "png",
+	"image/gif": "gif",
+	"image/webp": "webp",
+	"application/pdf": "pdf",
+	"text/plain": "txt",
+	"text/csv": "csv",
+	"text/markdown": "md",
+	"application/zip": "zip",
+};
+
+function getFileExtensionFromMimeType(mimeType: string): string {
+	const normalizedType = mimeType.trim().toLowerCase();
+	if (!normalizedType) {
+		return "bin";
+	}
+
+	const mappedExtension = MIME_TYPE_EXTENSION_MAP[normalizedType];
+	if (mappedExtension) {
+		return mappedExtension;
+	}
+
+	const slashIndex = normalizedType.indexOf("/");
+	if (slashIndex === -1 || slashIndex === normalizedType.length - 1) {
+		return "bin";
+	}
+
+	const subtype = normalizedType
+		.slice(slashIndex + 1)
+		.split(";")[0]
+		?.trim();
+	if (!subtype) {
+		return "bin";
+	}
+
+	const safeSubtype = subtype.replace(/[^a-z0-9.+-]/g, "");
+	return safeSubtype || "bin";
+}
+
+function normalizeClipboardFile(file: File, unnamedFileIndex: number): File {
+	const fileName = file.name?.trim() ?? "";
+	if (fileName.length > 0) {
+		return file;
+	}
+
+	const extension = getFileExtensionFromMimeType(file.type);
+	const fallbackName = `pasted-file-${unnamedFileIndex}.${extension}`;
+
+	return new File([file], fallbackName, {
+		type: file.type,
+		lastModified: file.lastModified || Date.now(),
+	});
+}
+
+/**
+ * Extract files from clipboard data for paste-to-attach flows.
+ *
+ * Reads from both clipboard `items` and `files`, de-duplicates merged entries
+ * and normalizes unnamed clipboard files with safe fallback names.
+ */
+export function extractFilesFromClipboard(
+	clipboardData: DataTransfer | null | undefined
+): File[] {
+	if (!clipboardData) {
+		return [];
+	}
+
+	const candidateFiles: File[] = [];
+
+	for (const item of Array.from(clipboardData.items || [])) {
+		if (item.kind !== "file") {
+			continue;
+		}
+
+		const file = item.getAsFile();
+		if (file) {
+			candidateFiles.push(file);
+		}
+	}
+
+	for (const file of Array.from(clipboardData.files || [])) {
+		candidateFiles.push(file);
+	}
+
+	if (candidateFiles.length === 0) {
+		return [];
+	}
+
+	const dedupedFiles: File[] = [];
+	const seenKeys = new Set<string>();
+	let unnamedFileCount = 0;
+
+	for (const file of candidateFiles) {
+		const fileName = file.name ?? "";
+		const dedupeKey = [
+			fileName,
+			file.type,
+			String(file.size),
+			String(file.lastModified),
+		].join("|");
+
+		if (seenKeys.has(dedupeKey)) {
+			continue;
+		}
+		seenKeys.add(dedupeKey);
+
+		if (fileName.trim().length === 0) {
+			unnamedFileCount += 1;
+			dedupedFiles.push(normalizeClipboardFile(file, unnamedFileCount));
+			continue;
+		}
+
+		dedupedFiles.push(file);
+	}
+
+	return dedupedFiles;
+}
+
 /**
  * Check if a MIME type is allowed for upload
  */

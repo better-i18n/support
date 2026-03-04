@@ -1,3 +1,4 @@
+import { extractFilesFromClipboard } from "@cossistant/core";
 import * as React from "react";
 import { useRenderElement } from "../utils/use-render-element";
 
@@ -55,19 +56,9 @@ export const MultimodalInput = (() => {
 				props.onKeyDown?.(e);
 			};
 
-			// Handle paste events for images
+			// Handle paste events for image/file attachments
 			const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-				const items = Array.from(e.clipboardData.items);
-				const files: File[] = [];
-
-				for (const item of items) {
-					if (item.kind === "file") {
-						const file = item.getAsFile();
-						if (file) {
-							files.push(file);
-						}
-					}
-				}
+				const files = extractFilesFromClipboard(e.clipboardData);
 
 				if (files.length > 0 && onFileSelect) {
 					e.preventDefault();
