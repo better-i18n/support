@@ -1,0 +1,27 @@
+import type { AiAgentSelect } from "@api/db/schema/ai-agent";
+import type { ConversationSelect } from "@api/db/schema/conversation";
+import type { ConversationState, RoleAwareMessage } from "../../contracts";
+import type { SmartDecisionResult } from "./smart/types";
+
+export type ResponseMode =
+	| "respond_to_visitor"
+	| "respond_to_command"
+	| "background_only";
+
+export type DecisionResult = {
+	shouldAct: boolean;
+	reason: string;
+	mode: ResponseMode;
+	humanCommand: string | null;
+	isEscalated: boolean;
+	escalationReason: string | null;
+	smartDecision?: SmartDecisionResult;
+};
+
+export type DecisionStepInput = {
+	aiAgent: AiAgentSelect;
+	conversation: ConversationSelect;
+	conversationHistory: RoleAwareMessage[];
+	conversationState: ConversationState;
+	triggerMessage: RoleAwareMessage | null;
+};

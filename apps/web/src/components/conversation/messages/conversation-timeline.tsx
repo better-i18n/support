@@ -89,7 +89,7 @@ function StandaloneToolAvatar({
 	);
 }
 
-function ConversationTimelineListComponent({
+export function ConversationTimelineList({
 	ref,
 	items: timelineItems = EMPTY_TIMELINE_ITEMS,
 	teamMembers = EMPTY_TEAM_MEMBERS,
@@ -206,7 +206,7 @@ function ConversationTimelineListComponent({
 			autoScroll={true}
 			className={cn(
 				"overflow-y-scroll pt-20",
-				"scrollbar-thin scrollbar-thumb-background-300 scrollbar-track-fd-overlay",
+				"scrollbar-thin scrollbar-thumb-background-300 scrollbar-track-transparent",
 				"h-full w-full",
 				className
 			)}
@@ -349,26 +349,5 @@ function ConversationTimelineListComponent({
 		</PrimitiveConversationTimeline>
 	);
 }
-
-const areConversationTimelinePropsEqual = (
-	prev: ConversationTimelineListProps,
-	next: ConversationTimelineListProps
-) =>
-	prev.ref === next.ref &&
-	prev.items === next.items &&
-	prev.teamMembers === next.teamMembers &&
-	prev.availableAIAgents === next.availableAIAgents &&
-	prev.seenData === next.seenData &&
-	prev.currentUserId === next.currentUserId &&
-	prev.conversationId === next.conversationId &&
-	prev.className === next.className &&
-	prev.onFetchMoreIfNeeded === next.onFetchMoreIfNeeded &&
-	prev.visitor === next.visitor &&
-	prev.inputHeight === next.inputHeight;
-
-export const ConversationTimelineList = memo(
-	ConversationTimelineListComponent,
-	areConversationTimelinePropsEqual
-);
 
 ConversationTimelineList.displayName = "ConversationTimelineList";

@@ -1,0 +1,43 @@
+import type { AiAgentSelect } from "@api/db/schema/ai-agent";
+import type { ConversationSelect } from "@api/db/schema/conversation";
+import type { ConversationState, RoleAwareMessage } from "../../../contracts";
+
+export type DecisionIntent = "respond" | "observe" | "assist_team";
+
+export type DecisionConfidence = "high" | "medium" | "low";
+
+export type DecisionSource = "rule" | "model" | "fallback";
+
+export type SmartDecisionResult = {
+	intent: DecisionIntent;
+	reasoning: string;
+	confidence: DecisionConfidence;
+	source?: DecisionSource;
+	ruleId?: string;
+};
+
+export type SmartDecisionInput = {
+	aiAgent: AiAgentSelect;
+	conversation: ConversationSelect;
+	conversationHistory: RoleAwareMessage[];
+	conversationState: ConversationState;
+	triggerMessage: RoleAwareMessage;
+	decisionPolicy: string;
+};
+
+export type DecisionSignals = {
+	humanActive: boolean;
+	lastHumanSecondsAgo: number | null;
+	messagesSinceHuman: number;
+	visitorBurstCount: number;
+	recentTurnPattern: string;
+	triggerIsShortAckOrGreeting: boolean;
+	triggerIsQuestionOrRequest: boolean;
+	triggerIsSingleNonQuestion: boolean;
+	triggerLooksLikeHumanCommand: boolean;
+};
+
+export type SmartDecisionModelConfig = {
+	id: string;
+	timeoutMs: number;
+};

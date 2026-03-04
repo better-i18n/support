@@ -2,6 +2,10 @@ import type { TimelineItem as TimelineItemType } from "@cossistant/types/api/tim
 import * as React from "react";
 import { useScrollMask } from "../hooks/use-scroll-mask";
 import { useRenderElement } from "../utils/use-render-element";
+import {
+	composeConversationTimelineScrollHandlers,
+	mergeConversationTimelineStyles,
+} from "./conversation-timeline-internal";
 
 /**
  * High-level state of the timeline handed to render-prop children so they can show
@@ -67,6 +71,8 @@ export const ConversationTimeline = (() => {
 				autoScroll = true,
 				onScrollEnd,
 				onScrollStart,
+				style: styleProp,
+				onScroll: onScrollProp,
 				...props
 			},
 			ref
@@ -183,6 +189,17 @@ export const ConversationTimeline = (() => {
 				[onScrollStart, onScrollEnd]
 			);
 
+			const mergedStyle = React.useMemo(
+				() => mergeConversationTimelineStyles(styleProp, scrollMaskStyle),
+				[styleProp, scrollMaskStyle]
+			);
+
+			const composedOnScroll = React.useMemo(
+				() =>
+					composeConversationTimelineScrollHandlers(handleScroll, onScrollProp),
+				[handleScroll, onScrollProp]
+			);
+
 			return useRenderElement(
 				"div",
 				{
@@ -197,9 +214,9 @@ export const ConversationTimeline = (() => {
 						"aria-label": "Conversation timeline",
 						"aria-live": "polite",
 						"aria-relevant": "additions",
-						onScroll: handleScroll,
-						style: scrollMaskStyle,
 						...props,
+						onScroll: composedOnScroll,
+						style: mergedStyle,
 						children: content,
 					},
 				}

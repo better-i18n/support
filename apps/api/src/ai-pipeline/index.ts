@@ -4,9 +4,21 @@ export {
 	runBackgroundPipeline,
 } from "./background-pipeline";
 export {
+	type ConversationState,
+	type DecisionResult,
+	type IntakeReadyContext,
+	type IntakeStepResult,
+	type ModelResolution,
+	type PrimaryPipelineContext,
 	type PrimaryPipelineInput,
+	type PrimaryPipelineMetrics,
 	type PrimaryPipelineResult,
+	type ResponseMode,
+	type RoleAwareMessage,
 	runPrimaryPipeline,
+	type SenderType,
+	type SmartDecisionResult,
+	type VisitorContext,
 } from "./primary-pipeline";
 
 export type AiAgentPipelineInput =

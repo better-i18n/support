@@ -1,64 +1,110 @@
-import type { Database } from "@api/db";
+import type {
+	PrimaryPipelineContext,
+	PrimaryPipelineResult,
+} from "./contracts";
+import { runDecisionStep } from "./steps/decision";
+import { runIntakeStep } from "./steps/intake";
+import {
+	buildCompletedResult,
+	buildErrorResult,
+	buildSkippedResult,
+} from "./utils/pipeline-result";
+import { createStageMetrics, measureStage } from "./utils/stage-metrics";
 
-export type PrimaryPipelineInput = {
-	conversationId: string;
-	messageId: string;
-	messageCreatedAt: string;
-	websiteId: string;
-	organizationId: string;
-	visitorId: string;
-	aiAgentId: string;
-	workflowRunId: string;
-	jobId: string;
-};
+export type {
+	ConversationState,
+	ModelResolution,
+	PrimaryPipelineContext,
+	PrimaryPipelineInput,
+	PrimaryPipelineMetrics,
+	PrimaryPipelineResult,
+	RoleAwareMessage,
+	SenderType,
+	VisitorContext,
+} from "./contracts";
+export type { DecisionResult, ResponseMode } from "./steps/decision";
+export type { SmartDecisionResult } from "./steps/decision/smart";
+export type {
+	IntakeReadyContext,
+	IntakeStepResult,
+} from "./steps/intake/types";
 
-export type PrimaryPipelineResult = {
-	status: "completed" | "skipped" | "error";
-	action?: string;
-	reason?: string;
-	error?: string;
-	publicMessagesSent: number;
-	retryable: boolean;
-	metrics: {
-		intakeMs: number;
-		decisionMs: number;
-		generationMs: number;
-		executionMs: number;
-		followupMs: number;
-		totalMs: number;
-	};
-};
-
-type PipelineContext = {
-	db: Database;
-	input: PrimaryPipelineInput;
-};
-
-/**
- * Bootstrap primary pipeline entrypoint for the AI refactor.
- * This intentionally performs no AI action yet, but marks triggers as successfully handled.
- */
 export async function runPrimaryPipeline(
-	ctx: PipelineContext
+	ctx: PrimaryPipelineContext
 ): Promise<PrimaryPipelineResult> {
-	const startTime = Date.now();
-	const { conversationId, messageId, workflowRunId, jobId } = ctx.input;
+	const pipelineStartedAt = Date.now();
+	const metrics = createStageMetrics();
 
 	console.log(
-		`[ai-pipeline:primary] conv=${conversationId} | trigger=${messageId} | workflowRunId=${workflowRunId} | jobId=${jobId}`
+		`[ai-pipeline:primary] conv=${ctx.input.conversationId} | trigger=${ctx.input.messageId} | workflowRunId=${ctx.input.workflowRunId} | jobId=${ctx.input.jobId}`
 	);
 
-	return {
-		status: "completed",
-		publicMessagesSent: 0,
-		retryable: false,
-		metrics: {
-			intakeMs: 0,
-			decisionMs: 0,
-			generationMs: 0,
-			executionMs: 0,
-			followupMs: 0,
-			totalMs: Date.now() - startTime,
-		},
-	};
+	try {
+		const intakeResult = await measureStage(metrics, "intakeMs", () =>
+			runIntakeStep({
+				db: ctx.db,
+				input: ctx.input,
+			})
+		);
+
+		if (intakeResult.status !== "ready") {
+			console.log(
+				`[ai-pipeline:primary] conv=${ctx.input.conversationId} | stage=intake | status=skipped | reason="${intakeResult.reason}"`
+			);
+
+			return buildSkippedResult({
+				metrics,
+				pipelineStartedAt,
+				reason: intakeResult.reason,
+				action: "intake_skipped",
+			});
+		}
+
+		const decisionResult = await measureStage(metrics, "decisionMs", () =>
+			runDecisionStep({
+				db: ctx.db,
+				input: intakeResult.data,
+			})
+		);
+
+		if (!decisionResult.shouldAct) {
+			console.log(
+				`[ai-pipeline:primary] conv=${ctx.input.conversationId} | stage=decision | status=skipped | mode=${decisionResult.mode} | reason="${decisionResult.reason}"`
+			);
+
+			return buildSkippedResult({
+				metrics,
+				pipelineStartedAt,
+				reason: decisionResult.reason,
+				action: "decision_skipped",
+			});
+		}
+
+		console.log(
+			`[ai-pipeline:primary] conv=${ctx.input.conversationId} | stage=decision | status=completed | mode=${decisionResult.mode} | action=decision_ready`
+		);
+
+		return buildCompletedResult({
+			metrics,
+			pipelineStartedAt,
+			action: "decision_ready",
+			reason: decisionResult.reason,
+		});
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.message : "Unknown pipeline error";
+
+		console.error(
+			`[ai-pipeline:primary] conv=${ctx.input.conversationId} | status=error | message="${message}"`,
+			error
+		);
+
+		return buildErrorResult({
+			metrics,
+			pipelineStartedAt,
+			error: message,
+			retryable: true,
+			action: "primary_error",
+		});
+	}
 }
