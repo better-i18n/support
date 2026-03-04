@@ -13,6 +13,7 @@ import { clearAiAgentRunCursor } from "@cossistant/jobs";
 import type { Redis } from "@cossistant/redis";
 
 const DEFAULT_MANUAL_PAUSE_MINUTES = 15;
+type PauseMode = "extend" | "replace";
 
 function getFuturePauseTimeMs(
 	pauseUntil: string | null | undefined
@@ -40,10 +41,15 @@ function getPauseTtlSeconds(pauseUntil: string): number {
 
 function computePauseUntil(
 	currentPauseUntil: string | null | undefined,
-	durationMinutes: number
+	durationMinutes: number,
+	mode: PauseMode
 ): string {
 	const now = Date.now();
 	const requestedUntil = now + durationMinutes * 60 * 1000;
+	if (mode === "replace") {
+		return new Date(requestedUntil).toISOString();
+	}
+
 	const currentPauseMs = getFuturePauseTimeMs(currentPauseUntil);
 	const finalPauseMs =
 		currentPauseMs && currentPauseMs > requestedUntil
@@ -134,6 +140,7 @@ export async function pauseAiForConversation(params: {
 	organizationId: string;
 	durationMinutes?: number;
 	reason: string;
+	mode?: PauseMode;
 }): Promise<ConversationSelect | null> {
 	const conversation = await getConversationById(params.db, {
 		conversationId: params.conversationId,
@@ -145,9 +152,11 @@ export async function pauseAiForConversation(params: {
 
 	const durationMinutes =
 		params.durationMinutes ?? DEFAULT_MANUAL_PAUSE_MINUTES;
+	const mode = params.mode ?? "extend";
 	const pauseUntil = computePauseUntil(
 		conversation.aiPausedUntil,
-		durationMinutes
+		durationMinutes,
+		mode
 	);
 	const updated = await setConversationAiPausedUntil(params.db, {
 		conversationId: conversation.id,

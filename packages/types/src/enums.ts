@@ -56,6 +56,8 @@ export const ConversationEventType = {
 	AI_ANALYZED: "ai_analyzed",
 	TITLE_GENERATED: "title_generated",
 	AI_ESCALATED: "ai_escalated",
+	AI_PAUSED: "ai_paused",
+	AI_RESUMED: "ai_resumed",
 } as const;
 
 export const ConversationParticipationStatus = {

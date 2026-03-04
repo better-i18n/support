@@ -506,3 +506,41 @@ describe("conversationCreated handler", () => {
 		expect(sendToVisitor.mock.calls[0]).toEqual(["visitor-created", event]);
 	});
 });
+
+describe("conversationUpdated handler", () => {
+	beforeEach(() => {
+		sendToWebsite.mockReset();
+		sendToVisitor.mockReset();
+		sendToConnection.mockReset();
+	});
+
+	it("keeps ai pause updates private to dashboard connections", async () => {
+		const event: RealtimeEvent<"conversationUpdated"> = {
+			type: "conversationUpdated",
+			payload: {
+				websiteId: "site-updated",
+				organizationId: "org-updated",
+				conversationId: "conv-updated",
+				userId: null,
+				visitorId: "visitor-updated",
+				updates: {
+					aiPausedUntil: "2030-01-01T00:00:00.000Z",
+				},
+				aiAgentId: null,
+			},
+		};
+
+		await routeEvent(event, {
+			connectionId: "conn-updated",
+			websiteId: "site-updated",
+			visitorId: "visitor-updated",
+			sendToWebsite,
+			sendToVisitor,
+			sendToConnection,
+		});
+
+		expect(sendToWebsite).toHaveBeenCalledTimes(1);
+		expect(sendToWebsite.mock.calls[0]).toEqual(["site-updated", event]);
+		expect(sendToVisitor).toHaveBeenCalledTimes(0);
+	});
+});

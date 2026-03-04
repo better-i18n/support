@@ -32,6 +32,8 @@ type BaseConversationMutationVariables =
 	RouterInputs["conversation"]["markResolved"];
 type MarkReadVariables = RouterInputs["conversation"]["markRead"];
 type MarkUnreadVariables = RouterInputs["conversation"]["markUnread"];
+type PauseAiVariables = RouterInputs["conversation"]["pauseAi"];
+type ResumeAiVariables = RouterInputs["conversation"]["resumeAi"];
 type BlockVisitorVariables = RouterInputs["visitor"]["block"];
 type UnblockVisitorVariables = RouterInputs["visitor"]["unblock"];
 
@@ -73,6 +75,8 @@ type UseConversationActionsReturn = {
 	markUnarchived: () => Promise<ConversationMutationResponse>;
 	markRead: () => Promise<ConversationMutationResponse>;
 	markUnread: () => Promise<ConversationMutationResponse>;
+	pauseAi: (durationMinutes: number) => Promise<ConversationMutationResponse>;
+	resumeAi: () => Promise<ConversationMutationResponse>;
 	joinEscalation: () => Promise<ConversationMutationResponse>;
 	blockVisitor: () => Promise<BlockVisitorResponse>;
 	unblockVisitor: () => Promise<BlockVisitorResponse>;
@@ -86,6 +90,8 @@ type UseConversationActionsReturn = {
 		markUnarchived: boolean;
 		markRead: boolean;
 		markUnread: boolean;
+		pauseAi: boolean;
+		resumeAi: boolean;
 		joinEscalation: boolean;
 		blockVisitor: boolean;
 		unblockVisitor: boolean;
@@ -118,6 +124,10 @@ function computeResolutionTime(
 	);
 
 	return diffSeconds;
+}
+
+function computePausedUntil(durationMinutes: number): string {
+	return new Date(Date.now() + durationMinutes * 60 * 1000).toISOString();
 }
 
 export function useConversationActions({
@@ -480,6 +490,68 @@ export function useConversationActions({
 		},
 	});
 
+	const pauseAiMutation = useMutation<
+		ConversationMutationResponse,
+		TRPCError,
+		PauseAiVariables,
+		MutationContext
+	>({
+		...trpc.conversation.pauseAi.mutationOptions(),
+		onMutate: async (variables) => {
+			const context = await prepareContext();
+			if (variables.durationMinutes === undefined) {
+				return context;
+			}
+			const now = new Date().toISOString();
+			const aiPausedUntil = computePausedUntil(variables.durationMinutes);
+
+			applyOptimisticUpdate((existing) => ({
+				...existing,
+				aiPausedUntil,
+				updatedAt: now,
+			}));
+
+			return context;
+		},
+		onError: (_error, _variables, context) => {
+			restoreContext(context);
+		},
+		onSuccess: (data) => {
+			applyOptimisticUpdate((existing) =>
+				mergeWithServerConversation(existing, data.conversation)
+			);
+		},
+	});
+
+	const resumeAiMutation = useMutation<
+		ConversationMutationResponse,
+		TRPCError,
+		ResumeAiVariables,
+		MutationContext
+	>({
+		...trpc.conversation.resumeAi.mutationOptions(),
+		onMutate: async () => {
+			const context = await prepareContext();
+			const now = new Date().toISOString();
+
+			applyOptimisticUpdate((existing) => ({
+				...existing,
+				aiPausedUntil: null,
+				updatedAt: now,
+			}));
+
+			return context;
+		},
+		onError: (_error, _variables, context) => {
+			restoreContext(context);
+		},
+		onSuccess: (data) => {
+			applyOptimisticUpdate((existing) =>
+				mergeWithServerConversation(existing, data.conversation)
+			);
+		},
+	});
+
 	const joinEscalationMutation = useMutation<
 		ConversationMutationResponse,
 		TRPCError,
@@ -770,6 +842,25 @@ export function useConversationActions({
 		[conversationId, markUnreadMutation, website.slug]
 	);
 
+	const pauseAi = useCallback(
+		(durationMinutes: number) =>
+			pauseAiMutation.mutateAsync({
+				conversationId,
+				websiteSlug: website.slug,
+				durationMinutes,
+			}),
+		[conversationId, pauseAiMutation, website.slug]
+	);
+
+	const resumeAi = useCallback(
+		() =>
+			resumeAiMutation.mutateAsync({
+				conversationId,
+				websiteSlug: website.slug,
+			}),
+		[conversationId, resumeAiMutation, website.slug]
+	);
+
 	const joinEscalation = useCallback(
 		() =>
 			joinEscalationMutation.mutateAsync({
@@ -806,6 +897,8 @@ export function useConversationActions({
 		markUnarchived,
 		markRead,
 		markUnread,
+		pauseAi,
+		resumeAi,
 		joinEscalation,
 		blockVisitor,
 		unblockVisitor,
@@ -818,6 +911,8 @@ export function useConversationActions({
 			markUnarchivedMutation.isPending ||
 			markReadMutation.isPending ||
 			markUnreadMutation.isPending ||
+			pauseAiMutation.isPending ||
+			resumeAiMutation.isPending ||
 			joinEscalationMutation.isPending ||
 			blockVisitorMutation.isPending ||
 			unblockVisitorMutation.isPending,
@@ -830,6 +925,8 @@ export function useConversationActions({
 			markUnarchived: markUnarchivedMutation.isPending,
 			markRead: markReadMutation.isPending,
 			markUnread: markUnreadMutation.isPending,
+			pauseAi: pauseAiMutation.isPending,
+			resumeAi: resumeAiMutation.isPending,
 			joinEscalation: joinEscalationMutation.isPending,
 			blockVisitor: blockVisitorMutation.isPending,
 			unblockVisitor: unblockVisitorMutation.isPending,

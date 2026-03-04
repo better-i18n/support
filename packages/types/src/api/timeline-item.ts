@@ -262,6 +262,8 @@ const timelinePartEventSchema = z.object({
 			ConversationEventType.VISITOR_BLOCKED,
 			ConversationEventType.VISITOR_UNBLOCKED,
 			ConversationEventType.VISITOR_IDENTIFIED,
+			ConversationEventType.AI_PAUSED,
+			ConversationEventType.AI_RESUMED,
 		])
 		.openapi({
 			description: "Type of event that occurred",

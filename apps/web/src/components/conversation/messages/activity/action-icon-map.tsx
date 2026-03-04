@@ -7,6 +7,8 @@ import {
 	DollarSign,
 	Flag,
 	Heading,
+	Pause,
+	Play,
 	RotateCcw,
 	Search,
 	ShieldCheck,
@@ -121,6 +123,14 @@ const EVENT_ICON_MAP: Partial<
 	visitor_identified: {
 		key: "visitor_identified",
 		Icon: UserCheck,
+	},
+	ai_paused: {
+		key: "ai_paused",
+		Icon: Pause,
+	},
+	ai_resumed: {
+		key: "ai_resumed",
+		Icon: Play,
 	},
 };
 

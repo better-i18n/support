@@ -117,6 +117,10 @@ function createHeaderUpdaterFromUpdates(
 			updatedHeader.resolutionTime = updates.resolutionTime;
 		}
 
+		if (updates.aiPausedUntil !== undefined) {
+			updatedHeader.aiPausedUntil = updates.aiPausedUntil;
+		}
+
 		return ensureDashboardConversationLockRedaction(updatedHeader);
 	};
 }

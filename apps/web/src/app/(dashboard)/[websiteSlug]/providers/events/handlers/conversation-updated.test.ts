@@ -45,6 +45,7 @@ describe("handleConversationUpdated", () => {
 			resolvedByUserId: null,
 			resolvedByAiAgentId: null,
 			resolutionTime: null,
+			aiPausedUntil: null,
 		};
 
 		const setNormalizedDataMock = mock((() => {}) as (value: unknown) => void);
@@ -78,6 +79,7 @@ describe("handleConversationUpdated", () => {
 						resolvedByUserId: "user-1",
 						resolvedByAiAgentId: "ai-1",
 						resolutionTime: 120,
+						aiPausedUntil: "2025-01-04T00:00:00.000Z",
 					},
 					aiAgentId: "ai-1",
 				},
@@ -114,6 +116,7 @@ describe("handleConversationUpdated", () => {
 			resolvedByUserId: "user-1",
 			resolvedByAiAgentId: "ai-1",
 			resolutionTime: 120,
+			aiPausedUntil: "2025-01-04T00:00:00.000Z",
 		});
 
 		expect(setNormalizedDataMock).toHaveBeenCalledTimes(1);
@@ -122,6 +125,7 @@ describe("handleConversationUpdated", () => {
 			status: "resolved",
 			priority: "urgent",
 			resolvedByAiAgentId: "ai-1",
+			aiPausedUntil: "2025-01-04T00:00:00.000Z",
 		});
 		expect(invalidateQueriesMock).toHaveBeenCalledTimes(0);
 	});

@@ -127,6 +127,10 @@ export function buildTimelineEventDisplay(
 				return "unblocked the visitor";
 			case "visitor_identified":
 				return "identified, new contact created";
+			case "ai_paused":
+				return "paused AI answers";
+			case "ai_resumed":
+				return "resumed AI answers";
 			default:
 				return "performed an action";
 		}

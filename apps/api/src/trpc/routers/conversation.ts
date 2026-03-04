@@ -32,6 +32,7 @@ import {
 import { getPlanForWebsite } from "@api/lib/plans/access";
 import { realtime } from "@api/realtime/emitter";
 import { getRedis } from "@api/redis";
+import { createConversationEvent } from "@api/utils/conversation-event";
 import { createParticipantJoinedEvent } from "@api/utils/conversation-events";
 import {
 	emitConversationSeenEvent,
@@ -45,8 +46,10 @@ import { triggerMessageNotificationWorkflow } from "@api/utils/send-message-with
 import { createMessageTimelineItem } from "@api/utils/timeline-item";
 import {
 	type ContactMetadata,
+	ConversationEventType,
 	conversationMutationResponseSchema,
 	listConversationHeadersResponseSchema,
+	TimelineItemVisibility,
 	visitorResponseSchema,
 } from "@cossistant/types";
 import { TRPCError } from "@trpc/server";
@@ -56,6 +59,8 @@ import { createTRPCRouter, protectedProcedure } from "../init";
 import { loadConversationContext } from "../utils/conversation";
 
 const MESSAGE_LIMIT_LOCK_NAMESPACE = "dashboard-message-hard-limit";
+const AI_PAUSE_DURATION_MAX_MINUTES = 60 * 24 * 365 * 100;
+const AI_PAUSE_FURTHER_NOTICE_MINUTES = 60 * 24 * 365 * 99;
 
 function buildMessageLimitLockKey(websiteId: string): string {
 	return `${MESSAGE_LIMIT_LOCK_NAMESPACE}:${websiteId}`;
@@ -72,6 +77,7 @@ async function emitConversationStatusUpdate(
 	updates: {
 		status?: ConversationRecord["status"];
 		deletedAt?: string | null;
+		aiPausedUntil?: string | null;
 	}
 ) {
 	await realtime.emit("conversationUpdated", {
@@ -83,6 +89,22 @@ async function emitConversationStatusUpdate(
 		updates,
 		aiAgentId: null,
 	});
+}
+
+function buildAiPauseEventMessage(durationMinutes: number): string {
+	if (durationMinutes >= AI_PAUSE_FURTHER_NOTICE_MINUTES) {
+		return "paused AI answers until further notice";
+	}
+
+	if (durationMinutes === 10) {
+		return "paused AI answers for 10-min";
+	}
+
+	if (durationMinutes === 60) {
+		return "paused AI answers for 1-hour";
+	}
+
+	return `paused AI answers for ${durationMinutes}-min`;
 }
 
 export const conversationRouter = createTRPCRouter({
@@ -663,7 +685,12 @@ export const conversationRouter = createTRPCRouter({
 			z.object({
 				conversationId: z.string(),
 				websiteSlug: z.string(),
-				durationMinutes: z.number().int().min(1).max(10_080).optional(),
+				durationMinutes: z
+					.number()
+					.int()
+					.min(1)
+					.max(AI_PAUSE_DURATION_MAX_MINUTES)
+					.optional(),
 			})
 		)
 		.output(conversationMutationResponseSchema)
@@ -673,14 +700,17 @@ export const conversationRouter = createTRPCRouter({
 				user.id,
 				input
 			);
+			const durationMinutes =
+				input.durationMinutes ?? env.AI_AGENT_ROGUE_PAUSE_MINUTES;
+
 			const updatedConversation = await pauseAiForConversation({
 				db,
 				redis: getRedis(),
 				conversationId: conversation.id,
 				organizationId: conversation.organizationId,
-				durationMinutes:
-					input.durationMinutes ?? env.AI_AGENT_ROGUE_PAUSE_MINUTES,
+				durationMinutes,
 				reason: `manual:${user.id}`,
+				mode: "replace",
 			});
 
 			if (!updatedConversation) {
@@ -689,6 +719,27 @@ export const conversationRouter = createTRPCRouter({
 					message: "Unable to pause AI for conversation",
 				});
 			}
+
+			await Promise.all([
+				emitConversationStatusUpdate(updatedConversation, {
+					aiPausedUntil: updatedConversation.aiPausedUntil,
+				}),
+				createConversationEvent({
+					db,
+					context: {
+						conversationId: updatedConversation.id,
+						organizationId: updatedConversation.organizationId,
+						websiteId: updatedConversation.websiteId,
+						visitorId: updatedConversation.visitorId,
+					},
+					event: {
+						type: ConversationEventType.AI_PAUSED,
+						actorUserId: user.id,
+						message: buildAiPauseEventMessage(durationMinutes),
+						visibility: TimelineItemVisibility.PRIVATE,
+					},
+				}),
+			]);
 
 			return { conversation: toConversationOutput(updatedConversation) };
 		}),
@@ -720,6 +771,27 @@ export const conversationRouter = createTRPCRouter({
 					message: "Unable to resume AI for conversation",
 				});
 			}
+
+			await Promise.all([
+				emitConversationStatusUpdate(updatedConversation, {
+					aiPausedUntil: null,
+				}),
+				createConversationEvent({
+					db,
+					context: {
+						conversationId: updatedConversation.id,
+						organizationId: updatedConversation.organizationId,
+						websiteId: updatedConversation.websiteId,
+						visitorId: updatedConversation.visitorId,
+					},
+					event: {
+						type: ConversationEventType.AI_RESUMED,
+						actorUserId: user.id,
+						message: "resumed AI answers",
+						visibility: TimelineItemVisibility.PRIVATE,
+					},
+				}),
+			]);
 
 			return { conversation: toConversationOutput(updatedConversation) };
 		}),

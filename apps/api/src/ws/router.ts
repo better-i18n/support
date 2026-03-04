@@ -137,6 +137,20 @@ function shouldSendToVisitor<T extends RealtimeEventType>(
 		return false;
 	}
 
+	// Keep dashboard-only pause controls private to team members.
+	if (event.type === "conversationUpdated") {
+		const updates = (
+			payload as {
+				updates?: {
+					aiPausedUntil?: string | null;
+				};
+			}
+		).updates;
+		if (updates && "aiPausedUntil" in updates) {
+			return false;
+		}
+	}
+
 	// Never send private timeline items to visitors
 	if ("item" in payload) {
 		const item = payload.item as Record<string, unknown> | undefined;

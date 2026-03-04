@@ -8,10 +8,24 @@ import {
 	MAX_FILES_PER_MESSAGE,
 } from "@cossistant/core";
 import type React from "react";
-import { useLayoutEffect, useRef } from "react";
+import {
+	Fragment,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { Button } from "@/components/ui/button";
 import Icon from "@/components/ui/icons";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectSeparator,
+	SelectTrigger,
+} from "@/components/ui/select";
 import { TooltipOnHover } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { MentionPopover } from "./mention-popover";
@@ -24,6 +38,61 @@ import {
 } from "./use-mention-search";
 
 export type MessageVisibility = "public" | "private";
+export type AiPauseAction =
+	| "pause_10m"
+	| "pause_1h"
+	| "pause_further_notice"
+	| "resume_now";
+
+const AI_PAUSE_STATUS_VALUE = "__status";
+const AI_PAUSE_TICK_MS = 30_000;
+const AI_PAUSE_INDEFINITE_THRESHOLD_MINUTES = 60 * 24 * 365 * 90;
+
+export function mapAiPauseSelectValueToAction(
+	value: string
+): AiPauseAction | null {
+	switch (value) {
+		case "pause_10m":
+		case "pause_1h":
+		case "pause_further_notice":
+		case "resume_now":
+			return value;
+		default:
+			return null;
+	}
+}
+
+export function getAiPauseStatusLabel(
+	aiPausedUntil: string | null | undefined,
+	nowMs: number = Date.now()
+): string {
+	if (!aiPausedUntil) {
+		return "Pause AI answers";
+	}
+
+	const pauseUntilMs = Date.parse(aiPausedUntil);
+	if (Number.isNaN(pauseUntilMs) || pauseUntilMs <= nowMs) {
+		return "Pause AI answers";
+	}
+
+	const remainingMinutes = Math.max(
+		1,
+		Math.ceil((pauseUntilMs - nowMs) / 60_000)
+	);
+	if (remainingMinutes >= AI_PAUSE_INDEFINITE_THRESHOLD_MINUTES) {
+		return "AI answers paused";
+	}
+
+	return `AI answers will resume in ${remainingMinutes}-min`;
+}
+
+export function getAiPauseMenuActions(isPaused: boolean): AiPauseAction[] {
+	if (isPaused) {
+		return ["resume_now", "pause_10m", "pause_1h", "pause_further_notice"];
+	}
+
+	return ["pause_10m", "pause_1h", "pause_further_notice"];
+}
 
 export type MultimodalInputProps = {
 	className?: string;
@@ -64,6 +133,18 @@ export type MultimodalInputProps = {
 	 * Called when the input container height changes (for dynamic timeline padding).
 	 */
 	onHeightChange?: (height: number) => void;
+	/**
+	 * Current conversation AI pause-until timestamp.
+	 */
+	aiPausedUntil?: string | null;
+	/**
+	 * Handle AI pause/resume actions from the control.
+	 */
+	onAiPauseAction?: (action: AiPauseAction) => void;
+	/**
+	 * Disable AI pause control while pause/resume mutation is pending.
+	 */
+	isAiPauseActionPending?: boolean;
 };
 
 export const MultimodalInput: React.FC<MultimodalInputProps> = ({
@@ -89,12 +170,46 @@ export const MultimodalInput: React.FC<MultimodalInputProps> = ({
 	mentionConfig,
 	onMarkdownChange,
 	onHeightChange,
+	aiPausedUntil = null,
+	onAiPauseAction,
+	isAiPauseActionPending = false,
 }) => {
 	const isPrivate = visibility === "private";
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const inputContainerRef = useRef<HTMLDivElement>(null);
 	const hasContent = value.trim().length > 0 || files.length > 0;
 	const canSubmit = !disabled && hasContent && !isUploading;
+	const [nowMs, setNowMs] = useState(() => Date.now());
+
+	const aiPauseStatus = useMemo(() => {
+		const pauseUntilMs = aiPausedUntil ? Date.parse(aiPausedUntil) : Number.NaN;
+		const isPaused = !Number.isNaN(pauseUntilMs) && pauseUntilMs > nowMs;
+
+		return {
+			isPaused,
+			label: getAiPauseStatusLabel(aiPausedUntil, nowMs),
+		};
+	}, [aiPausedUntil, nowMs]);
+	const aiPauseMenuActions = getAiPauseMenuActions(aiPauseStatus.isPaused);
+	const isAiPauseControlDisabled = disabled || isAiPauseActionPending;
+
+	useEffect(() => {
+		setNowMs(Date.now());
+	}, [aiPausedUntil]);
+
+	useEffect(() => {
+		if (!aiPauseStatus.isPaused) {
+			return;
+		}
+
+		const intervalId = window.setInterval(() => {
+			setNowMs(Date.now());
+		}, AI_PAUSE_TICK_MS);
+
+		return () => {
+			window.clearInterval(intervalId);
+		};
+	}, [aiPauseStatus.isPaused]);
 
 	// Mention store - maps display IDs to full mention data
 	const mentionStoreRef = useRef<MentionStore>(new Map());
@@ -235,6 +350,30 @@ export const MultimodalInput: React.FC<MultimodalInputProps> = ({
 		if (filesFromClipboard.length > 0 && onFileSelect) {
 			e.preventDefault();
 			onFileSelect(filesFromClipboard);
+		}
+	};
+
+	const handleAiPauseSelectValueChange = (selectedValue: string) => {
+		const action = mapAiPauseSelectValueToAction(selectedValue);
+		if (!(action && onAiPauseAction) || isAiPauseControlDisabled) {
+			return;
+		}
+
+		onAiPauseAction(action);
+	};
+
+	const getAiPauseActionLabel = (action: AiPauseAction): string => {
+		switch (action) {
+			case "resume_now":
+				return "Resume AI answers now";
+			case "pause_10m":
+				return "Pause for 10-min";
+			case "pause_1h":
+				return "Pause for 1-hour";
+			case "pause_further_notice":
+				return "Pause until further notice";
+			default:
+				return action;
 		}
 	};
 
@@ -423,7 +562,42 @@ export const MultimodalInput: React.FC<MultimodalInputProps> = ({
 									value={value}
 								/>
 							</div>
-							<div className="flex items-center justify-end pr-1 pb-1 pl-3">
+							<div className="flex items-center justify-between pr-1 pb-1 pl-3">
+								{onAiPauseAction ? (
+									<Select
+										onValueChange={handleAiPauseSelectValueChange}
+										value={AI_PAUSE_STATUS_VALUE}
+									>
+										<SelectTrigger
+											className="h-7 border-0 bg-transparent px-1 py-0 text-muted-foreground text-xs shadow-none hover:bg-transparent focus-visible:ring-0 [&_svg]:size-3.5 [&_svg]:opacity-70"
+											disabled={isAiPauseControlDisabled}
+											size="sm"
+										>
+											<span className="truncate">{aiPauseStatus.label}</span>
+										</SelectTrigger>
+										<SelectContent align="start">
+											<SelectItem
+												className="hidden"
+												value={AI_PAUSE_STATUS_VALUE}
+											>
+												{aiPauseStatus.label}
+											</SelectItem>
+											{aiPauseMenuActions.map((action, index) => (
+												<Fragment key={action}>
+													{aiPauseStatus.isPaused && index === 1 ? (
+														<SelectSeparator />
+													) : null}
+													<SelectItem value={action}>
+														{getAiPauseActionLabel(action)}
+													</SelectItem>
+												</Fragment>
+											))}
+										</SelectContent>
+									</Select>
+								) : (
+									<div />
+								)}
+
 								<div className="flex items-center gap-0.5">
 									{/* File attachment button */}
 									{onFileSelect && (

@@ -15,7 +15,10 @@ import { useHotkeys } from "react-hotkeys-hook";
 import type { ConversationProps } from "@/components/conversation";
 import { Conversation } from "@/components/conversation";
 import type { ConversationHeaderNavigationProps } from "@/components/conversation/header/navigation";
-import type { MessageVisibility } from "@/components/conversation/multimodal-input";
+import type {
+	AiPauseAction,
+	MessageVisibility,
+} from "@/components/conversation/multimodal-input";
 import { ButtonWithPaywall } from "@/components/plan/button-with-paywall";
 import { UpgradeModal } from "@/components/plan/upgrade-modal";
 import Icon from "@/components/ui/icons";
@@ -36,6 +39,7 @@ import { useTRPC } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 const MESSAGES_PAGE_LIMIT = 50;
+const AI_PAUSE_FURTHER_NOTICE_MINUTES = 60 * 24 * 365 * 99;
 
 type ConversationPaneProps = {
 	conversationId: string;
@@ -246,11 +250,34 @@ export function ConversationPane({
 		[navigateAwayIfNeeded, conversationId]
 	);
 
-	const { markRead, joinEscalation, pendingAction } = useConversationActions({
-		conversationId,
-		visitorId,
-		onNavigateAway: handleNavigateAway,
-	});
+	const { markRead, joinEscalation, pauseAi, resumeAi, pendingAction } =
+		useConversationActions({
+			conversationId,
+			visitorId,
+			onNavigateAway: handleNavigateAway,
+		});
+
+	const handleAiPauseAction = useCallback(
+		(action: AiPauseAction) => {
+			switch (action) {
+				case "pause_10m":
+					void pauseAi(10);
+					return;
+				case "pause_1h":
+					void pauseAi(60);
+					return;
+				case "pause_further_notice":
+					void pauseAi(AI_PAUSE_FURTHER_NOTICE_MINUTES);
+					return;
+				case "resume_now":
+					void resumeAi();
+					return;
+				default:
+					return;
+			}
+		},
+		[pauseAi, resumeAi]
+	);
 
 	const lastMarkedMessageIdRef = useRef<string | null>(null);
 	const markSeenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -496,6 +523,9 @@ export function ConversationPane({
 			value: message,
 			visibility: messageVisibility,
 			onVisibilityChange: setMessageVisibility,
+			aiPausedUntil: selectedConversation.aiPausedUntil,
+			onAiPauseAction: handleAiPauseAction,
+			isAiPauseActionPending: pendingAction.pauseAi || pendingAction.resumeAi,
 			renderAttachButton: ({ triggerFileInput, disabled }) => (
 				<TooltipOnHover content="Attach files">
 					<ButtonWithPaywall
