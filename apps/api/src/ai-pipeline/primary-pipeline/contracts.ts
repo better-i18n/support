@@ -1,4 +1,5 @@
 import type { Database } from "@api/db";
+import type { GenerationTokenUsage } from "../shared/generation/contracts";
 
 export type PrimaryPipelineInput = {
 	conversationId: string;
@@ -28,6 +29,17 @@ export type PrimaryPipelineResult = {
 	error?: string;
 	publicMessagesSent: number;
 	retryable: boolean;
+	usageTokens?: GenerationTokenUsage;
+	creditUsage?: {
+		totalCredits: number;
+		mode: "normal" | "outage";
+		ingestStatus:
+			| "ingested"
+			| "failed"
+			| "skipped_backoff"
+			| "skipped_zero"
+			| "skipped";
+	};
 	metrics: PrimaryPipelineMetrics;
 };
 

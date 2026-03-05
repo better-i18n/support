@@ -1,4 +1,5 @@
 import type { Database } from "@api/db";
+import { logAiPipeline } from "../../../logger";
 import { resolveDecisionPolicy } from "./decision-policy";
 import { runDeterministicDecision } from "./deterministic";
 import { runSmartDecision } from "./smart";
@@ -89,10 +90,17 @@ export async function runDecisionStep(params: {
 	});
 
 	if (decisionPolicyResolution.fallback === "error") {
-		console.warn(
-			`[ai-pipeline:decision] conv=${params.input.conversation.id} | Failed to resolve decision.md, using fallback policy`,
-			decisionPolicyResolution.error
-		);
+		logAiPipeline({
+			area: "decision",
+			event: "policy_resolve_failed",
+			level: "warn",
+			conversationId: params.input.conversation.id,
+			fields: {
+				policy: "decision.md",
+				fallback: decisionPolicyResolution.fallback,
+			},
+			error: decisionPolicyResolution.error,
+		});
 	}
 
 	const smartDecision = await runSmartDecision({

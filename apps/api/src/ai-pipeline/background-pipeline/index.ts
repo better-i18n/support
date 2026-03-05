@@ -1,4 +1,5 @@
 import type { Database } from "@api/db";
+import { logAiPipeline } from "../logger";
 
 export type BackgroundPipelineInput = {
 	conversationId: string;
@@ -36,9 +37,16 @@ export async function runBackgroundPipeline(
 	const startTime = Date.now();
 	const { conversationId, workflowRunId, jobId } = ctx.input;
 
-	console.log(
-		`[ai-pipeline:background] conv=${conversationId} | workflowRunId=${workflowRunId} | jobId=${jobId} | status=completed | mode=shell`
-	);
+	logAiPipeline({
+		area: "background",
+		event: "completed",
+		conversationId,
+		fields: {
+			workflowRunId,
+			jobId,
+			mode: "shell",
+		},
+	});
 
 	return {
 		status: "completed",

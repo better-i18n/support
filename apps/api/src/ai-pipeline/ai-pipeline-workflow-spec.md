@@ -1,7 +1,7 @@
 # AI Pipeline Workflow Spec (Primary + Background Split)
 
 Status: Implemented queue/scheduling shell  
-Last updated: 2026-03-04  
+Last updated: 2026-03-05  
 Scope: Document the decoupled primary and background AI pipeline orchestration.
 
 ## 1) Responsibilities Split
@@ -27,8 +27,11 @@ Delayed, non-public follow-up pipeline:
 | Module | Responsibility |
 |---|---|
 | `apps/api/src/ai-pipeline/index.ts` | Exports `runPrimaryPipeline`, `runBackgroundPipeline`, and compatibility alias `runAiAgentPipeline -> runPrimaryPipeline`. |
-| `apps/api/src/ai-pipeline/primary-pipeline/index.ts` | Primary pipeline entrypoint (current bootstrap no-op result contract). |
+| `apps/api/src/ai-pipeline/primary-pipeline/index.ts` | Primary pipeline entrypoint (intake -> decision -> generation). |
 | `apps/api/src/ai-pipeline/background-pipeline/index.ts` | Background pipeline shell entrypoint. |
+| `apps/api/src/ai-pipeline/shared/generation/*` | Shared generation runtime (staged prompt builder + tool-loop orchestration). |
+| `apps/api/src/ai-pipeline/shared/tools/*` | Shared reusable tool registry and tool modules (side effects executed in-tool). |
+| `apps/api/src/ai-pipeline/shared/usage/*` | Token + credit usage tracking and private generation usage timeline event. |
 | `packages/jobs/src/ai-agent-job-scheduler.ts` | Primary queue enqueue semantics (`ai-agent`). |
 | `packages/jobs/src/ai-agent-background-job-scheduler.ts` | Background queue enqueue/reschedule semantics (`ai-agent-background`). |
 | `packages/jobs/src/triggers/ai-agent.ts` | Producer helper for primary queue. |
@@ -115,11 +118,16 @@ Notes:
 ## 6) End-to-End Flow
 
 1. Primary job runs FIFO message window from run cursor.
-2. Primary pipeline returns `completed|skipped|error` per message.
-3. Primary worker advances DB cursor for handled messages.
-4. Primary completion hook maintains primary cursor semantics (immediate follow-up if needed).
-5. Primary completion hook schedules background queue (60s) when processed message count > 0.
-6. Background worker executes background pipeline shell on delayed trigger.
+2. Primary pipeline executes:
+   - intake
+   - decision (including smart decision when needed)
+   - generation (tool loop; tool side effects happen inside tools)
+3. Generation writes usage telemetry (tokens + credits) via one private TOOL timeline event.
+4. Primary pipeline returns `completed|skipped|error` per message.
+5. Primary worker advances DB cursor for handled messages.
+6. Primary completion hook maintains primary cursor semantics (immediate follow-up if needed).
+7. Primary completion hook schedules background queue (60s) when processed message count > 0.
+8. Background worker executes background pipeline shell on delayed trigger.
 
 ## 7) Sequence Diagrams
 
@@ -168,6 +176,7 @@ sequenceDiagram
 2. At most one pending delayed/waiting background job per conversation (background job ID dedupe + reschedule).
 3. Background scheduling does not mutate primary run cursor semantics.
 4. Background pipeline does not emit public visitor replies in current shell implementation.
+5. Primary flow has no standalone "execution step"; execution is performed by tool handlers during generation.
 
 ## 9) Failure Semantics
 

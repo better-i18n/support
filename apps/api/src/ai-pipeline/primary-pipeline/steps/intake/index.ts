@@ -1,5 +1,6 @@
 import type { Database } from "@api/db";
 import { getAiAgentById } from "@api/db/queries/ai-agent";
+import { logAiPipeline } from "../../../logger";
 import type { PrimaryPipelineInput } from "../../contracts";
 import { loadConversationSeed, loadIntakeContext } from "./load-context";
 import { resolveAndPersistModel } from "./model-resolution";
@@ -73,9 +74,19 @@ export async function runIntakeStep(params: {
 		triggerMetadata,
 	});
 
-	console.log(
-		`[ai-pipeline:intake] conv=${params.input.conversationId} | messages=${context.conversationHistory.length} | hasVisitor=${Boolean(context.visitorContext)} | trigger=${context.triggerMessage?.senderType ?? "unknown"} | modelOriginal=${modelResolution.modelIdOriginal} | modelResolved=${modelResolution.modelIdResolved} | migration=${modelResolution.modelMigrationApplied}`
-	);
+	logAiPipeline({
+		area: "intake",
+		event: "ready",
+		conversationId: params.input.conversationId,
+		fields: {
+			messages: context.conversationHistory.length,
+			hasVisitor: Boolean(context.visitorContext),
+			triggerSender: context.triggerMessage?.senderType ?? "unknown",
+			modelOriginal: modelResolution.modelIdOriginal,
+			model: modelResolution.modelIdResolved,
+			migration: modelResolution.modelMigrationApplied,
+		},
+	});
 
 	return {
 		status: "ready",

@@ -1,5 +1,6 @@
 import { createModelRaw, generateText, Output } from "@api/lib/ai";
 import { z } from "zod";
+import { logAiPipeline } from "../../../../logger";
 import { observeDecision } from "./rules";
 import type {
 	SmartDecisionInput,
@@ -46,9 +47,15 @@ export async function runSmartDecisionModel(params: {
 			if (!result.output) {
 				lastFailure = "empty";
 				if (!isLastModel) {
-					console.log(
-						`[ai-pipeline:smart-decision] conv=${convId} | model=${modelConfig.id} empty output, trying fallback model`
-					);
+					logAiPipeline({
+						area: "smart-decision",
+						event: "fallback_next",
+						conversationId: convId,
+						fields: {
+							model: modelConfig.id,
+							failure: "empty",
+						},
+					});
 					continue;
 				}
 				return observeDecision({
@@ -60,15 +67,28 @@ export async function runSmartDecisionModel(params: {
 			}
 
 			if (index > 0) {
-				console.log(
-					`[ai-pipeline:smart-decision] conv=${convId} | model fallback succeeded with ${modelConfig.id} (attempt ${index + 1})`
-				);
+				logAiPipeline({
+					area: "smart-decision",
+					event: "fallback_success",
+					conversationId: convId,
+					fields: {
+						model: modelConfig.id,
+						attempt: index + 1,
+					},
+				});
 			}
 
 			if (result.usage) {
-				console.log(
-					`[ai-pipeline:smart-decision] conv=${convId} | model=${modelConfig.id} tokens in=${result.usage.inputTokens} out=${result.usage.outputTokens}`
-				);
+				logAiPipeline({
+					area: "smart-decision",
+					event: "usage",
+					conversationId: convId,
+					fields: {
+						model: modelConfig.id,
+						inTokens: result.usage.inputTokens,
+						outTokens: result.usage.outputTokens,
+					},
+				});
 			}
 
 			return {
@@ -82,9 +102,15 @@ export async function runSmartDecisionModel(params: {
 			lastFailure = isTimeout ? "timeout" : "error";
 
 			if (!isLastModel) {
-				console.log(
-					`[ai-pipeline:smart-decision] conv=${convId} | model=${modelConfig.id} ${isTimeout ? "timeout" : "error"}, trying fallback model`
-				);
+				logAiPipeline({
+					area: "smart-decision",
+					event: "fallback_next",
+					conversationId: convId,
+					fields: {
+						model: modelConfig.id,
+						failure: isTimeout ? "timeout" : "error",
+					},
+				});
 			}
 		} finally {
 			clearTimeout(timeout);

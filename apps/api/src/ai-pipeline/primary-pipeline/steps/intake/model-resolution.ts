@@ -5,6 +5,7 @@ import {
 	type ResolvedAiAgentModel,
 	resolveModelForExecution,
 } from "@api/lib/ai-credits/config";
+import { logAiPipeline } from "../../../logger";
 
 type ResolveAndPersistModelInput = {
 	db: Database;
@@ -29,9 +30,16 @@ export async function resolveAndPersistModel(
 		};
 	}
 
-	console.warn(
-		`[ai-pipeline:intake] conv=${input.conversationId} | Migrating unknown model ${modelResolution.modelIdOriginal} -> ${modelResolution.modelIdResolved}`
-	);
+	logAiPipeline({
+		area: "intake",
+		event: "model_migrate",
+		level: "warn",
+		conversationId: input.conversationId,
+		fields: {
+			fromModel: modelResolution.modelIdOriginal,
+			toModel: modelResolution.modelIdResolved,
+		},
+	});
 
 	try {
 		const persisted = await updateAiAgentModel(input.db, {
@@ -46,10 +54,17 @@ export async function resolveAndPersistModel(
 			};
 		}
 	} catch (error) {
-		console.warn(
-			`[ai-pipeline:intake] conv=${input.conversationId} | Failed to persist model migration`,
-			error
-		);
+		logAiPipeline({
+			area: "intake",
+			event: "model_persist_failed",
+			level: "warn",
+			conversationId: input.conversationId,
+			fields: {
+				fromModel: modelResolution.modelIdOriginal,
+				toModel: modelResolution.modelIdResolved,
+			},
+			error,
+		});
 	}
 
 	return {

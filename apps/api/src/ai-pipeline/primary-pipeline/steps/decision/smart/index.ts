@@ -1,3 +1,4 @@
+import { logAiPipeline } from "../../../../logger";
 import { runSmartDecisionModel } from "./model-runner";
 import { buildSmartDecisionPrompt } from "./prompt";
 import { clampSmartDecision, runSmartDeterministicRules } from "./rules";
@@ -11,9 +12,21 @@ function logDecision(params: {
 	visitorBurstCount: number;
 	lastHumanSecondsAgo: number | null;
 }) {
-	console.log(
-		`[ai-pipeline:smart-decision] conv=${params.conversationId} | source=${params.result.source ?? "model"} | ruleId=${params.result.ruleId ?? "none"} | intent=${params.result.intent} | confidence=${params.result.confidence} | humanActive=${params.humanActive} | visitorBurst=${params.visitorBurstCount} | lastHumanSecondsAgo=${params.lastHumanSecondsAgo ?? "none"} | "${params.result.reasoning}"`
-	);
+	logAiPipeline({
+		area: "smart-decision",
+		event: "decision",
+		conversationId: params.conversationId,
+		fields: {
+			source: params.result.source ?? "model",
+			ruleId: params.result.ruleId ?? "none",
+			intent: params.result.intent,
+			confidence: params.result.confidence,
+			humanActive: params.humanActive,
+			visitorBurst: params.visitorBurstCount,
+			lastHumanSecondsAgo: params.lastHumanSecondsAgo,
+			reason: params.result.reasoning,
+		},
+	});
 }
 
 export async function runSmartDecision(
@@ -22,9 +35,15 @@ export async function runSmartDecision(
 	const signals = extractDecisionSignals(input);
 	const convId = input.conversation.id;
 
-	console.log(
-		`[ai-pipeline:smart-decision] conv=${convId} | running | humanActive=${signals.humanActive} | triggerSender=${input.triggerMessage.senderType}`
-	);
+	logAiPipeline({
+		area: "smart-decision",
+		event: "start",
+		conversationId: convId,
+		fields: {
+			humanActive: signals.humanActive,
+			triggerSender: input.triggerMessage.senderType,
+		},
+	});
 
 	const ruleDecision = runSmartDeterministicRules(input, signals);
 	if (ruleDecision) {
