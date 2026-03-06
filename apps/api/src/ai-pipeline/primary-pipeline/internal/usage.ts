@@ -1,7 +1,7 @@
 import { logAiPipeline } from "../../logger";
+import type { GenerationRuntimeResult } from "../../shared/generation";
 import { trackGenerationUsage } from "../../shared/usage";
 import type { PrimaryPipelineResult } from "../contracts";
-import type { GenerationRuntimeResult } from "../steps/generation";
 import type { IntakeReadyContext } from "../steps/intake/types";
 
 export type PrimaryUsageTelemetry = {

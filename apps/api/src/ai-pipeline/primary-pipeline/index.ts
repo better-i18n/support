@@ -1,6 +1,11 @@
 import { env } from "@api/env";
 import { logAiPipeline } from "../logger";
 import { createPipelineDevConversationLog } from "../shared/dev-conversation-log";
+import {
+	type GenerationRuntimeInput,
+	runGenerationRuntime,
+} from "../shared/generation";
+import type { ToolTracePayloadMode } from "../shared/tools/contracts";
 import type {
 	PrimaryPipelineContext,
 	PrimaryPipelineResult,
@@ -9,55 +14,52 @@ import { emitPipelineSeenSafe } from "./internal/seen";
 import { resolveTracePayloadMode } from "./internal/trace";
 import {
 	createPrimaryTypingControls,
+	type PrimaryTypingControls,
 	startPrimaryTypingSafely,
 } from "./internal/typing";
 import { trackPrimaryGenerationUsage } from "./internal/usage";
+import type { DecisionResult } from "./steps/decision";
 import { runDecisionStep } from "./steps/decision";
-import { runPrimaryGenerationStep } from "./steps/generation";
 import { runIntakeStep } from "./steps/intake";
-import {
-	buildCompletedResult,
-	buildErrorResult,
-	buildSkippedResult,
-} from "./utils/pipeline-result";
+import type { IntakeReadyContext } from "./steps/intake/types";
+import { buildPrimaryPipelineResult } from "./utils/pipeline-result";
 import { createStageMetrics, measureStage } from "./utils/stage-metrics";
 
-export type {
-	CapturedFinalAction,
-	GenerationMode,
-	GenerationRuntimeInput,
-	GenerationRuntimeResult as SharedGenerationRuntimeResult,
-	GenerationTokenUsage,
-	PipelineKind,
-} from "../shared/generation/contracts";
-export type {
-	PipelineToolContext,
-	PipelineToolResult,
-	ToolRuntimeState,
-} from "../shared/tools/contracts";
-export type {
-	GenerationCreditUsage,
-	GenerationUsageTrackingResult,
-} from "../shared/usage";
-export type {
-	ConversationState,
-	ModelResolution,
-	PrimaryPipelineContext,
-	PrimaryPipelineInput,
-	PrimaryPipelineMetrics,
-	PrimaryPipelineResult,
-	RoleAwareMessage,
-	SenderType,
-	VisitorContext,
-} from "./contracts";
-export type { DecisionResult, ResponseMode } from "./steps/decision";
-export type { SmartDecisionResult } from "./steps/decision/smart";
-export type { GenerationRuntimeResult } from "./steps/generation";
-export { runPrimaryGenerationStep } from "./steps/generation";
-export type {
-	IntakeReadyContext,
-	IntakeStepResult,
-} from "./steps/intake/types";
+function buildGenerationRuntimeInput(params: {
+	ctx: PrimaryPipelineContext;
+	intake: IntakeReadyContext;
+	decision: DecisionResult;
+	typingControls: PrimaryTypingControls;
+	debugLogger: ReturnType<typeof createPipelineDevConversationLog>;
+	deepTraceEnabled: boolean;
+	tracePayloadMode: ToolTracePayloadMode;
+}): GenerationRuntimeInput {
+	const { ctx, intake, decision, typingControls } = params;
+	const trigger = intake.triggerMessage;
+
+	return {
+		db: ctx.db,
+		pipelineKind: "primary",
+		mode: decision.mode,
+		aiAgent: intake.aiAgent,
+		conversation: intake.conversation,
+		conversationHistory: intake.conversationHistory,
+		visitorContext: intake.visitorContext,
+		conversationState: intake.conversationState,
+		humanCommand: decision.humanCommand,
+		workflowRunId: ctx.input.workflowRunId,
+		triggerMessageId: ctx.input.messageId,
+		triggerMessageCreatedAt: ctx.input.messageCreatedAt,
+		triggerSenderType: trigger?.senderType,
+		triggerVisibility: trigger?.visibility,
+		allowPublicMessages: decision.mode !== "background_only",
+		startTyping: typingControls.startTyping,
+		stopTyping: typingControls.stopTyping,
+		debugLogger: params.debugLogger,
+		deepTraceEnabled: params.deepTraceEnabled,
+		tracePayloadMode: params.tracePayloadMode,
+	};
+}
 
 export async function runPrimaryPipeline(
 	ctx: PrimaryPipelineContext
@@ -105,7 +107,8 @@ export async function runPrimaryPipeline(
 				},
 			});
 
-			return buildSkippedResult({
+			return buildPrimaryPipelineResult({
+				status: "skipped",
 				metrics,
 				pipelineStartedAt,
 				reason: intakeResult.reason,
@@ -139,7 +142,8 @@ export async function runPrimaryPipeline(
 				},
 			});
 
-			return buildSkippedResult({
+			return buildPrimaryPipelineResult({
+				status: "skipped",
 				metrics,
 				pipelineStartedAt,
 				reason: decisionResult.reason,
@@ -163,17 +167,17 @@ export async function runPrimaryPipeline(
 		const generationResult = await (async () => {
 			try {
 				return await measureStage(metrics, "generationMs", () =>
-					runPrimaryGenerationStep({
-						db: ctx.db,
-						pipelineInput: ctx.input,
-						intake: intakeResult.data,
-						decision: decisionResult,
-						startTyping: typingControls.startTyping,
-						stopTyping: typingControls.stopTyping,
-						debugLogger: conversationLog,
-						deepTraceEnabled,
-						tracePayloadMode,
-					})
+					runGenerationRuntime(
+						buildGenerationRuntimeInput({
+							ctx,
+							intake: intakeResult.data,
+							decision: decisionResult,
+							typingControls,
+							debugLogger: conversationLog,
+							deepTraceEnabled,
+							tracePayloadMode,
+						})
+					)
 				);
 			} finally {
 				await typingControls.stopSafely();
@@ -217,7 +221,8 @@ export async function runPrimaryPipeline(
 				},
 			});
 
-			return buildErrorResult({
+			return buildPrimaryPipelineResult({
+				status: "error",
 				metrics,
 				pipelineStartedAt,
 				error: errorMessage,
@@ -240,7 +245,8 @@ export async function runPrimaryPipeline(
 				},
 			});
 
-			return buildSkippedResult({
+			return buildPrimaryPipelineResult({
+				status: "skipped",
 				metrics,
 				pipelineStartedAt,
 				reason: generationResult.action.reasoning,
@@ -262,7 +268,8 @@ export async function runPrimaryPipeline(
 			},
 		});
 
-		return buildCompletedResult({
+		return buildPrimaryPipelineResult({
+			status: "completed",
 			metrics,
 			pipelineStartedAt,
 			action: generationResult.action.action,
@@ -286,7 +293,8 @@ export async function runPrimaryPipeline(
 			error,
 		});
 
-		return buildErrorResult({
+		return buildPrimaryPipelineResult({
+			status: "error",
 			metrics,
 			pipelineStartedAt,
 			error: message,

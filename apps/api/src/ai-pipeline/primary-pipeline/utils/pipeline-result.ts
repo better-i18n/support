@@ -12,39 +12,32 @@ type ResultParams = {
 	creditUsage?: PrimaryPipelineResult["creditUsage"];
 };
 
-export function buildCompletedResult(
-	params: ResultParams & {
-		action?: string;
-		reason?: string;
-	}
-): PrimaryPipelineResult {
-	return {
-		status: "completed",
-		action: params.action,
-		reason: params.reason,
-		publicMessagesSent: params.publicMessagesSent ?? 0,
-		retryable: false,
-		usageTokens: params.usageTokens,
-		creditUsage: params.creditUsage,
-		metrics: finalizeStageMetrics({
-			metrics: params.metrics,
-			pipelineStartedAt: params.pipelineStartedAt,
-		}),
-	};
-}
+type FinalizedResultParams =
+	| (ResultParams & {
+			status: "completed";
+			action?: string;
+			reason?: string;
+	  })
+	| (ResultParams & {
+			status: "skipped";
+			action?: string;
+			reason: string;
+	  })
+	| (ResultParams & {
+			status: "error";
+			action?: string;
+			error: string;
+			retryable?: boolean;
+	  });
 
-export function buildSkippedResult(
-	params: ResultParams & {
-		reason: string;
-		action?: string;
-	}
+export function buildPrimaryPipelineResult(
+	params: FinalizedResultParams
 ): PrimaryPipelineResult {
-	return {
-		status: "skipped",
+	const baseResult = {
+		status: params.status,
 		action: params.action,
-		reason: params.reason,
 		publicMessagesSent: params.publicMessagesSent ?? 0,
-		retryable: false,
+		retryable: params.status === "error" ? (params.retryable ?? true) : false,
 		usageTokens: params.usageTokens,
 		creditUsage: params.creditUsage,
 		metrics: finalizeStageMetrics({
@@ -52,26 +45,24 @@ export function buildSkippedResult(
 			pipelineStartedAt: params.pipelineStartedAt,
 		}),
 	};
-}
 
-export function buildErrorResult(
-	params: ResultParams & {
-		error: string;
-		retryable?: boolean;
-		action?: string;
+	switch (params.status) {
+		case "completed":
+			return {
+				...baseResult,
+				reason: params.reason,
+			};
+		case "skipped":
+			return {
+				...baseResult,
+				reason: params.reason,
+			};
+		case "error":
+			return {
+				...baseResult,
+				error: params.error,
+			};
+		default:
+			return baseResult;
 	}
-): PrimaryPipelineResult {
-	return {
-		status: "error",
-		action: params.action,
-		error: params.error,
-		publicMessagesSent: params.publicMessagesSent ?? 0,
-		retryable: params.retryable ?? true,
-		usageTokens: params.usageTokens,
-		creditUsage: params.creditUsage,
-		metrics: finalizeStageMetrics({
-			metrics: params.metrics,
-			pipelineStartedAt: params.pipelineStartedAt,
-		}),
-	};
 }

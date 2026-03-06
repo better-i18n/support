@@ -17,8 +17,6 @@ export type PrimaryPipelineMetrics = {
 	intakeMs: number;
 	decisionMs: number;
 	generationMs: number;
-	executionMs: number;
-	followupMs: number;
 	totalMs: number;
 };
 

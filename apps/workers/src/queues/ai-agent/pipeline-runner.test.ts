@@ -9,8 +9,6 @@ type MockPipelineResult = {
 		intakeMs: number;
 		decisionMs: number;
 		generationMs: number;
-		executionMs: number;
-		followupMs: number;
 		totalMs: number;
 	};
 };
@@ -23,19 +21,17 @@ const defaultPipelineResult: MockPipelineResult = {
 		intakeMs: 0,
 		decisionMs: 0,
 		generationMs: 0,
-		executionMs: 0,
-		followupMs: 0,
 		totalMs: 0,
 	},
 };
 
-const runAiAgentPipelineMock = mock(
+const runPrimaryPipelineMock = mock(
 	async (): Promise<MockPipelineResult> => ({ ...defaultPipelineResult })
 );
 const updateConversationAiCursorMock = mock(async () => {});
 
 mock.module("@api/ai-pipeline", () => ({
-	runAiAgentPipeline: runAiAgentPipelineMock,
+	runPrimaryPipeline: runPrimaryPipelineMock,
 }));
 
 mock.module("@api/db/mutations/conversation", () => ({
@@ -53,10 +49,10 @@ const defaultConversation = {
 
 describe("runPipelineForWindow", () => {
 	beforeEach(() => {
-		runAiAgentPipelineMock.mockReset();
+		runPrimaryPipelineMock.mockReset();
 		updateConversationAiCursorMock.mockReset();
 
-		runAiAgentPipelineMock.mockResolvedValue({ ...defaultPipelineResult });
+		runPrimaryPipelineMock.mockResolvedValue({ ...defaultPipelineResult });
 		updateConversationAiCursorMock.mockResolvedValue(undefined);
 	});
 
@@ -75,13 +71,13 @@ describe("runPipelineForWindow", () => {
 		});
 		expect(result).toEqual({ processedMessageCount: 2 });
 
-		expect(runAiAgentPipelineMock).toHaveBeenNthCalledWith(
+		expect(runPrimaryPipelineMock).toHaveBeenNthCalledWith(
 			1,
 			expect.objectContaining({
 				input: expect.objectContaining({ messageId: "msg-1" }),
 			})
 		);
-		expect(runAiAgentPipelineMock).toHaveBeenNthCalledWith(
+		expect(runPrimaryPipelineMock).toHaveBeenNthCalledWith(
 			2,
 			expect.objectContaining({
 				input: expect.objectContaining({ messageId: "msg-2" }),
@@ -110,7 +106,7 @@ describe("runPipelineForWindow", () => {
 	});
 
 	it("throws PipelineWindowError when pipeline returns status=error", async () => {
-		runAiAgentPipelineMock.mockResolvedValueOnce({
+		runPrimaryPipelineMock.mockResolvedValueOnce({
 			status: "error",
 			error: "pipeline failed",
 			publicMessagesSent: 0,
@@ -119,8 +115,6 @@ describe("runPipelineForWindow", () => {
 				intakeMs: 0,
 				decisionMs: 0,
 				generationMs: 0,
-				executionMs: 0,
-				followupMs: 0,
 				totalMs: 0,
 			},
 		});
@@ -140,7 +134,7 @@ describe("runPipelineForWindow", () => {
 	});
 
 	it("does not advance cursor when generation times out and pipeline returns error", async () => {
-		runAiAgentPipelineMock.mockResolvedValueOnce({
+		runPrimaryPipelineMock.mockResolvedValueOnce({
 			status: "error",
 			error: "Generation timed out",
 			publicMessagesSent: 0,
@@ -149,8 +143,6 @@ describe("runPipelineForWindow", () => {
 				intakeMs: 0,
 				decisionMs: 0,
 				generationMs: 0,
-				executionMs: 0,
-				followupMs: 0,
 				totalMs: 0,
 			},
 		});
@@ -170,7 +162,7 @@ describe("runPipelineForWindow", () => {
 			})
 		).rejects.toBeInstanceOf(PipelineWindowError);
 
-		expect(runAiAgentPipelineMock).toHaveBeenCalledTimes(1);
+		expect(runPrimaryPipelineMock).toHaveBeenCalledTimes(1);
 		expect(updateConversationAiCursorMock).not.toHaveBeenCalled();
 	});
 });

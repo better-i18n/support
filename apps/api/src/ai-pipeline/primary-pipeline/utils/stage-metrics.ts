@@ -9,8 +9,6 @@ export function createStageMetrics(): MutableStageMetrics {
 		intakeMs: 0,
 		decisionMs: 0,
 		generationMs: 0,
-		executionMs: 0,
-		followupMs: 0,
 	};
 }
 

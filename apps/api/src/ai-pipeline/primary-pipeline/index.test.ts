@@ -35,7 +35,7 @@ const runDecisionStepMock = mock((async () => ({
 	isEscalated: false,
 	escalationReason: null,
 })) as (...args: unknown[]) => Promise<any>);
-const runPrimaryGenerationStepMock = mock((async () => ({
+const runGenerationRuntimeMock = mock((async () => ({
 	status: "completed",
 	action: {
 		action: "respond",
@@ -81,8 +81,8 @@ mock.module("./steps/decision", () => ({
 	runDecisionStep: runDecisionStepMock,
 }));
 
-mock.module("./steps/generation", () => ({
-	runPrimaryGenerationStep: runPrimaryGenerationStepMock,
+mock.module("../shared/generation", () => ({
+	runGenerationRuntime: runGenerationRuntimeMock,
 }));
 
 mock.module("../shared/usage", () => ({
@@ -117,7 +117,7 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 		logAiPipelineMock.mockClear();
 		runIntakeStepMock.mockClear();
 		runDecisionStepMock.mockClear();
-		runPrimaryGenerationStepMock.mockClear();
+		runGenerationRuntimeMock.mockClear();
 		trackGenerationUsageMock.mockClear();
 		emitPipelineSeenMock.mockClear();
 		emitPipelineGenerationProgressMock.mockClear();
@@ -159,7 +159,7 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 			isEscalated: false,
 			escalationReason: null,
 		});
-		runPrimaryGenerationStepMock.mockResolvedValue({
+		runGenerationRuntimeMock.mockResolvedValue({
 			status: "completed",
 			action: {
 				action: "respond",
@@ -174,7 +174,7 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 	});
 
 	it("surfaces generation timeout as error (not skip)", async () => {
-		runPrimaryGenerationStepMock.mockResolvedValueOnce({
+		runGenerationRuntimeMock.mockResolvedValueOnce({
 			status: "error",
 			action: {
 				action: "skip",
@@ -243,7 +243,7 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 	});
 
 	it("emits generation skip only for explicit skip action", async () => {
-		runPrimaryGenerationStepMock.mockResolvedValueOnce({
+		runGenerationRuntimeMock.mockResolvedValueOnce({
 			status: "completed",
 			action: {
 				action: "skip",
@@ -302,7 +302,7 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 	});
 
 	it("keeps generation failures retryable when no public messages were sent", async () => {
-		runPrimaryGenerationStepMock.mockResolvedValueOnce({
+		runGenerationRuntimeMock.mockResolvedValueOnce({
 			status: "error",
 			action: {
 				action: "skip",

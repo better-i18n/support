@@ -1,4 +1,4 @@
-import { runAiAgentPipeline } from "@api/ai-pipeline";
+import { runPrimaryPipeline } from "@api/ai-pipeline";
 import { updateConversationAiCursor } from "@api/db/mutations/conversation";
 import type { Database } from "@workers/db";
 import type { TriggerableWindowMessage } from "./message-window";
@@ -28,9 +28,9 @@ export async function runPipelineForWindow(params: {
 	let processedMessageCount = 0;
 
 	for (const message of params.messages) {
-		let result: Awaited<ReturnType<typeof runAiAgentPipeline>>;
+		let result: Awaited<ReturnType<typeof runPrimaryPipeline>>;
 		try {
-			result = await runAiAgentPipeline({
+			result = await runPrimaryPipeline({
 				db: params.db,
 				input: {
 					conversationId: params.conversation.id,

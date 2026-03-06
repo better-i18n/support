@@ -26,7 +26,7 @@ Delayed, non-public follow-up pipeline:
 
 | Module | Responsibility |
 |---|---|
-| `apps/api/src/ai-pipeline/index.ts` | Exports `runPrimaryPipeline`, `runBackgroundPipeline`, and compatibility alias `runAiAgentPipeline -> runPrimaryPipeline`. |
+| `apps/api/src/ai-pipeline/index.ts` | Exports the root runtime entrypoints: `runPrimaryPipeline`, `runBackgroundPipeline`, and their public input/result types. |
 | `apps/api/src/ai-pipeline/primary-pipeline/index.ts` | Primary pipeline entrypoint (intake -> decision -> generation). |
 | `apps/api/src/ai-pipeline/primary-pipeline/internal/*` | Internal orchestration helpers for trace mode, seen emit, typing lifecycle, and usage tracking. |
 | `apps/api/src/ai-pipeline/background-pipeline/index.ts` | Background pipeline shell entrypoint. |
