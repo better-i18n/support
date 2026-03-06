@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { GenerationRuntimeInput } from "../contracts";
+import type { GenerationHistoryMessage } from "../messages/format-history";
 import { emitGenerationDebugLog } from "./debug-log";
 
 const SYSTEM_PROMPT_DEBUG_DIR = resolve(
@@ -10,6 +11,7 @@ const SYSTEM_PROMPT_DEBUG_DIR = resolve(
 
 export async function writeGenerationSystemPromptDebugDump(params: {
 	input: GenerationRuntimeInput;
+	messages: GenerationHistoryMessage[];
 	systemPrompt: string;
 }): Promise<void> {
 	if (process.env.NODE_ENV === "production") {
@@ -22,10 +24,17 @@ export async function writeGenerationSystemPromptDebugDump(params: {
 		params.input.triggerMessageId
 	);
 	const filePath = join(promptDir, "system-prompt.md");
+	const fileContents = `## Messages Sent To Model
+\`\`\`json
+${JSON.stringify(params.messages, null, 2)}
+\`\`\`
+
+## System Prompt
+${params.systemPrompt}`;
 
 	try {
 		await mkdir(promptDir, { recursive: true });
-		await writeFile(filePath, params.systemPrompt, "utf8");
+		await writeFile(filePath, fileContents, "utf8");
 	} catch (error) {
 		emitGenerationDebugLog(
 			params.input,

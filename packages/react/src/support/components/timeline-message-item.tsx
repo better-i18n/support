@@ -29,7 +29,7 @@ export type TimelineMessageItemProps = {
 export function getSupportMessageWidthClasses(
 	text: string | null | undefined
 ): string {
-	return hasExpandedTimelineContent(text) ? "w-full max-w-full" : "max-w-[70%]";
+	return hasExpandedTimelineContent(text) ? "w-full max-w-full" : "max-w-[92%]";
 }
 
 /**

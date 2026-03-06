@@ -26,7 +26,7 @@ import {
 	toUsage,
 } from "./runtime-utils";
 
-const GENERATION_TIMEOUT_MS = 45_000;
+const GENERATION_TIMEOUT_MS = 200_000;
 const STOP_STEP_BUFFER = 6;
 
 export async function runGenerationAttempt(params: {
@@ -111,7 +111,9 @@ export async function runGenerationAttempt(params: {
 			budget: params.nonFinishToolBudget,
 		},
 	});
+
 	const deepTraceEnabled = params.input.deepTraceEnabled === true;
+
 	if (deepTraceEnabled) {
 		emitGenerationDebugLog(
 			params.input,

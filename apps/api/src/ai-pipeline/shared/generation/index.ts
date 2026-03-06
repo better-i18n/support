@@ -160,24 +160,30 @@ export async function runGenerationRuntime(
 		toolNames: baseToolsetResolution.toolNames,
 		toolSkills: runtimeToolSkills,
 	});
-	await writeGenerationSystemPromptDebugDump({
-		input,
-		systemPrompt,
-	});
+
 	const messages = formatHistoryForGeneration(
 		input.conversationHistory,
 		input.visitorContext?.name ?? null
 	);
 
+	await writeGenerationSystemPromptDebugDump({
+		input,
+		messages,
+		systemPrompt,
+	});
+
 	const behaviorSettings = getBehaviorSettings(input.aiAgent);
+
 	const nonFinishToolBudget = Math.max(
 		1,
 		Math.floor(behaviorSettings.maxToolInvocationsPerRun)
 	);
+
 	const attempts: NonNullable<GenerationRuntimeResult["attempts"]> = [];
 
 	runtimeState.finalAction = null;
 	runtimeState.lastToolError = null;
+
 	const primaryResult = await runGenerationAttempt({
 		input,
 		attempt: 1,

@@ -258,20 +258,28 @@ describe("runGenerationRuntime", () => {
 
 	it("writes the exact final system prompt to the non-production debug path", async () => {
 		let capturedSystemPrompt = "";
-		queuedGenerateHandlers.push(async ({ options }) => {
+		let capturedMessages: MockAgentInput["messages"] = [];
+		queuedGenerateHandlers.push(async ({ options, input }) => {
 			capturedSystemPrompt = options.instructions;
+			capturedMessages = input.messages;
 			await options.tools.skip.execute({ reasoning: "Nothing to do" });
 			return { usage: {} };
 		});
 
 		const { runGenerationRuntime } = await modulePromise;
 		const result = await runGenerationRuntime(createInput() as never);
+		const fileContents = await readFile(getSystemPromptFilePath(), "utf8");
 
 		expect(result.status).toBe("completed");
 		expect(capturedSystemPrompt.length).toBeGreaterThan(0);
-		expect(await readFile(getSystemPromptFilePath(), "utf8")).toBe(
-			capturedSystemPrompt
-		);
+		expect(capturedMessages).toEqual([{ role: "user", content: "hello" }]);
+		expect(fileContents).toBe(`## Messages Sent To Model
+\`\`\`json
+${JSON.stringify(capturedMessages, null, 2)}
+\`\`\`
+
+## System Prompt
+${capturedSystemPrompt}`);
 	});
 
 	it("does not write a system prompt dump in production", async () => {
@@ -292,6 +300,7 @@ describe("runGenerationRuntime", () => {
 		const { runGenerationRuntime } = await modulePromise;
 		let firstPrompt = "";
 		let secondPrompt = "";
+		let secondMessages: MockAgentInput["messages"] = [];
 
 		queuedGenerateHandlers.push(async ({ options }) => {
 			firstPrompt = options.instructions;
@@ -300,8 +309,9 @@ describe("runGenerationRuntime", () => {
 		});
 		await runGenerationRuntime(createInput() as never);
 
-		queuedGenerateHandlers.push(async ({ options }) => {
+		queuedGenerateHandlers.push(async ({ options, input }) => {
 			secondPrompt = options.instructions;
+			secondMessages = input.messages;
 			await options.tools.skip.execute({ reasoning: "Nothing to do" });
 			return { usage: {} };
 		});
@@ -312,9 +322,15 @@ describe("runGenerationRuntime", () => {
 		);
 
 		expect(firstPrompt).not.toBe(secondPrompt);
-		expect(await readFile(getSystemPromptFilePath(), "utf8")).toBe(
-			secondPrompt
-		);
+		expect(
+			await readFile(getSystemPromptFilePath(), "utf8")
+		).toBe(`## Messages Sent To Model
+\`\`\`json
+${JSON.stringify(secondMessages, null, 2)}
+\`\`\`
+
+## System Prompt
+${secondPrompt}`);
 	});
 
 	it("swallows debug dump write failures without changing generation results", async () => {
