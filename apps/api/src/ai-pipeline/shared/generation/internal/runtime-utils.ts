@@ -117,11 +117,6 @@ export function createToolRuntimeState(): ToolRuntimeState {
 		publicSendSequence: 0,
 		privateSendSequence: 0,
 		publicMessageToolSequence: [],
-		publicMessageToolCounts: {
-			sendAcknowledgeMessage: 0,
-			sendMessage: 0,
-			sendFollowUpMessage: 0,
-		},
 		sentPublicMessageIds: new Set<string>(),
 		lastToolError: null,
 	};

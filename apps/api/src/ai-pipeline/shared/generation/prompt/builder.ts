@@ -2,9 +2,9 @@ import type { ToolSet } from "@api/lib/ai";
 import type { GenerationRuntimeInput } from "../contracts";
 import {
 	buildModeInstructions,
-	STAGE_1_RUNTIME_GUARDRAILS,
-	STAGE_4_TOOL_PROTOCOL,
-	STAGE_5_FINAL_MESSAGE_CONTRACT,
+	REPLY_FLOW_CONTRACT,
+	RUNTIME_GUARDRAILS,
+	TOOL_PROTOCOL,
 } from "./templates";
 
 function buildAgentBehaviorStage(input: GenerationRuntimeInput): string {
@@ -72,7 +72,7 @@ function buildToolStage(params: {
 	return `## Tool Inventory
 ${buildToolInventorySection(params)}
 
-${STAGE_4_TOOL_PROTOCOL}`;
+${TOOL_PROTOCOL}`;
 }
 
 function buildToolSkillStage(params: {
@@ -99,7 +99,7 @@ export function buildGenerationSystemPrompt(params: {
 	toolSkills?: Array<{ label: string; content: string }>;
 }): string {
 	const sections = [
-		STAGE_1_RUNTIME_GUARDRAILS,
+		RUNTIME_GUARDRAILS,
 		buildAgentBehaviorStage(params.input),
 		buildContextFactsStage(params.input),
 		buildToolStage({
@@ -113,7 +113,7 @@ export function buildGenerationSystemPrompt(params: {
 			mode: params.input.mode,
 			humanCommand: params.input.humanCommand,
 		}),
-		STAGE_5_FINAL_MESSAGE_CONTRACT,
+		REPLY_FLOW_CONTRACT,
 	].filter((section) => section.trim().length > 0);
 
 	return sections.join("\n\n");

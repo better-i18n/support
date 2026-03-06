@@ -76,11 +76,6 @@ function createContext(): PipelineToolContext {
 			publicSendSequence: 0,
 			privateSendSequence: 0,
 			publicMessageToolSequence: [],
-			publicMessageToolCounts: {
-				sendAcknowledgeMessage: 0,
-				sendMessage: 0,
-				sendFollowUpMessage: 0,
-			},
 			sentPublicMessageIds: new Set<string>(),
 			lastToolError: null,
 		},
@@ -174,5 +169,43 @@ describe("public messaging tool contract", () => {
 		expect(second.success).toBe(false);
 		expect(second.error).toContain("once per run");
 		expect(sendPublicMessageMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not consume the sequence on a paused send and allows a clean retry", async () => {
+		const { createSendMessageTool } = await modulePromise;
+		const ctx = createContext();
+		const main = createSendMessageTool(ctx);
+		if (!main.execute) {
+			throw new Error("Expected execute handler for sendMessage tool");
+		}
+
+		sendPublicMessageMock.mockResolvedValueOnce({
+			messageId: "msg-paused",
+			created: false,
+			paused: true,
+		});
+
+		const first = await resolveToolResult(
+			await main.execute({ message: "First try" } as never, {} as never)
+		);
+
+		expect(first.success).toBe(false);
+		expect(ctx.runtimeState.publicMessageToolSequence).toEqual([]);
+		expect(ctx.runtimeState.publicSendSequence).toBe(0);
+
+		sendPublicMessageMock.mockResolvedValueOnce({
+			messageId: "msg-2",
+			created: true,
+			paused: false,
+		});
+
+		const second = await resolveToolResult(
+			await main.execute({ message: "Second try" } as never, {} as never)
+		);
+
+		expect(second.success).toBe(true);
+		expect(ctx.runtimeState.publicMessageToolSequence).toEqual(["sendMessage"]);
+		expect(ctx.runtimeState.publicSendSequence).toBe(1);
+		expect(sendPublicMessageMock).toHaveBeenCalledTimes(2);
 	});
 });

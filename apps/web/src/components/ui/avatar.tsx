@@ -66,11 +66,7 @@ function Facehash({
 }) {
 	return (
 		<FacehashComponent
-			className={cn(
-				"text-black transition-transform duration-200",
-				"[&_svg]:fill-current",
-				className
-			)}
+			className={cn(className)}
 			colorClasses={COSSISTANT_COLOR_CLASSES}
 			enableBlink
 			intensity3d="dramatic"

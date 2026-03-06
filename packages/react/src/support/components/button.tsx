@@ -11,7 +11,7 @@ export const coButtonVariants = cva(
 				default:
 					"bg-co-primary text-co-primary-foreground hover:bg-co-primary/90",
 				secondary:
-					"border-co-border bg-co-background-50/50 text-co-primary hover:bg-co-background-100 hover:text-co-foreground dark:bg-co-background-300 dark:hover:bg-co-background-400",
+					"border-co-border bg-co-background-50/50 text-co-primary hover:bg-co-background-100 hover:text-co-foreground dark:bg-co-background-200 dark:hover:bg-co-background-300",
 				ghost:
 					"border-transparent text-co-primary hover:bg-co-background-200 hover:text-co-foreground dark:hover:bg-co-background-300",
 				outline:

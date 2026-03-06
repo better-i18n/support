@@ -55,17 +55,13 @@ const buildPipelineToolsetMock = mock(
 		context,
 	}: {
 		context: {
+			allowPublicMessages: boolean;
 			runtimeState: {
 				toolCallCounts: Record<string, number>;
 				publicMessagesSent: number;
 				publicMessageToolSequence: Array<
 					"sendAcknowledgeMessage" | "sendMessage" | "sendFollowUpMessage"
 				>;
-				publicMessageToolCounts: {
-					sendAcknowledgeMessage: number;
-					sendMessage: number;
-					sendFollowUpMessage: number;
-				};
 				finalAction: {
 					action: "respond" | "skip";
 					reasoning: string;
@@ -79,6 +75,65 @@ const buildPipelineToolsetMock = mock(
 				(context.runtimeState.toolCallCounts[toolName] ?? 0) + 1;
 		};
 
+		const publicTools = {
+			sendAcknowledgeMessage: {
+				description: "Ack",
+				execute: async (_input: unknown) => {
+					increment("sendAcknowledgeMessage");
+					context.runtimeState.publicMessagesSent += 1;
+					context.runtimeState.publicMessageToolSequence.push(
+						"sendAcknowledgeMessage"
+					);
+					return {
+						success: true,
+						data: { messageId: `ack-${Date.now()}`, created: true },
+					};
+				},
+			},
+			sendMessage: {
+				description: "Main",
+				execute: async (_input: unknown) => {
+					increment("sendMessage");
+					context.runtimeState.publicMessagesSent += 1;
+					context.runtimeState.publicMessageToolSequence.push("sendMessage");
+					return {
+						success: true,
+						data: { messageId: `msg-${Date.now()}`, created: true },
+					};
+				},
+			},
+			sendFollowUpMessage: {
+				description: "Follow up",
+				execute: async (_input: unknown) => {
+					increment("sendFollowUpMessage");
+					context.runtimeState.publicMessagesSent += 1;
+					context.runtimeState.publicMessageToolSequence.push(
+						"sendFollowUpMessage"
+					);
+					return {
+						success: true,
+						data: { messageId: `follow-${Date.now()}`, created: true },
+					};
+				},
+			},
+		};
+
+		const publicFinishTools = {
+			respond: {
+				description: "Finish respond",
+				execute: async (input: unknown) => {
+					const parsed = input as { reasoning: string; confidence: number };
+					increment("respond");
+					context.runtimeState.finalAction = {
+						action: "respond",
+						reasoning: parsed.reasoning,
+						confidence: parsed.confidence,
+					};
+					return { success: true };
+				},
+			},
+		};
+
 		return {
 			tools: {
 				searchKnowledgeBase: {
@@ -88,32 +143,8 @@ const buildPipelineToolsetMock = mock(
 						return { success: true };
 					},
 				},
-				sendMessage: {
-					description: "Send message",
-					execute: async (_input: unknown) => {
-						increment("sendMessage");
-						context.runtimeState.publicMessagesSent += 1;
-						context.runtimeState.publicMessageToolCounts.sendMessage += 1;
-						context.runtimeState.publicMessageToolSequence.push("sendMessage");
-						return {
-							success: true,
-							data: { messageId: `msg-${Date.now()}`, created: true },
-						};
-					},
-				},
-				respond: {
-					description: "Finish respond",
-					execute: async (input: unknown) => {
-						const parsed = input as { reasoning: string; confidence: number };
-						increment("respond");
-						context.runtimeState.finalAction = {
-							action: "respond",
-							reasoning: parsed.reasoning,
-							confidence: parsed.confidence,
-						};
-						return { success: true };
-					},
-				},
+				...(context.allowPublicMessages ? publicTools : {}),
+				...(context.allowPublicMessages ? publicFinishTools : {}),
 				skip: {
 					description: "Finish skip",
 					execute: async (input: unknown) => {
@@ -128,8 +159,19 @@ const buildPipelineToolsetMock = mock(
 					},
 				},
 			},
-			toolNames: ["searchKnowledgeBase", "sendMessage", "respond", "skip"],
-			finishToolNames: ["respond", "skip"],
+			toolNames: context.allowPublicMessages
+				? [
+						"searchKnowledgeBase",
+						"sendAcknowledgeMessage",
+						"sendMessage",
+						"sendFollowUpMessage",
+						"respond",
+						"skip",
+					]
+				: ["searchKnowledgeBase", "skip"],
+			finishToolNames: context.allowPublicMessages
+				? ["respond", "skip"]
+				: ["skip"],
 		};
 	}
 );
@@ -473,5 +515,90 @@ ${secondPrompt}`);
 		expect(result.status).toBe("error");
 		expect(result.failureCode).toBe("runtime_error");
 		expect(result.error).toContain("requires sendMessage");
+	});
+
+	it("fails completion when only acknowledge was sent without a main message", async () => {
+		queuedGenerateHandlers.push(async ({ options }) => {
+			await options.tools.sendAcknowledgeMessage.execute({
+				message: "One sec",
+			});
+			await options.tools.respond.execute({
+				reasoning: "Sent acknowledgement only",
+				confidence: 1,
+			});
+			return { usage: {} };
+		});
+
+		const { runGenerationRuntime } = await modulePromise;
+		const result = await runGenerationRuntime(createInput() as never);
+
+		expect(result.status).toBe("error");
+		expect(result.failureCode).toBe("runtime_error");
+		expect(result.error).toContain("main sendMessage call");
+	});
+
+	it("allows acknowledge before the main message", async () => {
+		queuedGenerateHandlers.push(async ({ options }) => {
+			await options.tools.sendAcknowledgeMessage.execute({
+				message: "One sec",
+			});
+			await options.tools.sendMessage.execute({
+				message: "Here is the answer.",
+			});
+			await options.tools.respond.execute({
+				reasoning: "Answered with ack first",
+				confidence: 1,
+			});
+			return { usage: {} };
+		});
+
+		const { runGenerationRuntime } = await modulePromise;
+		const result = await runGenerationRuntime(createInput() as never);
+
+		expect(result.status).toBe("completed");
+		expect(result.action.action).toBe("respond");
+		expect(result.publicMessagesSent).toBe(2);
+	});
+
+	it("allows a follow-up after the main message", async () => {
+		queuedGenerateHandlers.push(async ({ options }) => {
+			await options.tools.sendMessage.execute({
+				message: "Here is the answer.",
+			});
+			await options.tools.sendFollowUpMessage.execute({
+				message: "Anything else you want me to check?",
+			});
+			await options.tools.respond.execute({
+				reasoning: "Answered and added one follow-up",
+				confidence: 1,
+			});
+			return { usage: {} };
+		});
+
+		const { runGenerationRuntime } = await modulePromise;
+		const result = await runGenerationRuntime(createInput() as never);
+
+		expect(result.status).toBe("completed");
+		expect(result.action.action).toBe("respond");
+		expect(result.publicMessagesSent).toBe(2);
+	});
+
+	it("keeps background_only silent", async () => {
+		queuedGenerateHandlers.push(async ({ options }) => {
+			await options.tools.skip.execute({ reasoning: "Background run" });
+			return { usage: {} };
+		});
+
+		const { runGenerationRuntime } = await modulePromise;
+		const result = await runGenerationRuntime(
+			createInput({
+				mode: "background_only",
+				allowPublicMessages: false,
+			}) as never
+		);
+
+		expect(result.status).toBe("completed");
+		expect(result.action.action).toBe("skip");
+		expect(result.publicMessagesSent).toBe(0);
 	});
 });

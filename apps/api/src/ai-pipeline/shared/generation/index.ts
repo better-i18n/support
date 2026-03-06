@@ -29,16 +29,20 @@ import { buildGenerationSystemPrompt } from "./prompt/builder";
 function getMessagingContractError(params: {
 	input: GenerationRuntimeInput;
 	action: CapturedFinalAction;
-	publicMessageToolCounts: {
-		sendAcknowledgeMessage: number;
-		sendMessage: number;
-		sendFollowUpMessage: number;
-	};
+	publicMessageToolSequence: Array<
+		"sendAcknowledgeMessage" | "sendMessage" | "sendFollowUpMessage"
+	>;
 }): string | null {
-	const { input, action, publicMessageToolCounts } = params;
-	const mainMessageCount = publicMessageToolCounts.sendMessage ?? 0;
-	const acknowledgeCount = publicMessageToolCounts.sendAcknowledgeMessage ?? 0;
-	const followUpCount = publicMessageToolCounts.sendFollowUpMessage ?? 0;
+	const { input, action, publicMessageToolSequence } = params;
+	const mainMessageCount = publicMessageToolSequence.filter(
+		(toolName) => toolName === "sendMessage"
+	).length;
+	const acknowledgeCount = publicMessageToolSequence.filter(
+		(toolName) => toolName === "sendAcknowledgeMessage"
+	).length;
+	const followUpCount = publicMessageToolSequence.filter(
+		(toolName) => toolName === "sendFollowUpMessage"
+	).length;
 
 	if ((acknowledgeCount > 0 || followUpCount > 0) && mainMessageCount === 0) {
 		return "Acknowledge/follow-up public tools require a main sendMessage call in the same run";
@@ -200,7 +204,7 @@ export async function runGenerationRuntime(
 		const contractError = getMessagingContractError({
 			input,
 			action: primaryResult.action,
-			publicMessageToolCounts: runtimeState.publicMessageToolCounts,
+			publicMessageToolSequence: runtimeState.publicMessageToolSequence,
 		});
 		if (contractError) {
 			return {

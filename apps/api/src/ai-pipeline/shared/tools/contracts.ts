@@ -37,7 +37,6 @@ export type ToolRuntimeState = {
 	publicSendSequence: number;
 	privateSendSequence: number;
 	publicMessageToolSequence: PublicMessageToolName[];
-	publicMessageToolCounts: Record<PublicMessageToolName, number>;
 	sentPublicMessageIds: Set<string>;
 	lastToolError: ToolRuntimeError | null;
 };

@@ -1,6 +1,6 @@
 import type { GenerationMode } from "../contracts";
 
-export const STAGE_1_RUNTIME_GUARDRAILS = `## Runtime Guardrails
+export const RUNTIME_GUARDRAILS = `## Runtime Guardrails
 - Never expose [PRIVATE] or internal-only details in visitor-facing messages.
 - Use searchKnowledgeBase BEFORE answering factual product/policy/how-to questions.
 - If uncertain, state uncertainty briefly and ALWAYS prefer escalation over guessing.
@@ -8,21 +8,21 @@ export const STAGE_1_RUNTIME_GUARDRAILS = `## Runtime Guardrails
 - In chat messages, avoid bullet lists and numbered lists unless explicitly requested.
 - Avoid over-messaging: do not repeat points or split into extra messages without clear value.`;
 
-export const STAGE_4_TOOL_PROTOCOL = `## Tool Protocol
+export const TOOL_PROTOCOL = `## Tool Protocol
 - Use tools for all side effects and final decisions.
 - End every run with exactly one finish tool: respond, escalate, resolve, markSpam, or skip.
 - If no action is needed, call skip with a short reason.`;
 
-export const STAGE_5_FINAL_MESSAGE_CONTRACT = `## HOW TO USE THE MESSAGING TOOLS [IMPORTANT]
-- For public messaging flow, only use these tools: sendAcknowledgeMessage, sendMessage, sendFollowUpMessage.
-- Each of those three tools can be used at most once per run.
-- ROLES:
-  - sendAcknowledgeMessage: optional short acknowledgement before main response.
-  - sendMessage: REQUIRED main response for non-background answer completions.
-  - sendFollowUpMessage: optional short addendum after the main response.
-- Allowed public message sequences: main, ack->main, main->followUp, ack->main->followUp.
-- Never call acknowledge/follow-up without a main sendMessage call.
-- Keep the main sendMessage concise (usually 1-3 short sentences unless detail is requested or needed).`;
+export const REPLY_FLOW_CONTRACT = `## Reply Flow
+- Public reply tools: sendAcknowledgeMessage, sendMessage, sendFollowUpMessage.
+- Default to sendMessage for the real answer or next step.
+- Use sendAcknowledgeMessage only for a brief pre-answer acknowledgement like "I'm checking" or "one sec" before the main answer.
+- Use sendFollowUpMessage only after sendMessage for one short addendum or one short follow-up question.
+- Allowed public message sequences only: main, ack->main, main->followUp, ack->main->followUp.
+- Never use acknowledge/follow-up without sendMessage in the same run.
+- Each public reply tool can be used at most once per run.
+- Default to one main message. Add acknowledge/follow-up only when they clearly improve the conversation.
+- Keep public chat messages concise and natural; avoid bullets and numbered lists unless explicitly requested.`;
 
 export function buildModeInstructions(params: {
 	mode: GenerationMode;
@@ -32,7 +32,6 @@ export function buildModeInstructions(params: {
 		return `## Mode: Respond To Command
 A human teammate asked for execution help.
 - Prioritize completing the teammate request.
-- For non-skip completion in this mode, sendMessage is required as the main public response.
 - Use sendPrivateMessage for internal-only notes or handoff context.
 - Keep public/private messages human, concise, and directly useful.
 - Command: ${params.humanCommand?.trim() || "(none provided)"}`;
@@ -48,5 +47,5 @@ A human teammate asked for execution help.
 	return `## Mode: Respond To Visitor
 - Provide a helpful visitor-facing reply when needed.
 - Do not leave unresolved user asks hanging.
-- Use one main message by default; add acknowledge/follow-up only when it improves outcome.`;
+- Default to one concise public answer unless the reply flow rules clearly call for acknowledge or follow-up.`;
 }

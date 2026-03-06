@@ -2,11 +2,7 @@
 // Primary Export - This is what you want
 // ============================================================================
 
-export type {
-	FacehashProps,
-	Intensity3D,
-	Variant,
-} from "./facehash";
+export type { FacehashProps, Intensity3D, Variant } from "./facehash";
 export { Facehash } from "./facehash";
 
 // ============================================================================

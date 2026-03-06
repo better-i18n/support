@@ -23,12 +23,6 @@ const sendPrivateMessageInputSchema = z.object({
 		.describe("Private internal note for teammates only."),
 });
 
-const PUBLIC_MESSAGE_TOOL_ORDER = [
-	"sendAcknowledgeMessage",
-	"sendMessage",
-	"sendFollowUpMessage",
-] as const satisfies readonly PublicMessageToolName[];
-
 function getAllowedNextPublicTools(
 	sequence: PublicMessageToolName[]
 ): PublicMessageToolName[] {
@@ -57,13 +51,12 @@ function getAllowedNextPublicTools(
 	return [];
 }
 
-function validateAndTrackPublicMessageToolCall(params: {
+function validatePublicMessageToolCall(params: {
 	ctx: PipelineToolContext;
 	toolName: PublicMessageToolName;
 }): PipelineToolResult<null> | null {
 	const { ctx, toolName } = params;
-	const currentCount = ctx.runtimeState.publicMessageToolCounts[toolName] ?? 0;
-	if (currentCount >= 1) {
+	if (ctx.runtimeState.publicMessageToolSequence.includes(toolName)) {
 		return {
 			success: false,
 			error: `${toolName} can only be called once per run`,
@@ -81,9 +74,6 @@ function validateAndTrackPublicMessageToolCall(params: {
 			}`,
 		};
 	}
-
-	ctx.runtimeState.publicMessageToolCounts[toolName] = currentCount + 1;
-	ctx.runtimeState.publicMessageToolSequence.push(toolName);
 	return null;
 }
 
@@ -121,7 +111,15 @@ async function executePublicMessageSend(params: {
 		};
 	}
 
-	const sequenceError = validateAndTrackPublicMessageToolCall({
+	const trimmedMessage = message.trim();
+	if (!trimmedMessage) {
+		return {
+			success: false,
+			error: "Message is empty",
+		};
+	}
+
+	const sequenceError = validatePublicMessageToolCall({
 		ctx,
 		toolName,
 	});
@@ -132,16 +130,7 @@ async function executePublicMessageSend(params: {
 		};
 	}
 
-	const trimmedMessage = message.trim();
-	if (!trimmedMessage) {
-		return {
-			success: false,
-			error: "Message is empty",
-		};
-	}
-
-	ctx.runtimeState.publicSendSequence += 1;
-	const slot = ctx.runtimeState.publicSendSequence;
+	const slot = ctx.runtimeState.publicSendSequence + 1;
 	const createdAt = new Date(Math.max(Date.now(), Date.now() + slot));
 
 	await invokeTypingCallback(ctx.stopTyping, {
@@ -167,6 +156,9 @@ async function executePublicMessageSend(params: {
 			error: "AI is paused for this conversation",
 		};
 	}
+
+	ctx.runtimeState.publicSendSequence = slot;
+	ctx.runtimeState.publicMessageToolSequence.push(toolName);
 
 	if (
 		result.messageId &&
@@ -211,7 +203,8 @@ export function createSendAcknowledgeMessageTool(ctx: PipelineToolContext) {
 	return createPublicMessageTool({
 		ctx,
 		toolName: "sendAcknowledgeMessage",
-		description: "Send a short acknowledgement before the main response.",
+		description:
+			'Use only for a brief acknowledgement before the main answer, such as "I\'m checking that now."',
 	});
 }
 
@@ -219,7 +212,8 @@ export function createSendMessageTool(ctx: PipelineToolContext) {
 	return createPublicMessageTool({
 		ctx,
 		toolName: "sendMessage",
-		description: "Send the main public response to the visitor.",
+		description:
+			"Use for the main public answer or next step. This is the default public reply tool.",
 	});
 }
 
@@ -227,7 +221,8 @@ export function createSendFollowUpMessageTool(ctx: PipelineToolContext) {
 	return createPublicMessageTool({
 		ctx,
 		toolName: "sendFollowUpMessage",
-		description: "Send one optional follow-up message after the main response.",
+		description:
+			"Use only after sendMessage for one short addendum or one short follow-up question.",
 	});
 }
 
@@ -317,5 +312,3 @@ export const SEND_PRIVATE_MESSAGE_TELEMETRY: ToolTelemetrySpec = {
 		audience: "dashboard",
 	},
 };
-
-export { PUBLIC_MESSAGE_TOOL_ORDER };
