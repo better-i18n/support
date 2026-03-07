@@ -458,7 +458,7 @@ export const MultimodalInput: React.FC<MultimodalInputProps> = ({
 								"relative flex h-fit flex-col rounded-xs border drop-shadow-xs",
 								isPrivate
 									? "border-cossistant-yellow-600/40 border-dashed bg-cossistant-yellow-100/30 dark:border-cossistant-yellow-600/20 dark:bg-cossistant-yellow-100/5"
-									: "border-border/50 bg-background-100 dark:border-border/50 dark:bg-background-300"
+									: "border-border/50 bg-background-50 dark:border-border/50 dark:bg-background-300"
 							)}
 						>
 							{/* Visibility toggle tabs — inside the input block */}

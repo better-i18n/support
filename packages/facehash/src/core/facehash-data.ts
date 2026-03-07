@@ -8,6 +8,16 @@ export type Variant = "gradient" | "solid";
 
 export type FaceType = "round" | "cross" | "line" | "curved";
 
+export type FacehashBlinkTiming = {
+	delay: number;
+	duration: number;
+};
+
+export type FacehashBlinkTimings = {
+	left: FacehashBlinkTiming;
+	right: FacehashBlinkTiming;
+};
+
 export const FACE_TYPES: readonly FaceType[] = [
 	"round",
 	"cross",
@@ -24,6 +34,8 @@ export type FacehashData = {
 	rotation: { x: number; y: number };
 	/** First letter of the name, uppercase */
 	initial: string;
+	/** Deterministic blink timing used by the interactive component */
+	blinkTimings: FacehashBlinkTimings;
 };
 
 export type ComputeFacehashOptions = {
@@ -76,12 +88,24 @@ export function computeFacehash(options: ComputeFacehashOptions): FacehashData {
 	const colorIndex = hash % colorsLength;
 	const positionIndex = hash % SPHERE_POSITIONS.length;
 	const position = SPHERE_POSITIONS[positionIndex] ?? { x: 0, y: 0 };
+	const leftSeed = hash * 31;
+	const rightSeed = hash * 37 + 11;
 
 	return {
 		faceType: FACE_TYPES[faceIndex] ?? "round",
 		colorIndex,
 		rotation: position,
 		initial: name.charAt(0).toUpperCase(),
+		blinkTimings: {
+			left: {
+				delay: (leftSeed % 40) / 10,
+				duration: 2 + (leftSeed % 40) / 10,
+			},
+			right: {
+				delay: (rightSeed % 40) / 10,
+				duration: 2 + (rightSeed % 40) / 10,
+			},
+		},
 	};
 }
 

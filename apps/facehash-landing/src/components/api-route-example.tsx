@@ -11,8 +11,8 @@ export const { GET } = toFacehashHandler();`;
 const USAGE = `// use it anywhere you need a URL
 <img src="/api/avatar?name=john" />
 
-// in emails, og images, etc.
-https://yoursite.com/api/avatar?name=john`;
+// raw svg for icons, favicons, or browser UI
+https://yoursite.com/api/avatar?name=john&format=svg&pose=front`;
 
 export function ApiRouteExample() {
 	const [copied, setCopied] = useState(false);

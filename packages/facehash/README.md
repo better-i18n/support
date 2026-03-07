@@ -26,7 +26,7 @@ Same string = same face. Always.
 
 ### Next.js API Route (Image Generation)
 
-Generate PNG avatar images via API endpoint — perfect for emails, Open Graph images, or anywhere you need a URL.
+Generate PNG or SVG avatar images via API endpoint — perfect for emails, Open Graph images, favicons, or anywhere you need a URL.
 
 ```tsx
 // app/api/avatar/route.ts
@@ -39,9 +39,10 @@ Then use it:
 ```
 GET /api/avatar?name=john@example.com
 GET /api/avatar?name=john&size=200&variant=solid
+GET /api/avatar?name=john&format=svg&pose=front
 ```
 
-Returns a PNG image. Cached for 1 year by default.
+Returns a PNG image by default. Add `format=svg` for raw SVG output. Cached for 1 year by default.
 
 ## Props
 
@@ -188,6 +189,8 @@ All options can be overridden via URL query parameters:
 | `variant` | `string` | `"gradient"` or `"solid"` |
 | `showInitial` | `boolean` | `"true"` or `"false"` |
 | `colors` | `string` | Comma-separated hex colors (e.g., `#ff0000,#00ff00`) |
+| `format` | `string` | `"png"` (default) or `"svg"` |
+| `pose` | `string` | `"seed"` (default) or `"front"` |
 
 ### Example URLs
 
@@ -196,11 +199,18 @@ All options can be overridden via URL query parameters:
 /api/avatar?name=Alice&size=128
 /api/avatar?name=Bob&variant=solid&showInitial=false
 /api/avatar?name=Team&colors=%23ff6b6b,%234ecdc4,%2345b7d1
+/api/avatar?name=facehash&format=svg&pose=front&size=128
 ```
 
 ### Caching
 
 By default, responses include `Cache-Control: public, max-age=31536000, immutable` (1 year). Same name always generates the same image, so aggressive caching is safe.
+
+### Output Notes
+
+- `format=png` is the backward-compatible default and is the safest option for emails and OG images.
+- `format=svg` is useful for browsers, icons, and places where you want the seeded or front-facing projection baked into the markup.
+- Hover-to-front and blinking stay in the React component; route-served assets are static.
 
 ## Exports
 

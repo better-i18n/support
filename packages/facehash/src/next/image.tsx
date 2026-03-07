@@ -1,9 +1,9 @@
-import type { FacehashData, Variant } from "../core";
-import { FACE_SVG_DATA } from "./faces-svg";
+import type { FacehashScene, Variant } from "../core";
+import { sceneUnitToPixels, toSatoriProjectionTransform } from "./projection";
 
 export type FacehashImageProps = {
-	/** Computed facehash data */
-	data: FacehashData;
+	/** Shared facehash scene */
+	scene: FacehashScene;
 	/** Background color (hex) */
 	backgroundColor: string;
 	/** Image size in pixels */
@@ -12,43 +12,44 @@ export type FacehashImageProps = {
 	variant: Variant;
 	/** Show initial letter */
 	showInitial: boolean;
-	/** Rotation for 3D effect simulation */
-	rotation: { x: number; y: number };
 };
 
+function renderFaceGeometryPaths(paths: readonly string[]) {
+	return paths.map((path) => <path d={path} fill="currentColor" key={path} />);
+}
+
+function getGradientBackground(scene: FacehashScene): string {
+	return `radial-gradient(circle at ${scene.gradientCenter.x}% ${scene.gradientCenter.y}%, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 60%)`;
+}
+
 /**
- * Static Facehash image component for use with ImageResponse.
- * Uses only Satori-compatible CSS (flexbox, position offsets for 3D effect).
+ * Shared Facehash image component for use with ImageResponse.
+ * Uses a dedicated Satori-safe foreground scene so eyes and initial share one
+ * projected coordinate system.
  */
 export function FacehashImage({
-	data,
+	scene,
 	backgroundColor,
 	size,
 	variant,
 	showInitial,
-	rotation,
 }: FacehashImageProps) {
-	const { faceType, initial } = data;
-	const svgData = FACE_SVG_DATA[faceType];
-
-	// Calculate SVG dimensions based on viewBox
-	const [, , vbWidth, vbHeight] = svgData.viewBox.split(" ").map(Number);
-	const aspectRatio = (vbWidth ?? 1) / (vbHeight ?? 1);
-
-	// Face takes up ~60% of the container width
-	const faceWidth = size * 0.6;
-	const faceHeight = faceWidth / aspectRatio;
-
-	// Font size for initial (26% of size, matching cqw from React component)
-	const fontSize = size * 0.26;
-
-	// Calculate 3D effect offset (simulate looking direction)
-	// rotation.x: -1 = looking down, 0 = center, 1 = looking up
-	// rotation.y: -1 = looking left, 0 = center, 1 = looking right
-	// We offset the face in the opposite direction to simulate the "looking" effect
-	const offsetMagnitude = size * 0.05; // 5% of container size
-	const offsetX = rotation.y * offsetMagnitude; // horizontal offset (positive = right)
-	const offsetY = -rotation.x * offsetMagnitude; // vertical offset (positive = down, so negate)
+	const faceBox = {
+		x: sceneUnitToPixels(scene.faceBox.x, size),
+		y: sceneUnitToPixels(scene.faceBox.y, size),
+		width: sceneUnitToPixels(scene.faceBox.width, size),
+		height: sceneUnitToPixels(scene.faceBox.height, size),
+	};
+	const initialPoint = {
+		x: sceneUnitToPixels(scene.initialLayout.x, size),
+		y: sceneUnitToPixels(scene.initialLayout.y, size),
+		fontSize: sceneUnitToPixels(scene.initialLayout.fontSize, size),
+	};
+	const initialBoxSize = sceneUnitToPixels(32, size);
+	const projectionTransform = toSatoriProjectionTransform(
+		scene.projection,
+		size
+	);
 
 	return (
 		<div
@@ -56,70 +57,89 @@ export function FacehashImage({
 				width: size,
 				height: size,
 				display: "flex",
-				flexDirection: "column",
 				alignItems: "center",
 				justifyContent: "center",
-				backgroundColor,
 				position: "relative",
+				overflow: "hidden",
+				backgroundColor,
 			}}
 		>
-			{/* Gradient overlay */}
 			{variant === "gradient" && (
 				<div
 					style={{
 						position: "absolute",
-						top: 0,
-						left: 0,
-						right: 0,
-						bottom: 0,
-						background:
-							"radial-gradient(ellipse 100% 100% at 50% 50%, rgba(255,255,255,0.15) 0%, transparent 60%)",
+						inset: 0,
+						display: "flex",
+						background: getGradientBackground(scene),
 					}}
 				/>
 			)}
 
-			{/* Face container with 3D position offset */}
 			<div
+				data-facehash-png-projection=""
 				style={{
+					position: "absolute",
+					inset: 0,
 					display: "flex",
-					flexDirection: "column",
 					alignItems: "center",
 					justifyContent: "center",
-					// Apply position offset to simulate 3D "looking direction"
-					marginLeft: offsetX,
-					marginTop: offsetY,
+					color: "black",
+					transform: projectionTransform,
+					transformOrigin: "50% 50%",
 				}}
 			>
-				{/* Face SVG */}
-				<svg
-					aria-label="Avatar face"
-					fill="none"
-					height={faceHeight}
-					role="img"
-					viewBox={svgData.viewBox}
-					width={faceWidth}
-					xmlns="http://www.w3.org/2000/svg"
+				<div
+					data-facehash-png-canvas=""
+					style={{
+						position: "relative",
+						width: size,
+						height: size,
+						display: "flex",
+					}}
 				>
-					{svgData.paths.map((d, i) => (
-						<path d={d} fill="black" key={i} />
-					))}
-				</svg>
-
-				{/* Initial letter */}
-				{showInitial && (
-					<span
+					<svg
+						aria-hidden="true"
+						data-facehash-png-eyes=""
+						fill="none"
+						height={faceBox.height}
 						style={{
-							marginTop: size * 0.08,
-							fontSize,
-							lineHeight: 1,
-							fontFamily: "monospace",
-							fontWeight: 700,
-							color: "black",
+							position: "absolute",
+							left: faceBox.x,
+							top: faceBox.y,
+							display: "block",
 						}}
+						viewBox={`0 0 ${scene.faceGeometry.viewBox.width} ${scene.faceGeometry.viewBox.height}`}
+						width={faceBox.width}
+						xmlns="http://www.w3.org/2000/svg"
 					>
-						{initial}
-					</span>
-				)}
+						<g>{renderFaceGeometryPaths(scene.faceGeometry.leftEyePaths)}</g>
+						<g>{renderFaceGeometryPaths(scene.faceGeometry.rightEyePaths)}</g>
+					</svg>
+
+					{showInitial && (
+						<div
+							data-facehash-png-initial=""
+							style={{
+								position: "absolute",
+								left: initialPoint.x,
+								top: initialPoint.y,
+								width: initialBoxSize,
+								height: initialBoxSize,
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								transform: "translate(-50%, -50%)",
+								fontSize: initialPoint.fontSize,
+								lineHeight: 1,
+								fontFamily: "monospace",
+								fontWeight: 700,
+								color: "black",
+							}}
+						>
+							{scene.data.initial}
+						</div>
+					)}
+				</div>
 			</div>
 		</div>
 	);

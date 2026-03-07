@@ -5,6 +5,17 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 const siteUrl = process.env.NEXT_PUBLIC_URL || "https://facehash.dev";
+const iconSvgUrl = `/api/avatar?${new URLSearchParams({
+	name: "facehash",
+	format: "svg",
+	pose: "front",
+	size: "128",
+}).toString()}`;
+const appleIconUrl = `/api/avatar?${new URLSearchParams({
+	name: "facehash",
+	pose: "front",
+	size: "180",
+}).toString()}`;
 
 export const metadata: Metadata = {
 	title: {
@@ -12,7 +23,7 @@ export const metadata: Metadata = {
 		template: "%s | Facehash",
 	},
 	description:
-		"Beautiful minimalist avatars from any string for React. Zero dependencies, pure CSS 3D effects, fully typed. Perfect for user profiles, chat apps, and AI agents.",
+		"Beautiful minimalist avatars from any string for React. Zero dependencies, SVG-based depth effects, fully typed. Perfect for user profiles, chat apps, and AI agents.",
 	keywords: [
 		"avatar",
 		"avatar generator",
@@ -26,7 +37,7 @@ export const metadata: Metadata = {
 		"facehash",
 		"react component",
 		"typescript",
-		"css 3d",
+		"svg avatar",
 	],
 	authors: [{ name: "Cossistant Team", url: "https://cossistant.com" }],
 	creator: "Cossistant",
@@ -39,8 +50,14 @@ export const metadata: Metadata = {
 	icons: {
 		icon: [
 			{
-				url: "/favicon.svg",
+				url: iconSvgUrl,
 				type: "image/svg+xml",
+			},
+		],
+		apple: [
+			{
+				url: appleIconUrl,
+				type: "image/png",
 			},
 		],
 	},
@@ -51,7 +68,7 @@ export const metadata: Metadata = {
 		siteName: "Facehash",
 		title: "Facehash - Beautiful Minimalist Avatars for React",
 		description:
-			"Beautiful minimalist avatars from any string for React. Zero dependencies, pure CSS 3D effects, fully typed. Perfect for user profiles, chat apps, and AI agents.",
+			"Beautiful minimalist avatars from any string for React. Zero dependencies, SVG-based depth effects, fully typed. Perfect for user profiles, chat apps, and AI agents.",
 		images: [
 			{
 				url: "/og-image.png",
@@ -65,7 +82,7 @@ export const metadata: Metadata = {
 		card: "summary_large_image",
 		title: "Facehash - Beautiful Minimalist Avatars for React",
 		description:
-			"Beautiful minimalist avatars from any string for React. Zero dependencies, pure CSS 3D effects, fully typed.",
+			"Beautiful minimalist avatars from any string for React. Zero dependencies, SVG-based depth effects, fully typed.",
 		images: ["/og-image.png"],
 		creator: "@cossistant",
 	},
@@ -103,7 +120,7 @@ const jsonLd = {
 	applicationCategory: "DeveloperApplication",
 	operatingSystem: "Any",
 	description:
-		"Beautiful minimalist avatars from any string for React. Zero dependencies, pure CSS 3D effects, fully typed.",
+		"Beautiful minimalist avatars from any string for React. Zero dependencies, SVG-based depth effects, fully typed.",
 	url: "https://facehash.dev",
 	author: {
 		"@type": "Organization",

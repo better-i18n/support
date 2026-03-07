@@ -1,10 +1,13 @@
 import { ImageResponse } from "next/og";
 import {
 	computeFacehash,
+	createFacehashScene,
 	DEFAULT_COLORS,
+	type FacehashPose,
 	getColor,
 	type Variant,
 } from "../core";
+import { renderFacehashSceneSvgMarkup } from "../facehash-scene-svg-markup";
 import { FacehashImage } from "./image";
 
 // ============================================================================
@@ -51,6 +54,8 @@ export type FacehashHandlerOptions = {
 export type FacehashHandler = {
 	GET: (request: Request) => Promise<Response>;
 };
+
+type ResponseFormat = "png" | "svg";
 
 // ============================================================================
 // Helper Functions
@@ -99,6 +104,62 @@ function parseVariant(value: string | null): Variant | undefined {
 	return;
 }
 
+function parseFormat(value: string | null): ResponseFormat | undefined {
+	if (value === "png" || value === "svg") {
+		return value;
+	}
+	return;
+}
+
+function parsePose(value: string | null): FacehashPose | undefined {
+	if (value === "seed" || value === "front") {
+		return value;
+	}
+	return;
+}
+
+function sanitizeId(value: string): string {
+	return value.replace(/[^a-zA-Z0-9_-]/g, "-");
+}
+
+type RenderSvgMarkupOptions = {
+	backgroundColor: string;
+	name: string;
+	scene: ReturnType<typeof createFacehashScene>;
+	showInitial: boolean;
+	size: number;
+	variant: Variant;
+};
+
+function renderSvgMarkup(options: RenderSvgMarkupOptions): string {
+	const { backgroundColor, name, scene, showInitial, size, variant } = options;
+
+	return renderFacehashSceneSvgMarkup({
+		backgroundColor,
+		height: size,
+		idPrefix: sanitizeId(`facehash-${name}-${size}-${scene.pose}`),
+		scene,
+		showInitial,
+		variant,
+		width: size,
+	});
+}
+
+function buildHeaders(
+	contentType: string,
+	cacheControl: string | null
+): Record<string, string> {
+	const headers: Record<string, string> = {
+		"Content-Type": contentType,
+	};
+
+	if (cacheControl) {
+		headers["Cache-Control"] = cacheControl;
+	}
+
+	return headers;
+}
+
 // ============================================================================
 // Main Export
 // ============================================================================
@@ -130,6 +191,8 @@ function parseVariant(value: string | null): Variant | undefined {
  * - `variant`: "gradient" or "solid" (default: "gradient")
  * - `showInitial`: "true" or "false" (default: "true")
  * - `colors`: Comma-separated hex colors (e.g., "#ff0000,#00ff00")
+ * - `format`: "png" (default) or "svg"
+ * - `pose`: "seed" (default) or "front"
  */
 export function toFacehashHandler(
 	options: FacehashHandlerOptions = {}
@@ -145,10 +208,21 @@ export function toFacehashHandler(
 	async function GET(request: Request): Promise<Response> {
 		const url = new URL(request.url);
 		const searchParams = url.searchParams;
+		const format = parseFormat(searchParams.get("format")) ?? "png";
 
 		// Parse name (required)
 		const name = searchParams.get("name");
 		if (!name) {
+			if (format === "svg") {
+				return new Response(
+					`<svg xmlns="http://www.w3.org/2000/svg" width="${defaultSize}" height="${defaultSize}" viewBox="0 0 ${defaultSize} ${defaultSize}"><rect width="${defaultSize}" height="${defaultSize}" fill="#f3f4f6"/><text x="50%" y="50%" fill="#6b7280" font-family="sans-serif" font-size="24" text-anchor="middle" dominant-baseline="middle">Missing ?name= parameter</text></svg>`,
+					{
+						status: 400,
+						headers: buildHeaders("image/svg+xml; charset=utf-8", null),
+					}
+				);
+			}
+
 			return new ImageResponse(
 				<div
 					style={{
@@ -169,9 +243,7 @@ export function toFacehashHandler(
 					width: defaultSize,
 					height: defaultSize,
 					status: 400,
-					headers: {
-						"Content-Type": "image/png",
-					},
+					headers: buildHeaders("image/png", null),
 				}
 			);
 		}
@@ -184,31 +256,40 @@ export function toFacehashHandler(
 			defaultShowInitial
 		);
 		const colors = parseColors(searchParams.get("colors")) ?? defaultColors;
+		const pose = parsePose(searchParams.get("pose")) ?? "seed";
 
-		// Compute facehash data
+		// Compute shared scene and background color
 		const data = computeFacehash({
 			name,
 			colorsLength: colors.length,
 		});
+		const scene = createFacehashScene({
+			name,
+			colorsLength: colors.length,
+			pose,
+		});
 
-		// Get background color
 		const backgroundColor = getColor(colors, data.colorIndex);
-
-		// Build response headers
-		const headers: Record<string, string> = {
-			"Content-Type": "image/png",
-		};
-
-		if (cacheControl) {
-			headers["Cache-Control"] = cacheControl;
+		if (format === "svg") {
+			return new Response(
+				renderSvgMarkup({
+					backgroundColor,
+					name,
+					scene,
+					showInitial,
+					size,
+					variant,
+				}),
+				{
+					headers: buildHeaders("image/svg+xml; charset=utf-8", cacheControl),
+				}
+			);
 		}
 
-		// Generate image
 		return new ImageResponse(
 			<FacehashImage
 				backgroundColor={backgroundColor}
-				data={data}
-				rotation={data.rotation}
+				scene={scene}
 				showInitial={showInitial}
 				size={size}
 				variant={variant}
@@ -216,7 +297,7 @@ export function toFacehashHandler(
 			{
 				width: size,
 				height: size,
-				headers,
+				headers: buildHeaders("image/png", cacheControl),
 			}
 		);
 	}

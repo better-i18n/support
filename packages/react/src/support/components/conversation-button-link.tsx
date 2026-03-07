@@ -35,6 +35,7 @@ const STATUS_TEXT_KEYS: Record<ConversationStatus, SupportTextKey> = {
 };
 
 type ConversationButtonPreviewSelection = {
+	showTitle: boolean;
 	subtitle: string | null;
 	showTyping: boolean;
 };
@@ -61,6 +62,7 @@ export function resolveConversationButtonPreviewSelection({
 }): ConversationButtonPreviewSelection {
 	if (isTyping) {
 		return {
+			showTitle: false,
 			subtitle: null,
 			showTyping: true,
 		};
@@ -68,6 +70,7 @@ export function resolveConversationButtonPreviewSelection({
 
 	if (!lastMessage) {
 		return {
+			showTitle: true,
 			subtitle: null,
 			showTyping: false,
 		};
@@ -77,6 +80,7 @@ export function resolveConversationButtonPreviewSelection({
 
 	if (!normalizedMessage) {
 		return {
+			showTitle: true,
 			subtitle: null,
 			showTyping: false,
 		};
@@ -84,6 +88,7 @@ export function resolveConversationButtonPreviewSelection({
 
 	if (normalizePreviewText(title) !== normalizedMessage) {
 		return {
+			showTitle: true,
 			subtitle: lastMessage.content,
 			showTyping: false,
 		};
@@ -91,6 +96,7 @@ export function resolveConversationButtonPreviewSelection({
 
 	if (lastMessage.isFromVisitor) {
 		return {
+			showTitle: true,
 			subtitle: text("component.conversationButtonLink.lastMessage.visitor", {
 				time: lastMessage.time,
 			}),
@@ -99,6 +105,7 @@ export function resolveConversationButtonPreviewSelection({
 	}
 
 	return {
+		showTitle: true,
 		subtitle: text("component.conversationButtonLink.lastMessage.agent", {
 			name: lastMessage.senderName ?? text("common.fallbacks.unknown"),
 			time: lastMessage.time,
@@ -166,11 +173,13 @@ export function ConversationButtonLink({
 			/>
 
 			<div className="mr-6 ml-1 flex min-w-0 flex-1 flex-col gap-0.5">
-				<div className="flex max-w-[90%] items-center justify-between gap-2">
-					<h3 className="truncate font-medium text-co-primary text-sm">
-						{displayTitle}
-					</h3>
-				</div>
+				{previewSelection.showTitle ? (
+					<div className="flex max-w-[90%] items-center justify-between gap-2">
+						<h3 className="truncate font-medium text-co-primary text-sm">
+							{displayTitle}
+						</h3>
+					</div>
+				) : null}
 				{previewSelection.showTyping ? (
 					<BouncingDots />
 				) : previewSelection.subtitle ? (

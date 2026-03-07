@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "private": false,
   "author": "Cossistant team",
-  "description": "Deterministic avatar faces from any string. Lightweight, interactive, pure CSS. Works with any framework.",
+  "description": "Deterministic avatar faces from any string. Lightweight, interactive, SVG-first. Works with any framework.",
   "keywords": [
     "facehash",
     "avatar",
@@ -84,6 +84,7 @@
     "prepare-package": "bun ../../scripts/prepare-package.ts",
     "pub:release": "bun run build && npm publish ./dist --access public",
     "pub:beta": "bun run build && npm publish ./dist --access public --tag beta --no-git-checks",
+    "test": "bun test src",
     "lint": "biome check .",
     "check-types": "tsc --noEmit --project tsconfig.json"
   }

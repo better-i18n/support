@@ -88,7 +88,8 @@ export default function Home() {
 								<span className="text-[var(--foreground)]">
 									next.js route handler
 								</span>{" "}
-								to generate PNGs on the fly — cached forever.
+								to generate PNGs by default or raw SVGs for icons and favicons —
+								cached forever.
 							</p>
 							<p>
 								perfect for user profiles, comment sections, chat apps, and{" "}
