@@ -1,6 +1,10 @@
 import type { AiAgentSelect } from "@api/db/schema/ai-agent";
 import type { ConversationSelect } from "@api/db/schema/conversation";
-import type { ConversationState, RoleAwareMessage } from "../../../contracts";
+import type {
+	ConversationState,
+	ConversationTranscriptEntry,
+	RoleAwareMessage,
+} from "../../../contracts";
 
 export type DecisionIntent = "respond" | "observe" | "assist_team";
 
@@ -19,7 +23,7 @@ export type SmartDecisionResult = {
 export type SmartDecisionInput = {
 	aiAgent: AiAgentSelect;
 	conversation: ConversationSelect;
-	conversationHistory: RoleAwareMessage[];
+	conversationHistory: ConversationTranscriptEntry[];
 	conversationState: ConversationState;
 	triggerMessage: RoleAwareMessage;
 	decisionPolicy: string;

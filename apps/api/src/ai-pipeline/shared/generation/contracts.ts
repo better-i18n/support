@@ -5,6 +5,7 @@ import type { AiAgentToolId } from "@cossistant/types";
 import type {
 	ContinuationContext,
 	ConversationState,
+	ConversationTranscriptEntry,
 	RoleAwareMessage,
 	VisitorContext,
 } from "../../primary-pipeline/contracts";
@@ -50,7 +51,7 @@ export type GenerationRuntimeInput = {
 	mode: GenerationMode;
 	aiAgent: AiAgentSelect;
 	conversation: ConversationSelect;
-	conversationHistory: RoleAwareMessage[];
+	conversationHistory: ConversationTranscriptEntry[];
 	visitorContext: VisitorContext | null;
 	conversationState: ConversationState;
 	continuationContext?: ContinuationContext | null;

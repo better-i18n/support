@@ -1,6 +1,7 @@
 import {
 	createModel,
 	hasToolCall,
+	type ModelMessage,
 	stepCountIs,
 	ToolLoopAgent,
 	type ToolSet,
@@ -34,7 +35,7 @@ export async function runGenerationAttempt(params: {
 	attempt: number;
 	modelId: string;
 	systemPrompt: string;
-	messages: Array<{ role: "user" | "assistant"; content: string }>;
+	messages: ModelMessage[];
 	nonFinishToolBudget: number;
 	toolsetResolution: PipelineToolBuildResult;
 	runtimeState: ToolRuntimeState;

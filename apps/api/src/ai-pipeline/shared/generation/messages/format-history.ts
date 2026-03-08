@@ -1,56 +1,55 @@
-import type { RoleAwareMessage } from "../../../primary-pipeline/contracts";
-
-export type GenerationHistoryMessage = {
-	role: "user" | "assistant";
-	content: string;
-};
+import type { ModelMessage } from "@api/lib/ai";
+import {
+	type ConversationTranscriptEntry,
+	isConversationToolAction,
+	type RoleAwareMessage,
+} from "../../../primary-pipeline/contracts";
 
 function normalizeText(value: string): string {
 	return value.replace(/\s+/g, " ").trim();
 }
 
-function buildSpeakerPrefix(params: {
-	message: RoleAwareMessage;
-	visitorName: string | null;
-}): string {
-	const privatePrefix =
-		params.message.visibility === "private" ? "[PRIVATE]" : "";
+function buildMessagePrefix(message: RoleAwareMessage): string {
+	const privatePrefix = message.visibility === "private" ? "[PRIVATE]" : "";
 
-	switch (params.message.senderType) {
+	switch (message.senderType) {
 		case "visitor":
-			return params.visitorName
-				? `[VISITOR:${params.visitorName}]`
-				: "[VISITOR]";
+			return `${privatePrefix}[VISITOR]`;
 		case "human_agent":
-			return `${privatePrefix}[TEAM:${params.message.senderName || "Team Member"}]`;
+			return `${privatePrefix}[TEAM]`;
 		case "ai_agent":
-			return `${privatePrefix}[AI]`;
+			return privatePrefix;
 		default:
-			return privatePrefix || "[UNKNOWN]";
+			return privatePrefix;
 	}
 }
 
-export function formatHistoryForGeneration(
-	history: RoleAwareMessage[],
-	visitorName: string | null
-): GenerationHistoryMessage[] {
-	const formatted: GenerationHistoryMessage[] = [];
+export function buildGenerationMessages(
+	history: ConversationTranscriptEntry[]
+): ModelMessage[] {
+	const formatted: ModelMessage[] = [];
 
-	for (const message of history) {
-		const normalizedContent = normalizeText(message.content);
+	for (const entry of history) {
+		const normalizedContent = normalizeText(entry.content);
 		if (!normalizedContent) {
 			continue;
 		}
 
-		const role = message.senderType === "visitor" ? "user" : "assistant";
-		const prefix = buildSpeakerPrefix({
-			message,
-			visitorName,
-		});
+		if (isConversationToolAction(entry)) {
+			formatted.push({
+				role: "assistant",
+				content: normalizedContent,
+			});
+			continue;
+		}
+
+		const prefix = buildMessagePrefix(entry);
+		const content = [prefix, normalizedContent].filter(Boolean).join(" ");
+		const role = entry.senderType === "ai_agent" ? "assistant" : "user";
 
 		formatted.push({
 			role,
-			content: `${prefix} ${normalizedContent}`.trim(),
+			content,
 		});
 	}
 

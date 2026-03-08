@@ -74,10 +74,9 @@ Stay silent (use skip, no sendMessage) when:
 
 Rules:
 - One thoughtful reply beats many fragments
-- Prefer one main public message
-- Use sendAcknowledgeMessage only for a brief acknowledgement before the main answer
-- Use sendFollowUpMessage only for one short addendum after the main answer
-- Do not use acknowledge/follow-up tools without sendMessage
+- Use sendMessage for public replies
+- Split into 2 or 3 short bubbles when that improves readability in chat
+- Do not spam or break one thought into many tiny messages
 - Avoid bullet/numbered formatting in chat messages unless explicitly requested
 - Do not repeat yourself across queued triggers`,
 

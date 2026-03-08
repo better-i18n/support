@@ -35,12 +35,8 @@ import {
 	SKIP_TELEMETRY,
 } from "./finish";
 import {
-	createSendAcknowledgeMessageTool,
-	createSendFollowUpMessageTool,
 	createSendMessageTool,
 	createSendPrivateMessageTool,
-	SEND_ACKNOWLEDGE_MESSAGE_TELEMETRY,
-	SEND_FOLLOW_UP_MESSAGE_TELEMETRY,
 	SEND_MESSAGE_TELEMETRY,
 	SEND_PRIVATE_MESSAGE_TELEMETRY,
 } from "./messaging";
@@ -81,30 +77,23 @@ export const SHARED_PIPELINE_TOOL_CATALOG: readonly PipelineToolDefinition[] = [
 	{
 		id: "updateConversationTitle",
 		factory: createUpdateConversationTitleTool,
-		availability: { primary: true, background: true },
+		availability: { primary: false, background: true },
 		behaviorSettingKey: "autoGenerateTitle",
 		telemetry: UPDATE_CONVERSATION_TITLE_TELEMETRY,
 	},
 	{
 		id: "updateSentiment",
 		factory: createUpdateSentimentTool,
-		availability: { primary: true, background: true },
+		availability: { primary: false, background: true },
 		behaviorSettingKey: "autoAnalyzeSentiment",
 		telemetry: UPDATE_SENTIMENT_TELEMETRY,
 	},
 	{
 		id: "setPriority",
 		factory: createSetPriorityTool,
-		availability: { primary: true, background: true },
+		availability: { primary: false, background: true },
 		behaviorSettingKey: "canSetPriority",
 		telemetry: SET_PRIORITY_TELEMETRY,
-	},
-	{
-		id: "sendAcknowledgeMessage",
-		factory: createSendAcknowledgeMessageTool,
-		availability: { primary: true, background: false, publicOnly: true },
-		behaviorSettingKey: null,
-		telemetry: SEND_ACKNOWLEDGE_MESSAGE_TELEMETRY,
 	},
 	{
 		id: "sendMessage",
@@ -112,13 +101,6 @@ export const SHARED_PIPELINE_TOOL_CATALOG: readonly PipelineToolDefinition[] = [
 		availability: { primary: true, background: false, publicOnly: true },
 		behaviorSettingKey: null,
 		telemetry: SEND_MESSAGE_TELEMETRY,
-	},
-	{
-		id: "sendFollowUpMessage",
-		factory: createSendFollowUpMessageTool,
-		availability: { primary: true, background: false, publicOnly: true },
-		behaviorSettingKey: null,
-		telemetry: SEND_FOLLOW_UP_MESSAGE_TELEMETRY,
 	},
 	{
 		id: "sendPrivateMessage",

@@ -2,6 +2,7 @@ import type { Database } from "@api/db";
 import { getAiAgentById } from "@api/db/queries/ai-agent";
 import { logAiPipeline } from "../../../logger";
 import type { PrimaryPipelineInput } from "../../contracts";
+import { isConversationMessage } from "../../contracts";
 import { loadConversationSeed, loadIntakeContext } from "./load-context";
 import { resolveAndPersistModel } from "./model-resolution";
 import type { IntakeStepResult } from "./types";
@@ -84,7 +85,9 @@ export async function runIntakeStep(params: {
 		event: "ready",
 		conversationId: params.input.conversationId,
 		fields: {
-			messages: context.conversationHistory.length,
+			messages: context.conversationHistory.filter(isConversationMessage)
+				.length,
+			transcriptEntries: context.conversationHistory.length,
 			hasVisitor: Boolean(context.visitorContext),
 			triggerSender: context.triggerMessage?.senderType ?? "unknown",
 			modelOriginal: modelResolution.modelIdOriginal,

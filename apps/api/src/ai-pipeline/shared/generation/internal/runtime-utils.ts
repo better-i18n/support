@@ -116,7 +116,6 @@ export function createToolRuntimeState(): ToolRuntimeState {
 		chargeableToolCallCounts: {},
 		publicSendSequence: 0,
 		privateSendSequence: 0,
-		publicMessageToolSequence: [],
 		sentPublicMessageIds: new Set<string>(),
 		lastToolError: null,
 	};

@@ -3,6 +3,7 @@ import type { ConversationSelect } from "@api/db/schema/conversation";
 import type {
 	ContinuationContext,
 	ConversationState,
+	ConversationTranscriptEntry,
 	ModelResolution,
 	RoleAwareMessage,
 	VisitorContext,
@@ -12,7 +13,7 @@ export type IntakeReadyContext = {
 	aiAgent: AiAgentSelect;
 	modelResolution: ModelResolution;
 	conversation: ConversationSelect;
-	conversationHistory: RoleAwareMessage[];
+	conversationHistory: ConversationTranscriptEntry[];
 	visitorContext: VisitorContext | null;
 	conversationState: ConversationState;
 	triggerMessage: RoleAwareMessage | null;

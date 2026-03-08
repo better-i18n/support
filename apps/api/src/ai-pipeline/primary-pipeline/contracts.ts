@@ -59,6 +59,31 @@ export type RoleAwareMessage = {
 	visibility: "public" | "private";
 };
 
+export type ConversationToolAction = {
+	kind: "tool";
+	itemId: string;
+	toolName: string;
+	content: string;
+	timestamp: string | null;
+	visibility: "public" | "private";
+};
+
+export type ConversationTranscriptEntry =
+	| RoleAwareMessage
+	| ConversationToolAction;
+
+export function isConversationToolAction(
+	entry: ConversationTranscriptEntry
+): entry is ConversationToolAction {
+	return "kind" in entry && entry.kind === "tool";
+}
+
+export function isConversationMessage(
+	entry: ConversationTranscriptEntry
+): entry is RoleAwareMessage {
+	return !isConversationToolAction(entry);
+}
+
 export type VisitorContext = {
 	name: string | null;
 	email: string | null;

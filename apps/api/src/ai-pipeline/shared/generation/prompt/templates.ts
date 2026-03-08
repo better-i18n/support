@@ -14,14 +14,12 @@ export const TOOL_PROTOCOL = `## Tool Protocol
 - If no action is needed, call skip with a short reason.`;
 
 export const REPLY_FLOW_CONTRACT = `## Reply Flow
-- Public reply tools: sendAcknowledgeMessage, sendMessage, sendFollowUpMessage.
-- Default to sendMessage for the real answer or next step.
-- Use sendAcknowledgeMessage only for a brief pre-answer acknowledgement like "I'm checking" or "one sec" before the main answer.
-- Use sendFollowUpMessage only after sendMessage for one short addendum or one short follow-up question.
-- Allowed public message sequences only: main, ack->main, main->followUp, ack->main->followUp.
-- Never use acknowledge/follow-up without sendMessage in the same run.
-- Each public reply tool can be used at most once per run.
-- Default to one main message. Add acknowledge/follow-up only when they clearly improve the conversation.
+- Public reply tool: sendMessage.
+- Use sendMessage for every visitor-facing reply.
+- You may call sendMessage up to 3 times in one run.
+- Prefer 2 or 3 short chat bubbles when that is easier to read than one dense block.
+- Each bubble should carry one clear point, one question, or one next step.
+- Do not fragment for no reason. If one short message is enough, send one.
 - Keep public chat messages concise and natural; avoid bullets and numbered lists unless explicitly requested.`;
 
 export function buildModeInstructions(params: {
@@ -47,5 +45,5 @@ A human teammate asked for execution help.
 	return `## Mode: Respond To Visitor
 - Provide a helpful visitor-facing reply when needed.
 - Do not leave unresolved user asks hanging.
-- Default to one concise public answer unless the reply flow rules clearly call for acknowledge or follow-up.`;
+- Default to short, readable chat bubbles instead of one dense block when splitting helps.`;
 }

@@ -14,10 +14,12 @@ import { and, eq, isNull } from "drizzle-orm";
 import type {
 	ContinuationContext,
 	ConversationState,
+	ConversationTranscriptEntry,
 	RoleAwareMessage,
 	VisitorContext,
 } from "../../contracts";
-import { buildRoleAwareConversationHistory } from "./history";
+import { isConversationMessage } from "../../contracts";
+import { buildConversationTranscript } from "./history";
 import type { TriggerMessageMetadata } from "./types";
 
 type LoadConversationSeedInput = {
@@ -188,7 +190,7 @@ export async function loadIntakeContext(
 		triggerMetadata: TriggerMessageMetadata;
 	}
 ): Promise<{
-	conversationHistory: RoleAwareMessage[];
+	conversationHistory: ConversationTranscriptEntry[];
 	visitorContext: VisitorContext | null;
 	conversationState: ConversationState;
 	triggerMessage: RoleAwareMessage | null;
@@ -201,7 +203,7 @@ export async function loadIntakeContext(
 		conversationState,
 		continuationContext,
 	] = await Promise.all([
-		buildRoleAwareConversationHistory(db, {
+		buildConversationTranscript(db, {
 			conversationId: params.conversationId,
 			organizationId: params.organizationId,
 			websiteId: params.websiteId,
@@ -223,7 +225,9 @@ export async function loadIntakeContext(
 
 	const triggerMessage =
 		conversationHistory.find(
-			(message) => message.messageId === params.triggerMetadata.id
+			(entry): entry is RoleAwareMessage =>
+				isConversationMessage(entry) &&
+				entry.messageId === params.triggerMetadata.id
 		) ?? null;
 
 	return {

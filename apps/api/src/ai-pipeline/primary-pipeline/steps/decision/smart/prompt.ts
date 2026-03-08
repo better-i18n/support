@@ -1,9 +1,15 @@
-import type { RoleAwareMessage } from "../../../contracts";
+import {
+	type ConversationTranscriptEntry,
+	isConversationMessage,
+	isConversationToolAction,
+	type RoleAwareMessage,
+} from "../../../contracts";
 import type { DecisionSignals, SmartDecisionInput } from "./types";
 
 const MESSAGE_CHAR_LIMIT = 220;
-const MAX_MESSAGES = 10;
-const MAX_HUMAN_CONTEXT_MESSAGES = 3;
+const MAX_MESSAGES = 14;
+const MAX_HUMAN_CONTEXT_MESSAGES = 4;
+const MAX_TRANSCRIPT_ENTRIES = 22;
 
 function normalizeText(text: string): string {
 	return text.replace(/\s+/g, " ").trim();
@@ -23,30 +29,53 @@ function formatPromptMessage(message: RoleAwareMessage): string {
 		message.senderType === "visitor"
 			? "[VISITOR]"
 			: message.senderType === "human_agent"
-				? `[TEAM:${message.senderName || "Agent"}]`
-				: "[AI]";
+				? "[TEAM]"
+				: "";
 
-	return `${privatePrefix}${senderPrefix} ${clipText(message.content, MESSAGE_CHAR_LIMIT)}`;
+	return [
+		privatePrefix.trim(),
+		senderPrefix,
+		clipText(message.content, MESSAGE_CHAR_LIMIT),
+	]
+		.filter(Boolean)
+		.join(" ");
 }
 
-function selectRelevantMessages(
-	history: RoleAwareMessage[],
+function formatTranscriptEntry(entry: ConversationTranscriptEntry): string {
+	if (isConversationToolAction(entry)) {
+		return clipText(entry.content, MESSAGE_CHAR_LIMIT);
+	}
+
+	return formatPromptMessage(entry);
+}
+
+function selectRelevantTranscript(
+	history: ConversationTranscriptEntry[],
 	triggerMessage: RoleAwareMessage
-): RoleAwareMessage[] {
-	if (history.length === 0) {
+): ConversationTranscriptEntry[] {
+	const messages = history.filter(isConversationMessage);
+	if (messages.length === 0 || history.length === 0) {
 		return [];
 	}
 
 	const selected: RoleAwareMessage[] = [];
 	const seenMessageIds = new Set<string>();
 	const messageIndexes = new Map<string, number>();
+	const transcriptIndexes = new Map<string, number>();
 
-	for (let index = 0; index < history.length; index++) {
-		const message = history[index];
+	for (let index = 0; index < messages.length; index++) {
+		const message = messages[index];
 		if (!message) {
 			continue;
 		}
 		messageIndexes.set(message.messageId, index);
+	}
+
+	for (let index = 0; index < history.length; index++) {
+		const entry = history[index];
+		if (entry && isConversationMessage(entry)) {
+			transcriptIndexes.set(entry.messageId, index);
+		}
 	}
 
 	const addMessage = (message: RoleAwareMessage) => {
@@ -58,8 +87,8 @@ function selectRelevantMessages(
 	};
 
 	const currentBurst: RoleAwareMessage[] = [];
-	for (let index = history.length - 1; index >= 0; index--) {
-		const message = history[index];
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages[index];
 		if (!message) {
 			continue;
 		}
@@ -69,7 +98,7 @@ function selectRelevantMessages(
 		currentBurst.unshift(message);
 	}
 
-	const currentBurstStartIndex = history.length - currentBurst.length;
+	const currentBurstStartIndex = messages.length - currentBurst.length;
 	const exchangeContext: RoleAwareMessage[] = [];
 	let senderSwitches = 0;
 	let previousSenderType: RoleAwareMessage["senderType"] | null = null;
@@ -79,7 +108,7 @@ function selectRelevantMessages(
 		index >= 0 && senderSwitches < 4;
 		index--
 	) {
-		const message = history[index];
+		const message = messages[index];
 		if (!message) {
 			continue;
 		}
@@ -92,8 +121,8 @@ function selectRelevantMessages(
 	}
 
 	const recentHumanMessages: RoleAwareMessage[] = [];
-	for (let index = history.length - 1; index >= 0; index--) {
-		const message = history[index];
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages[index];
 		if (!message || message.senderType !== "human_agent") {
 			continue;
 		}
@@ -113,13 +142,25 @@ function selectRelevantMessages(
 		addMessage(message);
 	}
 
-	return selected
+	const selectedMessages = selected
 		.sort((a, b) => {
 			const aIndex = messageIndexes.get(a.messageId) ?? 0;
 			const bIndex = messageIndexes.get(b.messageId) ?? 0;
 			return aIndex - bIndex;
 		})
 		.slice(-MAX_MESSAGES);
+
+	if (selectedMessages.length === 0) {
+		return [];
+	}
+
+	const transcriptRangeIndexes = selectedMessages
+		.map((message) => transcriptIndexes.get(message.messageId))
+		.filter((index): index is number => typeof index === "number");
+	const rangeStart = Math.min(...transcriptRangeIndexes);
+	const rangeEnd = Math.max(...transcriptRangeIndexes);
+
+	return history.slice(rangeStart, rangeEnd + 1).slice(-MAX_TRANSCRIPT_ENTRIES);
 }
 
 export function buildSmartDecisionPrompt(
@@ -127,17 +168,21 @@ export function buildSmartDecisionPrompt(
 	signals: DecisionSignals
 ): string {
 	const historyWithoutTrigger = input.conversationHistory.filter(
-		(message) => message.messageId !== input.triggerMessage.messageId
+		(entry) =>
+			!(
+				isConversationMessage(entry) &&
+				entry.messageId === input.triggerMessage.messageId
+			)
 	);
 
-	const relevantMessages = selectRelevantMessages(
+	const relevantEntries = selectRelevantTranscript(
 		historyWithoutTrigger,
 		input.triggerMessage
 	);
 
 	const formattedHistory =
-		relevantMessages.length > 0
-			? relevantMessages.map(formatPromptMessage).join("\n")
+		relevantEntries.length > 0
+			? relevantEntries.map(formatTranscriptEntry).join("\n")
 			: "- (none)";
 
 	return `You are the decision gate for a support AI.

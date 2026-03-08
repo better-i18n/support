@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import type { ModelMessage } from "@api/lib/ai";
 import type { GenerationRuntimeInput } from "../contracts";
-import type { GenerationHistoryMessage } from "../messages/format-history";
 import { emitGenerationDebugLog } from "./debug-log";
 
 const SYSTEM_PROMPT_DEBUG_DIR = resolve(
@@ -11,7 +11,7 @@ const SYSTEM_PROMPT_DEBUG_DIR = resolve(
 
 export async function writeGenerationSystemPromptDebugDump(params: {
 	input: GenerationRuntimeInput;
-	messages: GenerationHistoryMessage[];
+	messages: ModelMessage[];
 	systemPrompt: string;
 }): Promise<void> {
 	if (process.env.NODE_ENV === "production") {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { PipelineToolContext } from "./contracts";
 
 const sendPublicMessageMock = mock((async () => ({
@@ -25,6 +25,13 @@ mock.module("../actions/internal-note", () => ({
 }));
 
 const modulePromise = import("./messaging");
+const originalSetTimeout = globalThis.setTimeout;
+const setTimeoutMock = mock((handler: TimerHandler, _delay?: number) => {
+	if (typeof handler === "function") {
+		handler();
+	}
+	return 0 as never;
+});
 
 function isAsyncIterable<T>(value: unknown): value is AsyncIterable<T> {
 	return (
@@ -75,17 +82,19 @@ function createContext(): PipelineToolContext {
 			chargeableToolCallCounts: {},
 			publicSendSequence: 0,
 			privateSendSequence: 0,
-			publicMessageToolSequence: [],
 			sentPublicMessageIds: new Set<string>(),
 			lastToolError: null,
 		},
 	};
 }
 
-describe("public messaging tool contract", () => {
+describe("sendMessage tool contract", () => {
 	beforeEach(() => {
 		sendPublicMessageMock.mockClear();
 		addInternalNoteMock.mockClear();
+		setTimeoutMock.mockClear();
+		globalThis.setTimeout =
+			setTimeoutMock as unknown as typeof globalThis.setTimeout;
 		sendPublicMessageMock.mockResolvedValue({
 			messageId: "msg-1",
 			created: true,
@@ -93,90 +102,128 @@ describe("public messaging tool contract", () => {
 		});
 	});
 
-	it("allows ack -> main -> followUp", async () => {
-		const {
-			createSendAcknowledgeMessageTool,
-			createSendFollowUpMessageTool,
-			createSendMessageTool,
-		} = await modulePromise;
+	afterEach(() => {
+		globalThis.setTimeout = originalSetTimeout;
+	});
+
+	it("allows up to three public sends and rejects the fourth", async () => {
+		const { createSendMessageTool } = await modulePromise;
 		const ctx = createContext();
+		const sendMessage = createSendMessageTool(ctx);
 
-		const ack = createSendAcknowledgeMessageTool(ctx);
-		const main = createSendMessageTool(ctx);
-		const follow = createSendFollowUpMessageTool(ctx);
-
-		if (!(ack.execute && main.execute && follow.execute)) {
-			throw new Error("Expected execute handlers for public messaging tools");
+		if (!sendMessage.execute) {
+			throw new Error("Expected execute handler for sendMessage");
 		}
 
-		const ackResult = await resolveToolResult(
-			await ack.execute({ message: "Let me check." } as never, {} as never)
-		);
-		const mainResult = await resolveToolResult(
-			await main.execute(
-				{ message: "Here is the answer." } as never,
+		sendPublicMessageMock
+			.mockResolvedValueOnce({
+				messageId: "msg-1",
+				created: true,
+				paused: false,
+			})
+			.mockResolvedValueOnce({
+				messageId: "msg-2",
+				created: true,
+				paused: false,
+			})
+			.mockResolvedValueOnce({
+				messageId: "msg-3",
+				created: true,
+				paused: false,
+			});
+
+		const first = await resolveToolResult(
+			await sendMessage.execute(
+				{ message: "First bubble" } as never,
 				{} as never
 			)
 		);
-		const followResult = await resolveToolResult(
-			await follow.execute({ message: "Anything else?" } as never, {} as never)
-		);
-
-		expect(ackResult.success).toBe(true);
-		expect(mainResult.success).toBe(true);
-		expect(followResult.success).toBe(true);
-		expect(ctx.runtimeState.publicMessageToolSequence).toEqual([
-			"sendAcknowledgeMessage",
-			"sendMessage",
-			"sendFollowUpMessage",
-		]);
-		expect(sendPublicMessageMock).toHaveBeenCalledTimes(3);
-	});
-
-	it("rejects follow-up before main message", async () => {
-		const { createSendFollowUpMessageTool } = await modulePromise;
-		const ctx = createContext();
-		const follow = createSendFollowUpMessageTool(ctx);
-		if (!follow.execute) {
-			throw new Error("Expected execute handler for follow-up tool");
-		}
-
-		const result = await resolveToolResult(
-			await follow.execute({ message: "Following up" } as never, {} as never)
-		);
-
-		expect(result.success).toBe(false);
-		expect(result.error).toContain("Invalid public-message sequence");
-		expect(sendPublicMessageMock).toHaveBeenCalledTimes(0);
-	});
-
-	it("rejects duplicate sendMessage calls in one run", async () => {
-		const { createSendMessageTool } = await modulePromise;
-		const ctx = createContext();
-		const main = createSendMessageTool(ctx);
-		if (!main.execute) {
-			throw new Error("Expected execute handler for sendMessage tool");
-		}
-
-		const first = await resolveToolResult(
-			await main.execute({ message: "First" } as never, {} as never)
-		);
 		const second = await resolveToolResult(
-			await main.execute({ message: "Second" } as never, {} as never)
+			await sendMessage.execute(
+				{ message: "Second bubble" } as never,
+				{} as never
+			)
+		);
+		const third = await resolveToolResult(
+			await sendMessage.execute(
+				{ message: "Third bubble" } as never,
+				{} as never
+			)
+		);
+		const fourth = await resolveToolResult(
+			await sendMessage.execute(
+				{ message: "Fourth bubble" } as never,
+				{} as never
+			)
 		);
 
 		expect(first.success).toBe(true);
-		expect(second.success).toBe(false);
-		expect(second.error).toContain("once per run");
-		expect(sendPublicMessageMock).toHaveBeenCalledTimes(1);
+		expect(second.success).toBe(true);
+		expect(third.success).toBe(true);
+		expect(fourth.success).toBe(false);
+		expect(fourth.error).toContain("at most 3 times");
+		expect(ctx.runtimeState.publicMessagesSent).toBe(3);
+		expect(ctx.runtimeState.publicSendSequence).toBe(3);
+		expect(sendPublicMessageMock).toHaveBeenCalledTimes(3);
 	});
 
-	it("does not consume the sequence on a paused send and allows a clean retry", async () => {
+	it("inserts a natural delay before the second and third sends", async () => {
 		const { createSendMessageTool } = await modulePromise;
 		const ctx = createContext();
-		const main = createSendMessageTool(ctx);
-		if (!main.execute) {
-			throw new Error("Expected execute handler for sendMessage tool");
+		const sendMessage = createSendMessageTool(ctx);
+
+		if (!sendMessage.execute) {
+			throw new Error("Expected execute handler for sendMessage");
+		}
+
+		sendPublicMessageMock
+			.mockResolvedValueOnce({
+				messageId: "msg-1",
+				created: true,
+				paused: false,
+			})
+			.mockResolvedValueOnce({
+				messageId: "msg-2",
+				created: true,
+				paused: false,
+			})
+			.mockResolvedValueOnce({
+				messageId: "msg-3",
+				created: true,
+				paused: false,
+			});
+
+		await resolveToolResult(
+			await sendMessage.execute(
+				{ message: "First bubble" } as never,
+				{} as never
+			)
+		);
+		await resolveToolResult(
+			await sendMessage.execute(
+				{ message: "Second bubble" } as never,
+				{} as never
+			)
+		);
+		await resolveToolResult(
+			await sendMessage.execute(
+				{ message: "Third bubble" } as never,
+				{} as never
+			)
+		);
+
+		expect(setTimeoutMock.mock.calls.map((call) => call[1])).toEqual([
+			900, 900,
+		]);
+	});
+
+	it("does not advance the public send sequence on a paused send", async () => {
+		const { createSendMessageTool } = await modulePromise;
+		const ctx = createContext();
+		const sendMessage = createSendMessageTool(ctx);
+
+		if (!sendMessage.execute) {
+			throw new Error("Expected execute handler for sendMessage");
 		}
 
 		sendPublicMessageMock.mockResolvedValueOnce({
@@ -185,81 +232,31 @@ describe("public messaging tool contract", () => {
 			paused: true,
 		});
 
-		const first = await resolveToolResult(
-			await main.execute({ message: "First try" } as never, {} as never)
-		);
-
-		expect(first.success).toBe(false);
-		expect(ctx.runtimeState.publicMessageToolSequence).toEqual([]);
-		expect(ctx.runtimeState.publicSendSequence).toBe(0);
-
-		sendPublicMessageMock.mockResolvedValueOnce({
-			messageId: "msg-2",
-			created: true,
-			paused: false,
-		});
-
-		const second = await resolveToolResult(
-			await main.execute({ message: "Second try" } as never, {} as never)
-		);
-
-		expect(second.success).toBe(true);
-		expect(ctx.runtimeState.publicMessageToolSequence).toEqual(["sendMessage"]);
-		expect(ctx.runtimeState.publicSendSequence).toBe(1);
-		expect(sendPublicMessageMock).toHaveBeenCalledTimes(2);
-	});
-
-	it("stops typing before a successful send and never restarts it", async () => {
-		const { createSendMessageTool } = await modulePromise;
-		const stopTypingMock = mock(async () => {});
-		const startTypingMock = mock(async () => {});
-		const ctx = createContext() as PipelineToolContext & {
-			startTyping?: () => Promise<void>;
-		};
-		ctx.stopTyping = stopTypingMock;
-		ctx.startTyping = startTypingMock;
-
-		const main = createSendMessageTool(ctx);
-		if (!main.execute) {
-			throw new Error("Expected execute handler for sendMessage tool");
-		}
-
 		const result = await resolveToolResult(
-			await main.execute({ message: "Answer" } as never, {} as never)
-		);
-
-		expect(result.success).toBe(true);
-		expect(stopTypingMock).toHaveBeenCalledTimes(1);
-		expect(startTypingMock).not.toHaveBeenCalled();
-	});
-
-	it("does not restart typing after a paused send", async () => {
-		const { createSendMessageTool } = await modulePromise;
-		const stopTypingMock = mock(async () => {});
-		const startTypingMock = mock(async () => {});
-		const ctx = createContext() as PipelineToolContext & {
-			startTyping?: () => Promise<void>;
-		};
-		ctx.stopTyping = stopTypingMock;
-		ctx.startTyping = startTypingMock;
-
-		sendPublicMessageMock.mockResolvedValueOnce({
-			messageId: "msg-paused",
-			created: false,
-			paused: true,
-		});
-
-		const main = createSendMessageTool(ctx);
-		if (!main.execute) {
-			throw new Error("Expected execute handler for sendMessage tool");
-		}
-
-		const result = await resolveToolResult(
-			await main.execute({ message: "Answer" } as never, {} as never)
+			await sendMessage.execute({ message: "First try" } as never, {} as never)
 		);
 
 		expect(result.success).toBe(false);
-		expect(stopTypingMock).toHaveBeenCalledTimes(1);
-		expect(startTypingMock).not.toHaveBeenCalled();
+		expect(ctx.runtimeState.publicMessagesSent).toBe(0);
+		expect(ctx.runtimeState.publicSendSequence).toBe(0);
+	});
+
+	it("keeps typing active by not calling stopTyping before a send", async () => {
+		const { createSendMessageTool } = await modulePromise;
+		const stopTypingMock = mock(async () => {});
+		const ctx = createContext();
+		ctx.stopTyping = stopTypingMock;
+		const sendMessage = createSendMessageTool(ctx);
+
+		if (!sendMessage.execute) {
+			throw new Error("Expected execute handler for sendMessage");
+		}
+
+		const result = await resolveToolResult(
+			await sendMessage.execute({ message: "Answer" } as never, {} as never)
+		);
+
+		expect(result.success).toBe(true);
+		expect(stopTypingMock).not.toHaveBeenCalled();
 	});
 });

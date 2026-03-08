@@ -1,4 +1,8 @@
-import type { RoleAwareMessage } from "../../../contracts";
+import {
+	type ConversationTranscriptEntry,
+	isConversationMessage,
+	type RoleAwareMessage,
+} from "../../../contracts";
 import type { DecisionSignals, SmartDecisionInput } from "./types";
 
 const HUMAN_ACTIVE_WINDOW_MS = 120_000;
@@ -72,6 +76,12 @@ function mapSenderToTurnCode(
 	}
 }
 
+function getTranscriptMessages(
+	history: ConversationTranscriptEntry[]
+): RoleAwareMessage[] {
+	return history.filter(isConversationMessage);
+}
+
 function findLastPublicHumanMessageIndex(history: RoleAwareMessage[]): number {
 	for (let index = history.length - 1; index >= 0; index--) {
 		const message = history[index];
@@ -91,7 +101,8 @@ function findLastPublicHumanMessageIndex(history: RoleAwareMessage[]): number {
 export function extractDecisionSignals(
 	input: SmartDecisionInput
 ): DecisionSignals {
-	const { conversationHistory, triggerMessage } = input;
+	const conversationHistory = getTranscriptMessages(input.conversationHistory);
+	const { triggerMessage } = input;
 
 	const lastHumanIndex = findLastPublicHumanMessageIndex(conversationHistory);
 	const messagesSinceHuman =

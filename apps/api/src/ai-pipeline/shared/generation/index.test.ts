@@ -8,7 +8,7 @@ const stepCountIsMock = mock((_count: number) => () => false);
 const getBehaviorSettingsMock = mock(() => ({
 	maxToolInvocationsPerRun: 15,
 }));
-const formatHistoryForGenerationMock = mock(() => [
+const buildGenerationMessagesMock = mock(() => [
 	{ role: "user" as const, content: "hello" },
 ]);
 const logAiPipelineMock = mock(() => {});
@@ -59,9 +59,7 @@ const buildPipelineToolsetMock = mock(
 			runtimeState: {
 				toolCallCounts: Record<string, number>;
 				publicMessagesSent: number;
-				publicMessageToolSequence: Array<
-					"sendAcknowledgeMessage" | "sendMessage" | "sendFollowUpMessage"
-				>;
+				publicSendSequence: number;
 				finalAction: {
 					action: "respond" | "skip";
 					reasoning: string;
@@ -76,43 +74,15 @@ const buildPipelineToolsetMock = mock(
 		};
 
 		const publicTools = {
-			sendAcknowledgeMessage: {
-				description: "Ack",
-				execute: async (_input: unknown) => {
-					increment("sendAcknowledgeMessage");
-					context.runtimeState.publicMessagesSent += 1;
-					context.runtimeState.publicMessageToolSequence.push(
-						"sendAcknowledgeMessage"
-					);
-					return {
-						success: true,
-						data: { messageId: `ack-${Date.now()}`, created: true },
-					};
-				},
-			},
 			sendMessage: {
-				description: "Main",
+				description: "Chat message",
 				execute: async (_input: unknown) => {
 					increment("sendMessage");
+					context.runtimeState.publicSendSequence += 1;
 					context.runtimeState.publicMessagesSent += 1;
-					context.runtimeState.publicMessageToolSequence.push("sendMessage");
 					return {
 						success: true,
 						data: { messageId: `msg-${Date.now()}`, created: true },
-					};
-				},
-			},
-			sendFollowUpMessage: {
-				description: "Follow up",
-				execute: async (_input: unknown) => {
-					increment("sendFollowUpMessage");
-					context.runtimeState.publicMessagesSent += 1;
-					context.runtimeState.publicMessageToolSequence.push(
-						"sendFollowUpMessage"
-					);
-					return {
-						success: true,
-						data: { messageId: `follow-${Date.now()}`, created: true },
 					};
 				},
 			},
@@ -160,14 +130,7 @@ const buildPipelineToolsetMock = mock(
 				},
 			},
 			toolNames: context.allowPublicMessages
-				? [
-						"searchKnowledgeBase",
-						"sendAcknowledgeMessage",
-						"sendMessage",
-						"sendFollowUpMessage",
-						"respond",
-						"skip",
-					]
+				? ["searchKnowledgeBase", "sendMessage", "respond", "skip"]
 				: ["searchKnowledgeBase", "skip"],
 			finishToolNames: context.allowPublicMessages
 				? ["respond", "skip"]
@@ -248,7 +211,7 @@ mock.module("../prompt/resolver", () => ({
 }));
 
 mock.module("./messages/format-history", () => ({
-	formatHistoryForGeneration: formatHistoryForGenerationMock,
+	buildGenerationMessages: buildGenerationMessagesMock,
 }));
 
 mock.module("../../logger", () => ({
@@ -336,7 +299,7 @@ describe("runGenerationRuntime", () => {
 		hasToolCallMock.mockClear();
 		stepCountIsMock.mockClear();
 		getBehaviorSettingsMock.mockClear();
-		formatHistoryForGenerationMock.mockClear();
+		buildGenerationMessagesMock.mockClear();
 		buildPipelineToolsetMock.mockClear();
 		logAiPipelineMock.mockClear();
 		emitPipelineGenerationProgressMock.mockClear();
@@ -566,13 +529,10 @@ ${secondPrompt}`);
 		expect(result.error).toContain("requires sendMessage");
 	});
 
-	it("fails completion when only acknowledge was sent without a main message", async () => {
+	it("fails completion when no public sendMessage was sent", async () => {
 		queuedGenerateHandlers.push(async ({ options }) => {
-			await options.tools.sendAcknowledgeMessage.execute({
-				message: "One sec",
-			});
 			await options.tools.respond.execute({
-				reasoning: "Sent acknowledgement only",
+				reasoning: "Sent no public reply",
 				confidence: 1,
 			});
 			return { usage: {} };
@@ -583,19 +543,22 @@ ${secondPrompt}`);
 
 		expect(result.status).toBe("error");
 		expect(result.failureCode).toBe("runtime_error");
-		expect(result.error).toContain("main sendMessage call");
+		expect(result.error).toContain("requires sendMessage");
 	});
 
-	it("allows acknowledge before the main message", async () => {
+	it("allows multiple sendMessage calls in one run", async () => {
 		queuedGenerateHandlers.push(async ({ options }) => {
-			await options.tools.sendAcknowledgeMessage.execute({
-				message: "One sec",
+			await options.tools.sendMessage.execute({
+				message: "First bubble.",
 			});
 			await options.tools.sendMessage.execute({
-				message: "Here is the answer.",
+				message: "Second bubble.",
+			});
+			await options.tools.sendMessage.execute({
+				message: "Third bubble.",
 			});
 			await options.tools.respond.execute({
-				reasoning: "Answered with ack first",
+				reasoning: "Answered in short bubbles",
 				confidence: 1,
 			});
 			return { usage: {} };
@@ -606,30 +569,7 @@ ${secondPrompt}`);
 
 		expect(result.status).toBe("completed");
 		expect(result.action.action).toBe("respond");
-		expect(result.publicMessagesSent).toBe(2);
-	});
-
-	it("allows a follow-up after the main message", async () => {
-		queuedGenerateHandlers.push(async ({ options }) => {
-			await options.tools.sendMessage.execute({
-				message: "Here is the answer.",
-			});
-			await options.tools.sendFollowUpMessage.execute({
-				message: "Anything else you want me to check?",
-			});
-			await options.tools.respond.execute({
-				reasoning: "Answered and added one follow-up",
-				confidence: 1,
-			});
-			return { usage: {} };
-		});
-
-		const { runGenerationRuntime } = await modulePromise;
-		const result = await runGenerationRuntime(createInput() as never);
-
-		expect(result.status).toBe("completed");
-		expect(result.action.action).toBe("respond");
-		expect(result.publicMessagesSent).toBe(2);
+		expect(result.publicMessagesSent).toBe(3);
 	});
 
 	it("keeps background_only silent", async () => {

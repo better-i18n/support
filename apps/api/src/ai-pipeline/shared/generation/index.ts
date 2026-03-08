@@ -23,35 +23,20 @@ import {
 	createToolRuntimeState,
 } from "./internal/runtime-utils";
 import { writeGenerationSystemPromptDebugDump } from "./internal/system-prompt-debug-dump";
-import { formatHistoryForGeneration } from "./messages/format-history";
+import { buildGenerationMessages } from "./messages/format-history";
 import { buildGenerationSystemPrompt } from "./prompt/builder";
 
 function getMessagingContractError(params: {
 	input: GenerationRuntimeInput;
 	action: CapturedFinalAction;
-	publicMessageToolSequence: Array<
-		"sendAcknowledgeMessage" | "sendMessage" | "sendFollowUpMessage"
-	>;
+	publicMessagesSent: number;
 }): string | null {
-	const { input, action, publicMessageToolSequence } = params;
-	const mainMessageCount = publicMessageToolSequence.filter(
-		(toolName) => toolName === "sendMessage"
-	).length;
-	const acknowledgeCount = publicMessageToolSequence.filter(
-		(toolName) => toolName === "sendAcknowledgeMessage"
-	).length;
-	const followUpCount = publicMessageToolSequence.filter(
-		(toolName) => toolName === "sendFollowUpMessage"
-	).length;
-
-	if ((acknowledgeCount > 0 || followUpCount > 0) && mainMessageCount === 0) {
-		return "Acknowledge/follow-up public tools require a main sendMessage call in the same run";
-	}
+	const { input, action, publicMessagesSent } = params;
 
 	if (
 		input.mode !== "background_only" &&
 		action.action !== "skip" &&
-		mainMessageCount === 0
+		publicMessagesSent === 0
 	) {
 		return "Non-background completion requires sendMessage as the main public response";
 	}
@@ -180,10 +165,7 @@ export async function runGenerationRuntime(
 		toolSkills: runtimeToolSkills,
 	});
 
-	const messages = formatHistoryForGeneration(
-		input.conversationHistory,
-		input.visitorContext?.name ?? null
-	);
+	const messages = buildGenerationMessages(input.conversationHistory);
 
 	await writeGenerationSystemPromptDebugDump({
 		input,
@@ -219,7 +201,7 @@ export async function runGenerationRuntime(
 		const contractError = getMessagingContractError({
 			input,
 			action: primaryResult.action,
-			publicMessageToolSequence: runtimeState.publicMessageToolSequence,
+			publicMessagesSent: runtimeState.publicMessagesSent,
 		});
 		if (contractError) {
 			return {

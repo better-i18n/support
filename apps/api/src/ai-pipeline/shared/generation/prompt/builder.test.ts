@@ -113,30 +113,18 @@ describe("buildGenerationSystemPrompt", () => {
 			input: createInput() as never,
 			promptBundle,
 			toolset: {
-				sendAcknowledgeMessage: { description: "Ack" },
-				sendMessage: { description: "Main" },
-				sendFollowUpMessage: { description: "Follow up" },
+				sendMessage: { description: "Chat message" },
 				respond: { description: "Finish respond" },
 			} as never,
-			toolNames: [
-				"sendAcknowledgeMessage",
-				"sendMessage",
-				"sendFollowUpMessage",
-				"respond",
-			],
+			toolNames: ["sendMessage", "respond"],
 		});
 
+		expect(prompt).toContain("Public reply tool: sendMessage.");
 		expect(prompt).toContain(
-			"Default to sendMessage for the real answer or next step."
+			"You may call sendMessage up to 3 times in one run."
 		);
 		expect(prompt).toContain(
-			'Use sendAcknowledgeMessage only for a brief pre-answer acknowledgement like "I\'m checking" or "one sec" before the main answer.'
-		);
-		expect(prompt).toContain(
-			"Use sendFollowUpMessage only after sendMessage for one short addendum or one short follow-up question."
-		);
-		expect(prompt).toContain(
-			"Allowed public message sequences only: main, ack->main, main->followUp, ack->main->followUp."
+			"Prefer 2 or 3 short chat bubbles when that is easier to read than one dense block."
 		);
 		expect(prompt).not.toContain(
 			"sendMessage is mandatory when mode is not background_only and finish action is not skip."

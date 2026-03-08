@@ -24,7 +24,7 @@ const getPublicAiMessagesAfterCursorMock = mock(
 	) => Promise<MockPublicAiMessage[]>
 );
 const getCompleteVisitorWithContactMock = mock(async () => null);
-const buildRoleAwareConversationHistoryMock = mock(
+const buildConversationTranscriptMock = mock(
 	(async (): Promise<MockHistoryMessage[]> => []) as (
 		...args: unknown[]
 	) => Promise<MockHistoryMessage[]>
@@ -45,7 +45,7 @@ mock.module("@api/db/queries/visitor", () => ({
 }));
 
 mock.module("./history", () => ({
-	buildRoleAwareConversationHistory: buildRoleAwareConversationHistoryMock,
+	buildConversationTranscript: buildConversationTranscriptMock,
 }));
 
 const modulePromise = import("./load-context");
@@ -56,13 +56,13 @@ describe("loadIntakeContext continuation context", () => {
 		getMessageMetadataMock.mockReset();
 		getPublicAiMessagesAfterCursorMock.mockReset();
 		getCompleteVisitorWithContactMock.mockReset();
-		buildRoleAwareConversationHistoryMock.mockReset();
+		buildConversationTranscriptMock.mockReset();
 		selectMock.mockReset();
 		fromMock.mockReset();
 		whereMock.mockReset();
 
 		getCompleteVisitorWithContactMock.mockResolvedValue(null);
-		buildRoleAwareConversationHistoryMock.mockResolvedValue([
+		buildConversationTranscriptMock.mockResolvedValue([
 			{
 				messageId: "msg-1",
 				content: "Initial question",
@@ -126,7 +126,7 @@ describe("loadIntakeContext continuation context", () => {
 			}
 		);
 
-		expect(buildRoleAwareConversationHistoryMock).toHaveBeenCalledWith(
+		expect(buildConversationTranscriptMock).toHaveBeenCalledWith(
 			expect.anything(),
 			expect.objectContaining({
 				maxCreatedAt: "2026-03-04T10:00:01.000Z",

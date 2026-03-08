@@ -52,9 +52,6 @@ type TestContext = {
 		chargeableToolCallCounts: Record<string, number>;
 		publicSendSequence: number;
 		privateSendSequence: number;
-		publicMessageToolSequence: Array<
-			"sendAcknowledgeMessage" | "sendMessage" | "sendFollowUpMessage"
-		>;
 		sentPublicMessageIds: Set<string>;
 		lastToolError: null;
 	};
@@ -99,7 +96,6 @@ function createContext(overrides: Partial<TestContext> = {}): TestContext {
 			chargeableToolCallCounts: {},
 			publicSendSequence: 0,
 			privateSendSequence: 0,
-			publicMessageToolSequence: [],
 			sentPublicMessageIds: new Set<string>(),
 			lastToolError: null,
 		},
