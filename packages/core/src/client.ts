@@ -39,6 +39,13 @@ import {
 	createConversationsStore,
 } from "./store/conversations-store";
 import {
+	applyProcessingCompletedEvent,
+	applyProcessingProgressEvent,
+	clearProcessingFromTimelineItem,
+	createProcessingStore,
+	type ProcessingStore,
+} from "./store/processing-store";
+import {
 	applyConversationSeenEvent,
 	createSeenStore,
 	type SeenStore,
@@ -89,6 +96,8 @@ type InitiateConversationResult = {
 export type CossistantClientOptions = {
 	/** Supply an external seen store so the client shares state with callers. */
 	seenStore?: SeenStore;
+	/** Supply an external processing store so the client shares AI activity state with callers. */
+	processingStore?: ProcessingStore;
 	/** Supply an external typing store so the client shares state with callers. */
 	typingStore?: TypingStore;
 };
@@ -102,6 +111,7 @@ export class CossistantClient {
 	readonly timelineItemsStore: TimelineItemsStore;
 	readonly websiteStore: WebsiteStore;
 	readonly seenStore: SeenStore;
+	readonly processingStore: ProcessingStore;
 	readonly typingStore: TypingStore;
 	readonly realtime: RealtimeClient;
 
@@ -112,6 +122,7 @@ export class CossistantClient {
 		this.timelineItemsStore = createTimelineItemsStore();
 		this.websiteStore = createWebsiteStore();
 		this.seenStore = options?.seenStore ?? createSeenStore();
+		this.processingStore = options?.processingStore ?? createProcessingStore();
 		this.typingStore = options?.typingStore ?? createTypingStore();
 		this.realtime = new RealtimeClient({
 			wsUrl: config.wsUrl,
@@ -504,6 +515,7 @@ export class CossistantClient {
 		} else if (event.type === "timelineItemCreated") {
 			// Clear typing state when a timeline item is created
 			clearTypingFromTimelineItem(this.typingStore, event);
+			clearProcessingFromTimelineItem(this.processingStore, event);
 
 			// Ingest timeline item into store
 			const timelineItem =
@@ -526,6 +538,23 @@ export class CossistantClient {
 
 				this.conversationsStore.ingestConversation(nextConversation);
 			}
+		} else if (event.type === "timelineItemUpdated") {
+			const timelineItem =
+				this.timelineItemsStore.ingestRealtimeUpdatedTimelineItem(event);
+
+			const existingConversation =
+				this.conversationsStore.getState().byId[timelineItem.conversationId];
+
+			if (
+				existingConversation &&
+				existingConversation.lastTimelineItem?.id === timelineItem.id
+			) {
+				this.conversationsStore.ingestConversation({
+					...existingConversation,
+					lastTimelineItem: timelineItem,
+					updatedAt: new Date().toISOString(),
+				});
+			}
 		} else if (event.type === "conversationSeen") {
 			applyConversationSeenEvent(this.seenStore, event, {
 				ignoreVisitorId: visitorId,
@@ -534,6 +563,10 @@ export class CossistantClient {
 			applyConversationTypingEvent(this.typingStore, event, {
 				ignoreVisitorId: visitorId,
 			});
+		} else if (event.type === "aiAgentProcessingProgress") {
+			applyProcessingProgressEvent(this.processingStore, event);
+		} else if (event.type === "aiAgentProcessingCompleted") {
+			applyProcessingCompletedEvent(this.processingStore, event);
 		} else if (event.type === "conversationUpdated") {
 			this.handleConversationUpdated(event);
 		}

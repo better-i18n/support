@@ -1,5 +1,5 @@
 import { generateULID } from "@api/utils/db/ids";
-import { isConversationVisibleTool } from "@cossistant/types";
+import { isWidgetVisibleTool } from "@cossistant/types";
 import type { ToolExecutionOptions, ToolSet } from "ai";
 import {
 	emitPipelineToolProgress,
@@ -42,7 +42,7 @@ function resolveProgressAudience(params: {
 		return configuredAudience;
 	}
 
-	return isConversationVisibleTool(params.toolName) ? "all" : "dashboard";
+	return isWidgetVisibleTool(params.toolName) ? "all" : "dashboard";
 }
 
 async function safeEmitToolProgress(params: {

@@ -184,4 +184,34 @@ describe("useConversationPreview", () => {
 			lastSeenAt: null,
 		});
 	});
+
+	it("ignores AI typing for visitor-facing preview state", async () => {
+		currentSupportState = {
+			...currentSupportState,
+			availableAIAgents: [
+				{
+					id: "ai-1",
+					name: "Helper AI",
+					image: null,
+				},
+			],
+		};
+		useConversationTypingMock.mockReturnValue([
+			{
+				actorType: "ai_agent",
+				actorId: "ai-1",
+				preview: null,
+				updatedAt: 1,
+			},
+		]);
+
+		const preview = await renderPreview(baseConversation);
+
+		expect(preview?.typing).toEqual({
+			participants: [],
+			primaryParticipant: null,
+			label: null,
+			isTyping: false,
+		});
+	});
 });

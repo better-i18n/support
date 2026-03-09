@@ -30,7 +30,14 @@ const setTimeoutMock = mock((handler: TimerHandler, _delay?: number) => {
 	if (typeof handler === "function") {
 		handler();
 	}
-	return 0 as never;
+	return {
+		unref() {
+			return this;
+		},
+		ref() {
+			return this;
+		},
+	} as never;
 });
 
 function isAsyncIterable<T>(value: unknown): value is AsyncIterable<T> {
@@ -90,8 +97,8 @@ function createContext(): PipelineToolContext {
 
 describe("sendMessage tool contract", () => {
 	beforeEach(() => {
-		sendPublicMessageMock.mockClear();
-		addInternalNoteMock.mockClear();
+		sendPublicMessageMock.mockReset();
+		addInternalNoteMock.mockReset();
 		setTimeoutMock.mockClear();
 		globalThis.setTimeout =
 			setTimeoutMock as unknown as typeof globalThis.setTimeout;
@@ -241,7 +248,7 @@ describe("sendMessage tool contract", () => {
 		expect(ctx.runtimeState.publicSendSequence).toBe(0);
 	});
 
-	it("keeps typing active by not calling stopTyping before a send", async () => {
+	it("stops typing before a public send", async () => {
 		const { createSendMessageTool } = await modulePromise;
 		const stopTypingMock = mock(async () => {});
 		const ctx = createContext();
@@ -257,6 +264,6 @@ describe("sendMessage tool contract", () => {
 		);
 
 		expect(result.success).toBe(true);
-		expect(stopTypingMock).not.toHaveBeenCalled();
+		expect(stopTypingMock).toHaveBeenCalledTimes(1);
 	});
 });

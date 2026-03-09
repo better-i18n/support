@@ -6,6 +6,7 @@ import {
 import { createStore, type Store } from "./create-store";
 
 type TimelineItemCreatedEvent = RealtimeEvent<"timelineItemCreated">;
+type TimelineItemUpdatedEvent = RealtimeEvent<"timelineItemUpdated">;
 
 export type ConversationTimelineItemsState = {
 	items: TimelineItem[];
@@ -216,7 +217,7 @@ function finalizeTimelineItem(
 
 // Normalize timeline item created event
 function normalizeRealtimeTimelineItem(
-	event: TimelineItemCreatedEvent
+	event: TimelineItemCreatedEvent | TimelineItemUpdatedEvent
 ): TimelineItem {
 	const raw = event.payload.item;
 
@@ -246,6 +247,9 @@ export type TimelineItemsStore = Store<TimelineItemsState> & {
 	): void;
 	ingestTimelineItem(item: TimelineItem): void;
 	ingestRealtimeTimelineItem(event: TimelineItemCreatedEvent): TimelineItem;
+	ingestRealtimeUpdatedTimelineItem(
+		event: TimelineItemUpdatedEvent
+	): TimelineItem;
 	removeTimelineItem(conversationId: string, itemId: string): void;
 	finalizeTimelineItem(
 		conversationId: string,
@@ -269,6 +273,11 @@ export function createTimelineItemsStore(
 			store.setState((state) => applyTimelineItem(state, item));
 		},
 		ingestRealtimeTimelineItem(event) {
+			const item = normalizeRealtimeTimelineItem(event);
+			store.setState((state) => applyTimelineItem(state, item));
+			return item;
+		},
+		ingestRealtimeUpdatedTimelineItem(event) {
 			const item = normalizeRealtimeTimelineItem(event);
 			store.setState((state) => applyTimelineItem(state, item));
 			return item;

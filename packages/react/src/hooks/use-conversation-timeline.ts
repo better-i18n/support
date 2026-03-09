@@ -2,10 +2,12 @@ import type { TimelineItem } from "@cossistant/types/api/timeline-item";
 import { useMemo } from "react";
 
 import {
+	filterWidgetVisibleTypingEntries,
 	mapTypingEntriesToParticipants,
 	type TimelineTypingParticipant,
 } from "./private/typing";
 import { useGroupedMessages } from "./private/use-grouped-messages";
+import { useConversationProcessing } from "./use-conversation-processing";
 import { useDebouncedConversationSeen } from "./use-conversation-seen";
 import { useConversationTyping } from "./use-conversation-typing";
 
@@ -20,6 +22,7 @@ export type UseConversationTimelineOptions = {
 export type UseConversationTimelineReturn = {
 	groupedMessages: ReturnType<typeof useGroupedMessages>;
 	seenData: ReturnType<typeof useDebouncedConversationSeen>;
+	processing: ReturnType<typeof useConversationProcessing>;
 	typingEntries: ReturnType<typeof useConversationTyping>;
 	typingParticipants: ConversationTimelineTypingParticipant[];
 	lastVisitorMessageGroupIndex: number;
@@ -35,6 +38,7 @@ export function useConversationTimeline({
 	currentVisitorId,
 }: UseConversationTimelineOptions): UseConversationTimelineReturn {
 	const seenData = useDebouncedConversationSeen(conversationId);
+	const processing = useConversationProcessing(conversationId);
 	const typingEntries = useConversationTyping(conversationId, {
 		excludeVisitorId: currentVisitorId ?? null,
 	});
@@ -44,6 +48,10 @@ export function useConversationTimeline({
 		seenData,
 		currentViewerId: currentVisitorId,
 	});
+	const widgetVisibleTypingEntries = useMemo(
+		() => filterWidgetVisibleTypingEntries(typingEntries),
+		[typingEntries]
+	);
 
 	const lastVisitorMessageGroupIndex = useMemo(() => {
 		for (let index = groupedMessages.items.length - 1; index >= 0; index--) {
@@ -63,14 +71,15 @@ export function useConversationTimeline({
 	}, [groupedMessages.items, currentVisitorId]);
 
 	const typingParticipants = useMemo(
-		() => mapTypingEntriesToParticipants(typingEntries),
-		[typingEntries]
+		() => mapTypingEntriesToParticipants(widgetVisibleTypingEntries),
+		[widgetVisibleTypingEntries]
 	);
 
 	return {
 		groupedMessages,
 		seenData,
-		typingEntries,
+		processing,
+		typingEntries: widgetVisibleTypingEntries,
 		typingParticipants,
 		lastVisitorMessageGroupIndex,
 	};

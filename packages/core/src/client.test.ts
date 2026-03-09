@@ -1,7 +1,10 @@
 import { describe, expect, it, mock } from "bun:test";
 import type { CreateConversationResponseBody } from "@cossistant/types/api/conversation";
 import { ConversationStatus } from "@cossistant/types/enums";
+import type { RealtimeEvent } from "@cossistant/types/realtime-events";
 import { CossistantClient } from "./client";
+
+const visitorId = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 
 function createCreateConversationResponse(params: {
 	conversationId: string;
@@ -41,8 +44,6 @@ function createCreateConversationResponse(params: {
 }
 
 describe("CossistantClient.isConversationPending", () => {
-	const visitorId = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
-
 	it("returns false for null and unknown IDs", () => {
 		const client = new CossistantClient({
 			apiUrl: "https://api.example.com",
@@ -243,5 +244,229 @@ describe("CossistantClient.isConversationPending", () => {
 		} finally {
 			globalThis.fetch = originalFetch;
 		}
+	});
+});
+
+describe("CossistantClient realtime activity state", () => {
+	it("tracks and clears processing progress from realtime events", () => {
+		const client = new CossistantClient({
+			apiUrl: "https://api.example.com",
+			publicKey: "pk_test",
+		});
+		client.setWebsiteContext("site_123", visitorId);
+
+		const progressEvent: RealtimeEvent<"aiAgentProcessingProgress"> = {
+			type: "aiAgentProcessingProgress",
+			payload: {
+				websiteId: "site_123",
+				organizationId: "org_123",
+				visitorId,
+				userId: null,
+				conversationId: "conv-rt",
+				aiAgentId: "ai-1",
+				workflowRunId: "wf-1",
+				phase: "tool",
+				message: "Searching knowledge base...",
+				tool: {
+					toolCallId: "call-1",
+					toolName: "searchKnowledgeBase",
+					state: "partial",
+				},
+				audience: "all",
+			},
+		};
+
+		client.handleRealtimeEvent(progressEvent);
+
+		expect(
+			client.processingStore.getState().conversations["conv-rt"]
+		).toMatchObject({
+			conversationId: "conv-rt",
+			workflowRunId: "wf-1",
+			message: "Searching knowledge base...",
+			tool: {
+				toolName: "searchKnowledgeBase",
+				state: "partial",
+			},
+		});
+
+		const completedEvent: RealtimeEvent<"aiAgentProcessingCompleted"> = {
+			type: "aiAgentProcessingCompleted",
+			payload: {
+				websiteId: "site_123",
+				organizationId: "org_123",
+				visitorId,
+				userId: null,
+				conversationId: "conv-rt",
+				aiAgentId: "ai-1",
+				workflowRunId: "wf-1",
+				status: "success",
+				action: "respond",
+				reason: "Sent reply",
+				audience: "all",
+			},
+		};
+
+		client.handleRealtimeEvent(completedEvent);
+
+		expect(
+			client.processingStore.getState().conversations["conv-rt"]
+		).toBeUndefined();
+	});
+
+	it("updates existing tool timeline items from timelineItemUpdated", () => {
+		const client = new CossistantClient({
+			apiUrl: "https://api.example.com",
+			publicKey: "pk_test",
+		});
+		client.setWebsiteContext("site_123", visitorId);
+
+		const createdEvent: RealtimeEvent<"timelineItemCreated"> = {
+			type: "timelineItemCreated",
+			payload: {
+				websiteId: "site_123",
+				organizationId: "org_123",
+				visitorId,
+				userId: null,
+				conversationId: "conv-tools",
+				item: {
+					id: "tool-1",
+					conversationId: "conv-tools",
+					organizationId: "org_123",
+					type: "tool",
+					text: "Searching knowledge base...",
+					parts: [
+						{
+							type: "tool-searchKnowledgeBase",
+							toolCallId: "call-1",
+							toolName: "searchKnowledgeBase",
+							input: { query: "pricing" },
+							state: "partial",
+						},
+					],
+					visibility: "public",
+					tool: "searchKnowledgeBase",
+					userId: null,
+					visitorId: null,
+					aiAgentId: "ai-1",
+					createdAt: "2026-03-08T10:00:00.000Z",
+					deletedAt: null,
+				},
+			},
+		};
+
+		client.handleRealtimeEvent(createdEvent);
+
+		const updatedEvent: RealtimeEvent<"timelineItemUpdated"> = {
+			type: "timelineItemUpdated",
+			payload: {
+				websiteId: "site_123",
+				organizationId: "org_123",
+				visitorId,
+				userId: null,
+				conversationId: "conv-tools",
+				item: {
+					id: "tool-1",
+					conversationId: "conv-tools",
+					organizationId: "org_123",
+					type: "tool",
+					text: "Found 2 sources",
+					parts: [
+						{
+							type: "tool-searchKnowledgeBase",
+							toolCallId: "call-1",
+							toolName: "searchKnowledgeBase",
+							input: { query: "pricing" },
+							state: "result",
+							output: {
+								success: true,
+								data: { totalFound: 2, articles: [] },
+							},
+						},
+					],
+					visibility: "public",
+					tool: "searchKnowledgeBase",
+					userId: null,
+					visitorId: null,
+					aiAgentId: "ai-1",
+					createdAt: "2026-03-08T10:00:00.000Z",
+					deletedAt: null,
+				},
+			},
+		};
+
+		client.handleRealtimeEvent(updatedEvent);
+
+		const items =
+			client.timelineItemsStore.getState().conversations["conv-tools"]?.items ??
+			[];
+		expect(items).toHaveLength(1);
+		expect(items[0]?.text).toBe("Found 2 sources");
+		expect(items[0]?.parts[0]).toMatchObject({
+			state: "result",
+		});
+	});
+
+	it("clears processing and typing when a public AI message is created", () => {
+		const client = new CossistantClient({
+			apiUrl: "https://api.example.com",
+			publicKey: "pk_test",
+		});
+		client.setWebsiteContext("site_123", visitorId);
+
+		client.processingStore.upsert({
+			conversationId: "conv-clear",
+			workflowRunId: "wf-2",
+			aiAgentId: "ai-1",
+			phase: "tool",
+			message: "Searching knowledge base...",
+			tool: {
+				toolCallId: "call-2",
+				toolName: "searchKnowledgeBase",
+				state: "partial",
+			},
+			audience: "all",
+		});
+		client.typingStore.setTyping({
+			conversationId: "conv-clear",
+			actorType: "ai_agent",
+			actorId: "ai-1",
+			isTyping: true,
+		});
+
+		const messageEvent: RealtimeEvent<"timelineItemCreated"> = {
+			type: "timelineItemCreated",
+			payload: {
+				websiteId: "site_123",
+				organizationId: "org_123",
+				visitorId,
+				userId: null,
+				conversationId: "conv-clear",
+				item: {
+					id: "msg-ai-1",
+					conversationId: "conv-clear",
+					organizationId: "org_123",
+					type: "message",
+					text: "Here is the answer",
+					parts: [{ type: "text", text: "Here is the answer" }],
+					visibility: "public",
+					tool: null,
+					userId: null,
+					visitorId: null,
+					aiAgentId: "ai-1",
+					createdAt: "2026-03-08T10:05:00.000Z",
+					deletedAt: null,
+				},
+			},
+		};
+
+		client.handleRealtimeEvent(messageEvent);
+
+		expect(
+			client.processingStore.getState().conversations["conv-clear"]
+		).toBeUndefined();
+		expect(
+			client.typingStore.getState().conversations["conv-clear"]
+		).toBeUndefined();
 	});
 });

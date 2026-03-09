@@ -1,10 +1,23 @@
-import type { ConversationSelect } from "@api/db/schema/conversation";
 import { realtime } from "@api/realtime/emitter";
+import { getWidgetToolDefaultProgressMessage } from "@cossistant/types";
+import { logAiPipeline } from "../../logger";
 
 export type PipelineToolProgressAudience = "all" | "dashboard";
+export type PipelineProcessingCompletedStatus =
+	| "success"
+	| "skipped"
+	| "cancelled"
+	| "error";
+
+export type PipelineRealtimeConversationTarget = {
+	id: string;
+	websiteId: string;
+	organizationId: string;
+	visitorId: string | null;
+};
 
 type ToolProgressParams = {
-	conversation: ConversationSelect;
+	conversation: PipelineRealtimeConversationTarget;
 	aiAgentId: string;
 	workflowRunId: string;
 	toolCallId: string;
@@ -15,14 +28,7 @@ type ToolProgressParams = {
 };
 
 function getDefaultToolMessage(toolName: string): string | null {
-	const messages: Record<string, string> = {
-		searchKnowledgeBase: "Searching knowledge base...",
-		updateConversationTitle: "Updating conversation title...",
-		updateSentiment: "Analyzing conversation...",
-		setPriority: "Setting priority...",
-	};
-
-	return messages[toolName] ?? null;
+	return getWidgetToolDefaultProgressMessage(toolName);
 }
 
 export async function emitPipelineToolProgress(
@@ -54,7 +60,7 @@ export async function emitPipelineToolProgress(
 }
 
 type GenerationPhaseParams = {
-	conversation: ConversationSelect;
+	conversation: PipelineRealtimeConversationTarget;
 	aiAgentId: string;
 	workflowRunId: string;
 	phase: "thinking" | "generating" | "finalizing";
@@ -77,4 +83,59 @@ export async function emitPipelineGenerationProgress(
 		message: params.message ?? null,
 		audience: params.audience ?? "dashboard",
 	});
+}
+
+type CompletionParams = {
+	conversation: PipelineRealtimeConversationTarget;
+	aiAgentId: string;
+	workflowRunId: string;
+	status: PipelineProcessingCompletedStatus;
+	action?: string | null;
+	reason?: string | null;
+	audience?: PipelineToolProgressAudience;
+};
+
+export async function emitPipelineProcessingCompleted(
+	params: CompletionParams
+): Promise<void> {
+	await realtime.emit("aiAgentProcessingCompleted", {
+		websiteId: params.conversation.websiteId,
+		organizationId: params.conversation.organizationId,
+		visitorId: params.conversation.visitorId,
+		userId: null,
+		conversationId: params.conversation.id,
+		aiAgentId: params.aiAgentId,
+		workflowRunId: params.workflowRunId,
+		status: params.status,
+		action: params.action ?? null,
+		reason: params.reason ?? null,
+		audience: params.audience ?? "all",
+	});
+}
+
+export async function emitPipelineProcessingCompletedSafely(params: {
+	conversation: PipelineRealtimeConversationTarget;
+	aiAgentId: string;
+	workflowRunId: string;
+	status: PipelineProcessingCompletedStatus;
+	action?: string | null;
+	reason?: string | null;
+	audience?: PipelineToolProgressAudience;
+	pipelineArea: "primary" | "background";
+	logConversationId?: string;
+}): Promise<void> {
+	try {
+		await emitPipelineProcessingCompleted(params);
+	} catch (error) {
+		logAiPipeline({
+			area: params.pipelineArea,
+			event: "processing_completed_emit_failed",
+			level: "warn",
+			conversationId: params.logConversationId ?? params.conversation.id,
+			fields: {
+				status: params.status,
+			},
+			error,
+		});
+	}
 }

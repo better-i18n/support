@@ -13,22 +13,13 @@ import {
 	TimelineItemGroupAvatar,
 	TimelineItemGroupContent,
 } from "../../primitives/timeline-item-group";
+import { getToolNameFromTimelineItem } from "../../utils/timeline-tool";
 import { useSupportText } from "../text";
 import { resolveSupportHumanAgentDisplay } from "../utils/human-agent-display";
 import { Avatar } from "./avatar";
 import { ConversationEvent } from "./conversation-event";
-
-type TimelineActivityToolProps = {
-	item: TimelineItem;
-	conversationId: string;
-};
-
-type TimelineActivityTools = Record<
-	string,
-	{
-		component: React.ComponentType<TimelineActivityToolProps>;
-	}
->;
+import { resolveConversationTimelineToolComponent } from "./timeline-tool-registry";
+import type { ConversationTimelineTools } from "./timeline-tool-types";
 
 type TimelineActivityGroupProps = {
 	group: GroupedActivity;
@@ -36,7 +27,7 @@ type TimelineActivityGroupProps = {
 	availableAIAgents: AvailableAIAgent[];
 	availableHumanAgents: AvailableHumanAgent[];
 	currentVisitorId?: string;
-	tools?: TimelineActivityTools;
+	tools?: ConversationTimelineTools;
 };
 
 type ActivityRow =
@@ -50,7 +41,10 @@ type ActivityRow =
 			type: "tool";
 			key: string;
 			item: TimelineItem;
-			ToolComponent: React.ComponentType<TimelineActivityToolProps>;
+			ToolComponent: React.ComponentType<{
+				item: TimelineItem;
+				conversationId: string;
+			}>;
 	  };
 
 function extractEventPart(item: TimelineItem): TimelinePartEvent | null {
@@ -63,28 +57,6 @@ function extractEventPart(item: TimelineItem): TimelinePartEvent | null {
 	);
 
 	return eventPart || null;
-}
-
-function getToolNameFromTimelineItem(item: TimelineItem): string | null {
-	if (item.tool) {
-		return item.tool;
-	}
-
-	for (const part of item.parts) {
-		if (
-			typeof part === "object" &&
-			part !== null &&
-			"type" in part &&
-			"toolName" in part &&
-			typeof part.type === "string" &&
-			part.type.startsWith("tool-") &&
-			typeof part.toolName === "string"
-		) {
-			return part.toolName;
-		}
-	}
-
-	return null;
 }
 
 export const TimelineActivityGroup: React.FC<TimelineActivityGroupProps> = ({
@@ -126,8 +98,11 @@ export const TimelineActivityGroup: React.FC<TimelineActivityGroupProps> = ({
 					continue;
 				}
 
-				const toolDefinition = tools?.[toolName];
-				if (!toolDefinition) {
+				const ToolComponent = resolveConversationTimelineToolComponent(
+					toolName,
+					tools
+				);
+				if (!ToolComponent) {
 					continue;
 				}
 
@@ -135,7 +110,7 @@ export const TimelineActivityGroup: React.FC<TimelineActivityGroupProps> = ({
 					type: "tool",
 					key: item.id ?? `activity-tool-${item.createdAt}-${index}`,
 					item,
-					ToolComponent: toolDefinition.component,
+					ToolComponent,
 				});
 			}
 		}

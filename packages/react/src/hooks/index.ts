@@ -10,6 +10,7 @@ export * from "./use-conversation-history-page";
 export * from "./use-conversation-lifecycle";
 export * from "./use-conversation-page";
 export * from "./use-conversation-preview";
+export * from "./use-conversation-processing";
 export * from "./use-conversation-seen";
 export * from "./use-conversation-timeline";
 export * from "./use-conversation-timeline-items";

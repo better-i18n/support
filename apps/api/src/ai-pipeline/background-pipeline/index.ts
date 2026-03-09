@@ -9,6 +9,10 @@ import {
 } from "../primary-pipeline/steps/intake/load-context";
 import { resolveAndPersistModel } from "../primary-pipeline/steps/intake/model-resolution";
 import {
+	emitPipelineProcessingCompletedSafely,
+	type PipelineRealtimeConversationTarget,
+} from "../shared/events";
+import {
 	type GenerationRuntimeResult,
 	runGenerationRuntime,
 } from "../shared/generation";
@@ -204,6 +208,32 @@ export async function runBackgroundPipeline(
 	const { conversationId, workflowRunId, jobId } = ctx.input;
 	let intakeMs = 0;
 	let analysisMs = 0;
+	const completionConversation: PipelineRealtimeConversationTarget = {
+		id: ctx.input.conversationId,
+		websiteId: ctx.input.websiteId,
+		organizationId: ctx.input.organizationId,
+		visitorId: null,
+	};
+
+	const emitProcessingCompletedSafe = async (params: {
+		conversation?: PipelineRealtimeConversationTarget;
+		aiAgentId?: string;
+		status: "success" | "skipped" | "error";
+		action?: string | null;
+		reason?: string | null;
+	}) => {
+		await emitPipelineProcessingCompletedSafely({
+			conversation: params.conversation ?? completionConversation,
+			aiAgentId: params.aiAgentId ?? ctx.input.aiAgentId,
+			workflowRunId: ctx.input.workflowRunId,
+			status: params.status,
+			action: params.action,
+			reason: params.reason,
+			audience: "dashboard",
+			pipelineArea: "background",
+			logConversationId: conversationId,
+		});
+	};
 
 	try {
 		logAiPipeline({
@@ -231,6 +261,10 @@ export async function runBackgroundPipeline(
 				},
 			});
 
+			await emitProcessingCompletedSafe({
+				status: "skipped",
+				reason: intakeResult.reason,
+			});
 			return {
 				status: "skipped",
 				reason: intakeResult.reason,
@@ -278,6 +312,12 @@ export async function runBackgroundPipeline(
 				},
 			});
 
+			await emitProcessingCompletedSafe({
+				conversation: intakeResult.conversation,
+				aiAgentId: intakeResult.aiAgent.id,
+				status: "error",
+				reason: errorMessage,
+			});
 			return {
 				status: "error",
 				error: errorMessage,
@@ -300,6 +340,13 @@ export async function runBackgroundPipeline(
 				},
 			});
 
+			await emitProcessingCompletedSafe({
+				conversation: intakeResult.conversation,
+				aiAgentId: intakeResult.aiAgent.id,
+				status: "skipped",
+				action: generationResult.action.action,
+				reason: generationResult.action.reasoning,
+			});
 			return {
 				status: "skipped",
 				reason: generationResult.action.reasoning,
@@ -324,6 +371,13 @@ export async function runBackgroundPipeline(
 			},
 		});
 
+		await emitProcessingCompletedSafe({
+			conversation: intakeResult.conversation,
+			aiAgentId: intakeResult.aiAgent.id,
+			status: "success",
+			action: generationResult.action.action,
+			reason: generationResult.action.reasoning,
+		});
 		return {
 			status: "completed",
 			metrics: {
@@ -348,6 +402,10 @@ export async function runBackgroundPipeline(
 			error,
 		});
 
+		await emitProcessingCompletedSafe({
+			status: "error",
+			reason: message,
+		});
 		return {
 			status: "error",
 			error: message,

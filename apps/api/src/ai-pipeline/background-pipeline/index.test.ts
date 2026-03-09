@@ -57,6 +57,17 @@ const loadIntakeContextMock = mock(async () => ({
 		visibility: "public",
 	},
 }));
+const emitPipelineProcessingCompletedMock = mock(async () => {});
+const emitPipelineSeenMock = mock(async () => {});
+const emitPipelineGenerationProgressMock = mock(async () => {});
+const emitPipelineToolProgressMock = mock(async () => {});
+const emitPipelineTypingStartMock = mock(async () => {});
+const emitPipelineTypingStopMock = mock(async () => {});
+class PipelineTypingHeartbeatMock {
+	running = false;
+	async start() {}
+	async stop() {}
+}
 const runGenerationRuntimeMock = mock((async () => ({
 	status: "completed" as const,
 	action: {
@@ -97,6 +108,17 @@ mock.module("../shared/generation", () => ({
 	runGenerationRuntime: runGenerationRuntimeMock,
 }));
 
+mock.module("../shared/events", () => ({
+	emitPipelineProcessingCompleted: emitPipelineProcessingCompletedMock,
+	emitPipelineProcessingCompletedSafely: emitPipelineProcessingCompletedMock,
+	emitPipelineSeen: emitPipelineSeenMock,
+	emitPipelineGenerationProgress: emitPipelineGenerationProgressMock,
+	emitPipelineToolProgress: emitPipelineToolProgressMock,
+	emitPipelineTypingStart: emitPipelineTypingStartMock,
+	emitPipelineTypingStop: emitPipelineTypingStopMock,
+	PipelineTypingHeartbeat: PipelineTypingHeartbeatMock,
+}));
+
 const modulePromise = import("./index");
 
 const baseInput = {
@@ -118,6 +140,7 @@ describe("runBackgroundPipeline", () => {
 		resolveAndPersistModelMock.mockReset();
 		loadConversationSeedMock.mockReset();
 		loadIntakeContextMock.mockReset();
+		emitPipelineProcessingCompletedMock.mockReset();
 		runGenerationRuntimeMock.mockReset();
 
 		getAiAgentByIdMock.mockResolvedValue({
@@ -206,6 +229,13 @@ describe("runBackgroundPipeline", () => {
 		expect(result.status).toBe("skipped");
 		expect(result.reason).toBe("No background analysis capabilities enabled");
 		expect(runGenerationRuntimeMock).not.toHaveBeenCalled();
+		expect(emitPipelineProcessingCompletedMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				status: "skipped",
+				workflowRunId: "wf-1",
+				audience: "dashboard",
+			})
+		);
 	});
 
 	it("anchors analysis to the source message and restricts tools to metadata updates", async () => {
@@ -240,6 +270,13 @@ describe("runBackgroundPipeline", () => {
 				],
 			})
 		);
+		expect(emitPipelineProcessingCompletedMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				status: "success",
+				workflowRunId: "wf-1",
+				audience: "dashboard",
+			})
+		);
 	});
 
 	it("returns skipped when the analysis run makes no metadata mutation", async () => {
@@ -265,5 +302,12 @@ describe("runBackgroundPipeline", () => {
 
 		expect(result.status).toBe("skipped");
 		expect(result.reason).toBe("Nothing new to update");
+		expect(emitPipelineProcessingCompletedMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				status: "skipped",
+				workflowRunId: "wf-1",
+				audience: "dashboard",
+			})
+		);
 	});
 });

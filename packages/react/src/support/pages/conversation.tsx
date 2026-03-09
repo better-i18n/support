@@ -11,6 +11,10 @@ import { ConversationTimelineList } from "../components/conversation-timeline";
 import { Header } from "../components/header";
 import { MultimodalInput } from "../components/multimodal-input";
 import { IdentificationTimelineTool } from "../components/timeline-identification-tool";
+import {
+	SearchKnowledgeProcessingIndicator,
+	SearchKnowledgeTimelineTool,
+} from "../components/timeline-search-knowledge-tool";
 import { useSupportConfig, useSupportNavigation } from "../store";
 import { Text, useSupportText } from "../text";
 
@@ -73,6 +77,10 @@ export const ConversationPage: ConversationPageComponent = ({
 	const timelineTools = useMemo(
 		() => ({
 			identification: { component: IdentificationTimelineTool },
+			searchKnowledgeBase: {
+				component: SearchKnowledgeTimelineTool,
+				processingComponent: SearchKnowledgeProcessingIndicator,
+			},
 		}),
 		[]
 	);

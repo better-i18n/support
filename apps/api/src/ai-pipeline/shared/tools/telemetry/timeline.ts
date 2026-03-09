@@ -6,7 +6,7 @@ import {
 import {
 	ConversationTimelineType,
 	getToolLogType,
-	isConversationVisibleTool,
+	isWidgetTimelineTool,
 	TimelineItemVisibility,
 	type ToolTimelineLogType,
 } from "@cossistant/types";
@@ -29,7 +29,7 @@ type ToolTimelineContext = Pick<
 >;
 
 function getToolTimelineVisibility(toolName: string): TimelineItemVisibility {
-	return isConversationVisibleTool(toolName)
+	return isWidgetTimelineTool(toolName)
 		? TimelineItemVisibility.PUBLIC
 		: TimelineItemVisibility.PRIVATE;
 }

@@ -7,6 +7,7 @@ import {
 } from "@cossistant/core";
 import type { CossistantConfig } from "@cossistant/types";
 import { useMemo } from "react";
+import { processingStoreSingleton } from "../../realtime/processing-store";
 import { seenStoreSingleton } from "../../realtime/seen-store";
 import { typingStoreSingleton } from "../../realtime/typing-store";
 
@@ -64,6 +65,7 @@ export function useClient(
 
 		try {
 			const client = new CossistantClient(config, {
+				processingStore: processingStoreSingleton,
 				seenStore: seenStoreSingleton,
 				typingStore: typingStoreSingleton,
 			});

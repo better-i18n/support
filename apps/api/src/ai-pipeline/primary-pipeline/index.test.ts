@@ -50,6 +50,7 @@ const runGenerationRuntimeMock = mock((async () => ({
 })) as (...args: unknown[]) => Promise<any>);
 const trackGenerationUsageMock = mock(async () => {});
 const emitPipelineSeenMock = mock(async () => {});
+const emitPipelineProcessingCompletedMock = mock(async () => {});
 const emitPipelineGenerationProgressMock = mock(async () => {});
 const emitPipelineToolProgressMock = mock(async () => {});
 const emitPipelineTypingStartMock = mock(async () => {});
@@ -103,6 +104,8 @@ mock.module("../shared/usage", () => ({
 
 mock.module("../shared/events", () => ({
 	emitPipelineSeen: emitPipelineSeenMock,
+	emitPipelineProcessingCompleted: emitPipelineProcessingCompletedMock,
+	emitPipelineProcessingCompletedSafely: emitPipelineProcessingCompletedMock,
 	emitPipelineGenerationProgress: emitPipelineGenerationProgressMock,
 	emitPipelineToolProgress: emitPipelineToolProgressMock,
 	emitPipelineTypingStart: emitPipelineTypingStartMock,
@@ -132,6 +135,7 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 		runGenerationRuntimeMock.mockClear();
 		trackGenerationUsageMock.mockClear();
 		emitPipelineSeenMock.mockClear();
+		emitPipelineProcessingCompletedMock.mockClear();
 		emitPipelineGenerationProgressMock.mockClear();
 		emitPipelineToolProgressMock.mockClear();
 		emitPipelineTypingStartMock.mockClear();
@@ -220,6 +224,12 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 
 		expect(result.status).toBe("error");
 		expect(result.retryable).toBe(true);
+		expect(emitPipelineProcessingCompletedMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				status: "error",
+				workflowRunId: "wf-1",
+			})
+		);
 
 		const primaryLogs = logAiPipelineMock.mock.calls
 			.map(
@@ -281,6 +291,12 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 
 		expect(result.status).toBe("skipped");
 		expect(result.reason).toBe("Explicit no-op");
+		expect(emitPipelineProcessingCompletedMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				status: "skipped",
+				workflowRunId: "wf-1",
+			})
+		);
 
 		const primaryLogs = logAiPipelineMock.mock.calls
 			.map(
@@ -342,7 +358,7 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 		expect(result.retryable).toBe(true);
 	});
 
-	it("starts typing once, exposes only stopTyping to generation, and does not restart after a public send", async () => {
+	it("does not start typing, exposes only stopTyping to generation, and emits a single stop before send cleanup", async () => {
 		runGenerationRuntimeMock.mockImplementationOnce(async (input) => {
 			const runtimeInput = input as {
 				startTyping?: unknown;
@@ -377,8 +393,16 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 		});
 
 		expect(result.status).toBe("completed");
-		expect(typingHeartbeatStartMock).toHaveBeenCalledTimes(1);
-		expect(typingHeartbeatStopMock).toHaveBeenCalledTimes(1);
+		expect(typingHeartbeatStartMock).not.toHaveBeenCalled();
+		expect(typingHeartbeatStopMock).not.toHaveBeenCalled();
+		expect(emitPipelineTypingStopMock).toHaveBeenCalledTimes(1);
+		expect(emitPipelineProcessingCompletedMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				status: "success",
+				action: "respond",
+				workflowRunId: "wf-1",
+			})
+		);
 	});
 
 	it("passes continuation context into generation runtime", async () => {

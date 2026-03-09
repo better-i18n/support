@@ -59,6 +59,30 @@ describe("shouldDeliverEvent", () => {
 		);
 	});
 
+	it("uses the same visitor fallback for timelineItemUpdated events", () => {
+		const eventWithoutVisitor: RealtimeEvent<"timelineItemUpdated"> = {
+			type: "timelineItemUpdated",
+			payload: {
+				websiteId: "site-1",
+				organizationId: "org-1",
+				userId: "user-1",
+				visitorId: null,
+				conversationId: "conv-1",
+				item: {
+					...baseEvent.payload.item,
+					visitorId: "visitor-1",
+				},
+			},
+		};
+
+		expect(shouldDeliverEvent(eventWithoutVisitor, "site-1", "visitor-1")).toBe(
+			true
+		);
+		expect(shouldDeliverEvent(eventWithoutVisitor, "site-1", "visitor-2")).toBe(
+			false
+		);
+	});
+
 	it("delivers events when the client visitor id is not yet known", () => {
 		const result = shouldDeliverEvent(baseEvent, "site-1", null);
 		expect(result).toBe(true);

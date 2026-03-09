@@ -3,6 +3,7 @@ import type { TimelineItem } from "@cossistant/types/api/timeline-item";
 import type { ConversationSeen } from "@cossistant/types/schemas";
 import { useMemo } from "react";
 import { getTimelineItemSender } from "../../utils/timeline-item-sender";
+import { getToolNameFromTimelineItem } from "../../utils/timeline-tool";
 
 export type GroupedMessage = {
 	type: "message_group";
@@ -93,28 +94,6 @@ const getDateString = (date: Date): string => {
 const createDayDate = (dateString: string): Date => {
 	const [year, month, day] = dateString.split("-").map(Number);
 	return new Date(year ?? 0, (month ?? 1) - 1, day ?? 1, 0, 0, 0, 0);
-};
-
-const getToolNameFromTimelineItem = (item: TimelineItem): string | null => {
-	if (item.tool) {
-		return item.tool;
-	}
-
-	for (const part of item.parts) {
-		if (
-			typeof part === "object" &&
-			part !== null &&
-			"type" in part &&
-			"toolName" in part &&
-			typeof part.type === "string" &&
-			part.type.startsWith("tool-") &&
-			typeof part.toolName === "string"
-		) {
-			return part.toolName;
-		}
-	}
-
-	return null;
 };
 
 const EMPTY_STRING_ARRAY: readonly string[] = Object.freeze([]);

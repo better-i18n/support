@@ -93,6 +93,19 @@ export {
 	getConversations,
 } from "./store/conversations-store";
 export {
+	applyProcessingCompletedEvent,
+	applyProcessingProgressEvent,
+	type ConversationProcessingEntry,
+	type ConversationProcessingTool,
+	clearProcessingFromTimelineItem,
+	createProcessingStore,
+	getConversationProcessing,
+	type ProcessingState,
+	type ProcessingStore,
+	type ProcessingStoreDependencies,
+	type ProcessingToolState,
+} from "./store/processing-store";
+export {
 	applyConversationSeenEvent,
 	type ConversationSeenState,
 	createSeenStore,

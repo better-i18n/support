@@ -240,7 +240,7 @@ describe("typing store", () => {
 		expect(getEntries("conv-1")).toHaveLength(0);
 	});
 
-	it("keeps AI typing when AI message arrives (for multi-message sequences)", () => {
+	it("clears AI typing when AI message arrives", () => {
 		// Set up AI typing state
 		setTypingState(store, {
 			conversationId: "conv-1",
@@ -282,10 +282,9 @@ describe("typing store", () => {
 
 		clearTypingFromTimelineItem(store, aiMessageEvent);
 
-		// AI typing should STILL be present (for multi-message support)
+		// AI typing should be cleared once the public AI message lands
 		entries = getEntries("conv-1");
-		expect(entries).toHaveLength(1);
-		expect(entries[0]?.actorType).toBe("ai_agent");
+		expect(entries).toHaveLength(0);
 	});
 
 	it("clears all typing when visitor message arrives", () => {
@@ -373,7 +372,7 @@ describe("typing store", () => {
 		expect(getEntries("conv-1")).toHaveLength(0);
 	});
 
-	it("clears visitor typing when AI message arrives", () => {
+	it("clears all typing when AI message arrives", () => {
 		// Set up both AI and visitor typing
 		setTypingState(store, {
 			conversationId: "conv-1",
@@ -419,9 +418,8 @@ describe("typing store", () => {
 
 		clearTypingFromTimelineItem(store, aiMessageEvent);
 
-		// Only AI typing should remain
+		// All typing should be cleared
 		const entries = getEntries("conv-1");
-		expect(entries).toHaveLength(1);
-		expect(entries[0]?.actorType).toBe("ai_agent");
+		expect(entries).toHaveLength(0);
 	});
 });

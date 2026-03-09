@@ -36,6 +36,7 @@
     "docs/export",
     "dist",
     "*.config.*",
-    "**/*.test.ts"
+    "**/*.test.ts",
+    "**/*.test.tsx"
   ]
 }

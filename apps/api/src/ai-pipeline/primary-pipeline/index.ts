@@ -2,6 +2,10 @@ import { env } from "@api/env";
 import { logAiPipeline } from "../logger";
 import { createPipelineDevConversationLog } from "../shared/dev-conversation-log";
 import {
+	emitPipelineProcessingCompletedSafely,
+	type PipelineRealtimeConversationTarget,
+} from "../shared/events";
+import {
 	type GenerationRuntimeInput,
 	runGenerationRuntime,
 } from "../shared/generation";
@@ -15,7 +19,6 @@ import { resolveTracePayloadMode } from "./internal/trace";
 import {
 	createPrimaryTypingControls,
 	type PrimaryTypingControls,
-	startPrimaryTypingSafely,
 } from "./internal/typing";
 import { trackPrimaryGenerationUsage } from "./internal/usage";
 import type { DecisionResult } from "./steps/decision";
@@ -88,6 +91,34 @@ export async function runPrimaryPipeline(
 		`[ai-pipeline:primary] conv=${ctx.input.conversationId} workflowRunId=${ctx.input.workflowRunId} evt=start trigger=${ctx.input.messageId}`
 	);
 
+	const completionConversation: PipelineRealtimeConversationTarget = {
+		id: ctx.input.conversationId,
+		websiteId: ctx.input.websiteId,
+		organizationId: ctx.input.organizationId,
+		visitorId: ctx.input.visitorId,
+	};
+
+	const emitProcessingCompletedSafe = async (params: {
+		conversation?: PipelineRealtimeConversationTarget;
+		aiAgentId?: string;
+		status: "success" | "skipped" | "error";
+		action?: string | null;
+		reason?: string | null;
+		audience?: "all" | "dashboard";
+	}) => {
+		await emitPipelineProcessingCompletedSafely({
+			conversation: params.conversation ?? completionConversation,
+			aiAgentId: params.aiAgentId ?? ctx.input.aiAgentId,
+			workflowRunId: ctx.input.workflowRunId,
+			status: params.status,
+			action: params.action,
+			reason: params.reason,
+			audience: params.audience ?? "all",
+			pipelineArea: "primary",
+			logConversationId: ctx.input.conversationId,
+		});
+	};
+
 	try {
 		const intakeResult = await measureStage(metrics, "intakeMs", () =>
 			runIntakeStep({
@@ -110,6 +141,10 @@ export async function runPrimaryPipeline(
 			});
 
 			if (retryable) {
+				await emitProcessingCompletedSafe({
+					status: "error",
+					reason: intakeResult.reason,
+				});
 				return buildPrimaryPipelineResult({
 					status: "error",
 					metrics,
@@ -121,6 +156,10 @@ export async function runPrimaryPipeline(
 				});
 			}
 
+			await emitProcessingCompletedSafe({
+				status: "skipped",
+				reason: intakeResult.reason,
+			});
 			return buildPrimaryPipelineResult({
 				status: "skipped",
 				metrics,
@@ -157,6 +196,12 @@ export async function runPrimaryPipeline(
 				},
 			});
 
+			await emitProcessingCompletedSafe({
+				conversation: intakeResult.data.conversation,
+				aiAgentId: intakeResult.data.aiAgent.id,
+				status: "skipped",
+				reason: decisionResult.reason,
+			});
 			return buildPrimaryPipelineResult({
 				status: "skipped",
 				metrics,
@@ -172,11 +217,6 @@ export async function runPrimaryPipeline(
 			conversation: intakeResult.data.conversation,
 			aiAgentId: intakeResult.data.aiAgent.id,
 			conversationId: ctx.input.conversationId,
-		});
-
-		await startPrimaryTypingSafely({
-			conversationId: ctx.input.conversationId,
-			controls: typingControls,
 		});
 
 		const generationResult = await (async () => {
@@ -236,6 +276,13 @@ export async function runPrimaryPipeline(
 				},
 			});
 
+			await emitProcessingCompletedSafe({
+				conversation: intakeResult.data.conversation,
+				aiAgentId: intakeResult.data.aiAgent.id,
+				status: "error",
+				reason: errorMessage,
+				audience: allowPublicMessages ? "all" : "dashboard",
+			});
 			return buildPrimaryPipelineResult({
 				status: "error",
 				metrics,
@@ -261,6 +308,14 @@ export async function runPrimaryPipeline(
 				},
 			});
 
+			await emitProcessingCompletedSafe({
+				conversation: intakeResult.data.conversation,
+				aiAgentId: intakeResult.data.aiAgent.id,
+				status: "skipped",
+				action: generationResult.action.action,
+				reason: generationResult.action.reasoning,
+				audience: allowPublicMessages ? "all" : "dashboard",
+			});
 			return buildPrimaryPipelineResult({
 				status: "skipped",
 				metrics,
@@ -284,6 +339,14 @@ export async function runPrimaryPipeline(
 			},
 		});
 
+		await emitProcessingCompletedSafe({
+			conversation: intakeResult.data.conversation,
+			aiAgentId: intakeResult.data.aiAgent.id,
+			status: "success",
+			action: generationResult.action.action,
+			reason: generationResult.action.reasoning,
+			audience: allowPublicMessages ? "all" : "dashboard",
+		});
 		return buildPrimaryPipelineResult({
 			status: "completed",
 			metrics,
@@ -309,6 +372,10 @@ export async function runPrimaryPipeline(
 			error,
 		});
 
+		await emitProcessingCompletedSafe({
+			status: "error",
+			reason: message,
+		});
 		return buildPrimaryPipelineResult({
 			status: "error",
 			metrics,

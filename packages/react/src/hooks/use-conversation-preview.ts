@@ -8,6 +8,7 @@ import { useSupportText } from "../support/text";
 import { resolveSupportHumanAgentDisplay } from "../support/utils/human-agent-display";
 import { formatTimeAgo } from "../support/utils/time";
 import {
+	filterWidgetVisibleTypingEntries,
 	mapTypingEntriesToPreviewParticipants,
 	type PreviewTypingParticipant,
 } from "./private/typing";
@@ -292,15 +293,19 @@ export function useConversationPreview(
 		excludeUserId: typing?.excludeUserId ?? null,
 		excludeAiAgentId: typing?.excludeAiAgentId ?? null,
 	});
+	const widgetVisibleTypingEntries = useMemo(
+		() => filterWidgetVisibleTypingEntries(typingEntries),
+		[typingEntries]
+	);
 
 	const typingParticipants = useMemo(
 		() =>
-			mapTypingEntriesToPreviewParticipants(typingEntries, {
+			mapTypingEntriesToPreviewParticipants(widgetVisibleTypingEntries, {
 				availableHumanAgents,
 				availableAIAgents,
 				text,
 			}),
-		[typingEntries, availableHumanAgents, availableAIAgents, text]
+		[widgetVisibleTypingEntries, availableHumanAgents, availableAIAgents, text]
 	);
 
 	const primaryTypingParticipant = typingParticipants[0] ?? null;

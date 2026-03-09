@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useStoreSelector } from "../hooks/private/store/use-store-selector";
+import { isWidgetVisibleTypingEntry } from "../hooks/private/typing";
 import { useSupport } from "../provider";
 import { useSupportConfig } from "../support";
 import { useTriggerRef } from "../support/context/positioning";
@@ -11,6 +12,7 @@ import { useRenderElement } from "../utils/use-render-element";
 export type TriggerRenderProps = {
 	isOpen: boolean;
 	unreadCount: number;
+	/** Whether a team member is currently typing */
 	isTyping: boolean;
 	toggle: () => void;
 };
@@ -72,8 +74,7 @@ export type TriggerProps = Omit<
 export const SupportTrigger = React.forwardRef<HTMLButtonElement, TriggerProps>(
 	({ children, className, asChild = false, ...props }, ref) => {
 		const { isOpen, toggle } = useSupportConfig();
-		const { unreadCount, visitor, client } = useSupport();
-		const visitorId = visitor?.id ?? null;
+		const { unreadCount, client } = useSupport();
 		const triggerRefContext = useTriggerRef();
 
 		// Extract setTriggerElement for stable dependency (state setter has stable identity)
@@ -109,20 +110,12 @@ export const SupportTrigger = React.forwardRef<HTMLButtonElement, TriggerProps>(
 				) =>
 					state
 						? Object.values(state.conversations).some((entries) =>
-								Object.values(entries).some((entry) => {
-									if (
-										visitorId &&
-										entry.actorType === "visitor" &&
-										entry.actorId === visitorId
-									) {
-										return false;
-									}
-
-									return true;
-								})
+								Object.values(entries).some((entry) =>
+									isWidgetVisibleTypingEntry(entry)
+								)
 							)
 						: false,
-				[visitorId]
+				[]
 			)
 		);
 

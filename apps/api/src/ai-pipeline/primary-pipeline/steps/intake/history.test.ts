@@ -1,11 +1,23 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { isConversationMessage } from "../../contracts";
 
-const getConversationTimelineItemsMock = mock(async () => ({
-	items: [],
-	hasNextPage: false,
-	nextCursor: undefined,
-}));
+type MockTimelineItem =
+	| ReturnType<typeof createMessage>
+	| ReturnType<typeof createTool>;
+
+type MockTimelinePage = {
+	items: MockTimelineItem[];
+	hasNextPage: boolean;
+	nextCursor?: string;
+};
+
+const getConversationTimelineItemsMock = mock(
+	async (): Promise<MockTimelinePage> => ({
+		items: [],
+		hasNextPage: false,
+		nextCursor: undefined,
+	})
+);
 
 mock.module("@api/db/queries/conversation", () => ({
 	getConversationTimelineItems: getConversationTimelineItemsMock,

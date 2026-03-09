@@ -66,6 +66,17 @@ async function executePublicMessageSend(params: {
 		await delay(PUBLIC_MESSAGE_DELAY_MS);
 	}
 
+	if (ctx.stopTyping) {
+		try {
+			await ctx.stopTyping();
+		} catch (error) {
+			ctx.debugLogger?.warn(
+				`[ai-pipeline:send-message] conv=${ctx.conversationId} workflowRunId=${ctx.workflowRunId} evt=typing_stop_failed`,
+				error
+			);
+		}
+	}
+
 	const result = await sendPublicMessage({
 		db: ctx.db,
 		conversationId: ctx.conversationId,

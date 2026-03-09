@@ -7,7 +7,10 @@ function getTargetVisitorId(event: AnyRealtimeEvent): string | null {
 		return payloadVisitorId;
 	}
 
-	if (event.type === "timelineItemCreated") {
+	if (
+		event.type === "timelineItemCreated" ||
+		event.type === "timelineItemUpdated"
+	) {
 		const itemVisitorId = event.payload.item.visitorId;
 
 		if (typeof itemVisitorId === "string" && itemVisitorId.length > 0) {

@@ -19,6 +19,32 @@ export type MapTypingEntriesToPreviewParticipantsOptions = {
 	text: SupportTextResolvedFormatter;
 };
 
+export function isWidgetVisibleTypingEntry(entry: {
+	actorType?: string | null;
+}): boolean {
+	return entry.actorType === "user";
+}
+
+export function filterWidgetVisibleTypingEntries<T extends TypingEntry>(
+	entries: readonly T[]
+): T[] {
+	return entries.filter((entry) => isWidgetVisibleTypingEntry(entry));
+}
+
+export function isWidgetVisibleTypingParticipant(
+	participant: Pick<TimelineTypingParticipant, "type">
+): boolean {
+	return participant.type === "team_member";
+}
+
+export function filterWidgetVisibleTypingParticipants<
+	T extends TimelineTypingParticipant,
+>(participants: readonly T[]): T[] {
+	return participants.filter((participant) =>
+		isWidgetVisibleTypingParticipant(participant)
+	);
+}
+
 /**
  * Converts raw typing events into participants understood by the timeline
  * renderer.

@@ -1,3 +1,9 @@
+export {
+	applyProcessingCompletedEvent,
+	applyProcessingProgressEvent,
+	clearProcessingFromTimelineItem,
+	useProcessingStore,
+} from "./processing-store";
 export type {
 	RealtimeAuthConfig,
 	RealtimeContextValue,

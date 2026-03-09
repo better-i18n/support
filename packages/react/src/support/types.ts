@@ -32,7 +32,7 @@ export type Align = "start" | "center" | "end";
 export type TriggerRenderProps = {
 	/** Whether the support window is currently open */
 	isOpen: boolean;
-	/** Whether an agent or AI is currently typing */
+	/** Whether a team member is currently typing */
 	isTyping: boolean;
 	/** Number of unread messages */
 	unreadCount: number;

@@ -5,6 +5,7 @@ import type {
 } from "@cossistant/types/api/timeline-item";
 import type React from "react";
 import { useCallback, useMemo } from "react";
+import { filterWidgetVisibleTypingParticipants } from "../../hooks/private/typing";
 import type { DaySeparatorItem } from "../../hooks/private/use-grouped-messages";
 import { useConversationTimeline } from "../../hooks/use-conversation-timeline";
 import { useTypingSound } from "../../hooks/use-typing-sound";
@@ -25,7 +26,12 @@ import { ConversationEvent } from "./conversation-event";
 import { filterSeenByIdsForViewer } from "./conversation-timeline-utils";
 import { TimelineActivityGroup } from "./timeline-activity-group";
 import { TimelineMessageGroup } from "./timeline-message-group";
-import { TypingIndicator, type TypingParticipant } from "./typing-indicator";
+import {
+	resolveConversationTimelineProcessingComponent,
+	resolveConversationTimelineToolComponent,
+} from "./timeline-tool-registry";
+import type { ConversationTimelineTools } from "./timeline-tool-types";
+import { TypingIndicator } from "./typing-indicator";
 
 // Helper to extract event part from timeline item
 function extractEventPart(item: TimelineItem): TimelinePartEvent | null {
@@ -43,19 +49,12 @@ function extractEventPart(item: TimelineItem): TimelinePartEvent | null {
 const EMPTY_SEEN_BY_IDS: readonly string[] = Object.freeze([]);
 const EMPTY_SEEN_BY_NAMES: readonly string[] = Object.freeze([]);
 
-export type ConversationTimelineToolProps = {
-	item: TimelineItem;
-	conversationId: string;
-};
-
-export type ConversationTimelineToolDefinition = {
-	component: React.ComponentType<ConversationTimelineToolProps>;
-};
-
-export type ConversationTimelineTools = Record<
-	string,
-	ConversationTimelineToolDefinition
->;
+export type {
+	ConversationTimelineProcessingProps,
+	ConversationTimelineToolDefinition,
+	ConversationTimelineToolProps,
+	ConversationTimelineTools,
+} from "./timeline-tool-types";
 
 export type ConversationTimelineProps = {
 	conversationId: string;
@@ -87,18 +86,21 @@ export const ConversationTimelineList: React.FC<ConversationTimelineProps> = ({
 		items: timelineItems,
 		currentVisitorId,
 	});
-
-	const typingIndicatorParticipants = useMemo(
-		() =>
-			timeline.typingParticipants.map<TypingParticipant>((participant) => ({
-				id: participant.id,
-				type: participant.type,
-			})),
+	const processingToolName = timeline.processing?.tool?.toolName ?? null;
+	const ProcessingComponent =
+		timeline.processing?.tool?.state === "partial"
+			? resolveConversationTimelineProcessingComponent(
+					processingToolName,
+					tools
+				)
+			: null;
+	const visibleTypingParticipants = useMemo(
+		() => filterWidgetVisibleTypingParticipants(timeline.typingParticipants),
 		[timeline.typingParticipants]
 	);
 
 	// Play typing sound when someone is typing
-	useTypingSound(typingIndicatorParticipants.length > 0, {
+	useTypingSound(!ProcessingComponent && visibleTypingParticipants.length > 0, {
 		volume: 1,
 		playbackRate: 1.3,
 	});
@@ -224,13 +226,14 @@ export const ConversationTimelineList: React.FC<ConversationTimelineProps> = ({
 
 					if (item.type === "timeline_tool") {
 						const toolName = item.tool ?? item.item.tool ?? item.item.type;
-						const toolDefinition = toolName ? tools?.[toolName] : undefined;
+						const ToolComponent = resolveConversationTimelineToolComponent(
+							toolName,
+							tools
+						);
 
-						if (!toolDefinition) {
+						if (!ToolComponent) {
 							return null;
 						}
-
-						const ToolComponent = toolDefinition.component;
 
 						const toolKey =
 							item.item.id ?? `${toolName}-${item.item.createdAt}-${index}`;
@@ -297,13 +300,20 @@ export const ConversationTimelineList: React.FC<ConversationTimelineProps> = ({
 						/>
 					);
 				})}
-				<div className="h-6 w-full">
-					{typingIndicatorParticipants.length > 0 ? (
+				<div className="w-full">
+					{ProcessingComponent ? (
+						<div className="mt-2">
+							<ProcessingComponent
+								message={timeline.processing?.message}
+								toolName={processingToolName ?? ""}
+							/>
+						</div>
+					) : visibleTypingParticipants.length > 0 ? (
 						<TypingIndicator
 							availableAIAgents={availableAIAgents}
 							availableHumanAgents={availableHumanAgents}
 							className="mt-2"
-							participants={typingIndicatorParticipants}
+							participants={visibleTypingParticipants}
 						/>
 					) : null}
 				</div>

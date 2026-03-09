@@ -272,6 +272,10 @@ export function clearTypingFromTimelineItem(
 ): void {
 	const { item } = event.payload;
 
+	if (item.type !== "message") {
+		return;
+	}
+
 	// Determine who sent this message
 	const senderType: TypingActorType | null = item.aiAgentId
 		? "ai_agent"
@@ -281,42 +285,7 @@ export function clearTypingFromTimelineItem(
 				? "visitor"
 				: null;
 
-	// Strategy for clearing typing based on who sent the message:
-	//
-	// 1. VISITOR message → Clear ALL typing
-	//    - A new AI workflow will start, so AI typing should stop
-	//    - User typing should stop too (conversation state changed)
-	//
-	// 2. USER message → Clear ALL typing
-	//    - Human took over the conversation
-	//    - AI typing should stop (human is handling)
-	//
-	// 3. AI message → DON'T clear AI typing (more messages may come)
-	//    - AI may send multiple messages in sequence
-	//    - Server restarts typing after each message
-	//    - Typing TTL (6s) handles eventual cleanup
-	//    - Clear OTHER typing (visitor/user) just in case
-
-	if (senderType === "ai_agent") {
-		// AI sent a message - keep AI typing alive for multi-message sequences
-		// Only clear non-AI typing entries
-		const conversationTyping =
-			store.getState().conversations[item.conversationId];
-		if (conversationTyping) {
-			for (const key of Object.keys(conversationTyping)) {
-				const entry = conversationTyping[key];
-				if (entry && entry.actorType !== "ai_agent") {
-					store.removeTyping({
-						conversationId: item.conversationId,
-						actorType: entry.actorType,
-						actorId: entry.actorId,
-					});
-				}
-			}
-		}
-	} else {
-		// Visitor or user sent a message - clear ALL typing
-		// This resets the conversation state properly
+	if (senderType) {
 		store.clearConversation(item.conversationId);
 	}
 }

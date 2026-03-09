@@ -1,9 +1,8 @@
 import type { ConversationSelect } from "@api/db/schema/conversation";
 import { logAiPipeline } from "../../logger";
-import { PipelineTypingHeartbeat } from "../../shared/events";
+import { emitPipelineTypingStop } from "../../shared/events";
 
 export type PrimaryTypingControls = {
-	startTyping?: () => Promise<void>;
 	stopTyping?: () => Promise<void>;
 	stopSafely: () => Promise<void>;
 };
@@ -14,40 +13,23 @@ export function createPrimaryTypingControls(params: {
 	aiAgentId: string;
 	conversationId: string;
 }): PrimaryTypingControls {
-	let typingHeartbeat: PipelineTypingHeartbeat | null = null;
+	let hasStopped = false;
 
-	const ensureHeartbeat = (): PipelineTypingHeartbeat => {
-		if (!typingHeartbeat) {
-			typingHeartbeat = new PipelineTypingHeartbeat({
-				conversation: params.conversation,
-				aiAgentId: params.aiAgentId,
-			});
-		}
-		return typingHeartbeat;
-	};
-
-	const startTyping = async (): Promise<void> => {
-		if (!params.allowPublicMessages) {
+	const stopTyping = async (): Promise<void> => {
+		if (!params.allowPublicMessages || hasStopped) {
 			return;
 		}
 
-		const heartbeat = ensureHeartbeat();
-		if (!heartbeat.running) {
-			await heartbeat.start();
-		}
-	};
-
-	const stopTyping = async (): Promise<void> => {
-		if (typingHeartbeat) {
-			await typingHeartbeat.stop();
-		}
+		hasStopped = true;
+		await emitPipelineTypingStop({
+			conversation: params.conversation,
+			aiAgentId: params.aiAgentId,
+		});
 	};
 
 	const stopSafely = async (): Promise<void> => {
 		try {
-			if (typingHeartbeat) {
-				await typingHeartbeat.stop();
-			}
+			await stopTyping();
 		} catch (error) {
 			logAiPipeline({
 				area: "primary",
@@ -69,32 +51,7 @@ export function createPrimaryTypingControls(params: {
 	}
 
 	return {
-		startTyping,
 		stopTyping,
 		stopSafely,
 	};
-}
-
-export async function startPrimaryTypingSafely(params: {
-	conversationId: string;
-	controls: PrimaryTypingControls;
-}): Promise<void> {
-	if (!params.controls.startTyping) {
-		return;
-	}
-
-	try {
-		await params.controls.startTyping();
-	} catch (error) {
-		logAiPipeline({
-			area: "primary",
-			event: "typing_start_failed",
-			level: "warn",
-			conversationId: params.conversationId,
-			fields: {
-				stage: "typing",
-			},
-			error,
-		});
-	}
 }
