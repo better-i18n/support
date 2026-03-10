@@ -2,11 +2,16 @@
 
 import type { InboxAnalyticsResponse } from "@cossistant/types";
 import { useMemo } from "react";
+import {
+	SegmentedControl,
+	type SegmentedControlOption,
+} from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { TooltipOnHover } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { INBOX_ANALYTICS_RANGES, type InboxAnalyticsRangeDays } from "./types";
+
+export type InboxAnalyticsDisplayLayout = "inline" | "sheet";
 
 type InboxAnalyticsDisplayProps = {
 	data: InboxAnalyticsResponse | null;
@@ -14,6 +19,10 @@ type InboxAnalyticsDisplayProps = {
 	onRangeChange: (rangeDays: InboxAnalyticsRangeDays) => void;
 	isLoading?: boolean;
 	isError?: boolean;
+	layout?: InboxAnalyticsDisplayLayout;
+	controlSize?: "default" | "sm";
+	className?: string;
+	showControl?: boolean;
 };
 
 type MetricConfig = {
@@ -25,9 +34,22 @@ type MetricConfig = {
 	formatSuffix?: (value: number | null) => string | null;
 };
 
+type MetricDisplay = MetricConfig & {
+	current: number | null;
+	delta: number | null;
+	deltaLabel: string;
+	trendPositive: boolean | null;
+};
+
 const numberFormatter = new Intl.NumberFormat("en-US", {
 	maximumFractionDigits: 0,
 });
+
+const rangeOptions = [
+	{ value: "7", label: "7d" },
+	{ value: "14", label: "14d" },
+	{ value: "30", label: "Month" },
+] as const satisfies readonly SegmentedControlOption<string>[];
 
 const formatDuration = (value: number | null): string => {
 	if (value === null || Number.isNaN(value)) {
@@ -141,12 +163,135 @@ const computeDelta = (
 	return ((current - previous) / previous) * 100;
 };
 
+const getDeltaClassName = (trendPositive: boolean | null) => {
+	if (trendPositive === null) {
+		return "text-muted-foreground";
+	}
+
+	return trendPositive ? "text-emerald-600" : "text-rose-600";
+};
+
+function InlineMetric({
+	metric,
+	isLoading,
+}: {
+	metric: MetricDisplay;
+	isLoading: boolean;
+}) {
+	const value = metric.formatValue(metric.current);
+	const suffix = metric.formatSuffix?.(metric.current) ?? null;
+	const deltaClassName = getDeltaClassName(metric.trendPositive);
+
+	return (
+		<TooltipOnHover content={metric.description} delay={300} side="bottom">
+			<div className="flex h-[42px] min-w-[150px] flex-1 cursor-help flex-col justify-between">
+				<p className="text-primary/60 text-xs">{metric.label}</p>
+				<div className="flex items-center justify-start gap-2">
+					{isLoading ? (
+						<Skeleton className="h-5 w-16" />
+					) : (
+						<div className="flex items-baseline gap-1">
+							<span className="font-semibold text-md text-primary">
+								{value}
+							</span>
+							{suffix ? (
+								<span className="text-muted-foreground text-xs">{suffix}</span>
+							) : null}
+						</div>
+					)}
+					{isLoading ? (
+						<Skeleton className="h-4 w-10" />
+					) : (
+						<span className={cn("font-medium text-xs", deltaClassName)}>
+							{metric.deltaLabel}
+						</span>
+					)}
+				</div>
+			</div>
+		</TooltipOnHover>
+	);
+}
+
+function SheetMetric({
+	metric,
+	isLoading,
+}: {
+	metric: MetricDisplay;
+	isLoading: boolean;
+}) {
+	const value = metric.formatValue(metric.current);
+	const suffix = metric.formatSuffix?.(metric.current) ?? null;
+	const deltaClassName = getDeltaClassName(metric.trendPositive);
+
+	return (
+		<div className="flex flex-col gap-2 rounded-[10px] border border-primary/10 bg-background-100/70 px-3 py-3">
+			<div className="flex items-center justify-between gap-3">
+				<p className="text-primary/60 text-xs">{metric.label}</p>
+				{isLoading ? (
+					<Skeleton className="h-4 w-10" />
+				) : (
+					<span className={cn("font-medium text-xs", deltaClassName)}>
+						{metric.deltaLabel}
+					</span>
+				)}
+			</div>
+			{isLoading ? (
+				<Skeleton className="h-6 w-24" />
+			) : (
+				<div className="flex items-baseline gap-1">
+					<span className="font-semibold text-lg text-primary">{value}</span>
+					{suffix ? (
+						<span className="text-muted-foreground text-xs">{suffix}</span>
+					) : null}
+				</div>
+			)}
+		</div>
+	);
+}
+
+type InboxAnalyticsRangeControlProps = {
+	rangeDays: InboxAnalyticsRangeDays;
+	onRangeChange: (rangeDays: InboxAnalyticsRangeDays) => void;
+	size?: "default" | "sm";
+	className?: string;
+};
+
+export function InboxAnalyticsRangeControl({
+	rangeDays,
+	onRangeChange,
+	size = "sm",
+	className,
+}: InboxAnalyticsRangeControlProps) {
+	const handleRangeChange = (nextValue: string) => {
+		const parsed = Number(nextValue) as InboxAnalyticsRangeDays;
+
+		if (INBOX_ANALYTICS_RANGES.includes(parsed)) {
+			onRangeChange(parsed);
+		}
+	};
+
+	return (
+		<SegmentedControl
+			aria-label="Analytics date range"
+			className={className}
+			onValueChange={handleRangeChange}
+			options={rangeOptions}
+			size={size}
+			value={String(rangeDays)}
+		/>
+	);
+}
+
 export function InboxAnalyticsDisplay({
 	data,
 	rangeDays,
 	onRangeChange,
 	isLoading = false,
 	isError = false,
+	layout = "inline",
+	controlSize = layout === "sheet" ? "default" : "sm",
+	className,
+	showControl = true,
 }: InboxAnalyticsDisplayProps) {
 	const metrics = useMemo(
 		() =>
@@ -166,7 +311,6 @@ export function InboxAnalyticsDisplay({
 				return {
 					...config,
 					current,
-					previous,
 					delta,
 					deltaLabel,
 					trendPositive,
@@ -176,75 +320,55 @@ export function InboxAnalyticsDisplay({
 	);
 
 	return (
-		<div className="hidden lg:block">
-			{/* <div className="flex items-center justify-between gap-3">
-        <ToggleGroup
-          className="shrink-0"
-          onValueChange={(value) => {
-            const parsed = Number(value) as InboxAnalyticsRangeDays;
-            if (INBOX_ANALYTICS_RANGES.includes(parsed)) {
-              onRangeChange(parsed);
-            }
-          }}
-          size="sm"
-          type="single"
-          value={String(rangeDays)}
-          variant="outline"
-        >
-          <ToggleGroupItem value="7">7d</ToggleGroupItem>
-          <ToggleGroupItem value="14">14d</ToggleGroupItem>
-          <ToggleGroupItem value="30">Month</ToggleGroupItem>
-        </ToggleGroup>
-      </div> */}
-
-			<div className="flex gap-2 overflow-x-auto">
-				{metrics.map((metric) => {
-					const value = metric.formatValue(metric.current);
-					const suffix = metric.formatSuffix?.(metric.current) ?? null;
-					const deltaClass =
-						metric.trendPositive === null
-							? "text-muted-foreground"
-							: metric.trendPositive
-								? "text-emerald-600"
-								: "text-rose-600";
-
-					return (
-						<TooltipOnHover
-							content={metric.description}
-							delay={300}
-							key={metric.key}
-							side="bottom"
-						>
-							<div className="flex h-[42px] min-w-[150px] flex-1 cursor-help flex-col justify-between">
-								<p className="text-primary/60 text-xs">{metric.label}</p>
-								<div className="flex items-center justify-start gap-2">
-									{isLoading ? (
-										<Skeleton className="h-5 w-16" />
-									) : (
-										<div className="flex items-baseline gap-1">
-											<span className="font-semibold text-md text-primary">
-												{value}
-											</span>
-											{suffix ? (
-												<span className="text-muted-foreground text-xs">
-													{suffix}
-												</span>
-											) : null}
-										</div>
-									)}
-									{isLoading ? (
-										<Skeleton className="h-4 w-10" />
-									) : (
-										<span className={cn("font-medium text-xs", deltaClass)}>
-											{metric.deltaLabel}
-										</span>
-									)}
-								</div>
-							</div>
-						</TooltipOnHover>
-					);
-				})}
-			</div>
+		<div
+			className={cn(
+				layout === "inline" ? "flex items-center gap-3" : "flex flex-col gap-4",
+				className
+			)}
+			data-error={isError || undefined}
+			data-layout={layout}
+			data-slot="inbox-analytics-display"
+		>
+			{layout === "inline" ? (
+				<>
+					<div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pr-1">
+						{metrics.map((metric) => (
+							<InlineMetric
+								isLoading={isLoading}
+								key={metric.key}
+								metric={metric}
+							/>
+						))}
+					</div>
+					{showControl ? (
+						<InboxAnalyticsRangeControl
+							className="shrink-0"
+							onRangeChange={onRangeChange}
+							rangeDays={rangeDays}
+							size={controlSize}
+						/>
+					) : null}
+				</>
+			) : (
+				<>
+					{showControl ? (
+						<InboxAnalyticsRangeControl
+							onRangeChange={onRangeChange}
+							rangeDays={rangeDays}
+							size={controlSize}
+						/>
+					) : null}
+					<div className="flex flex-col gap-3">
+						{metrics.map((metric) => (
+							<SheetMetric
+								isLoading={isLoading}
+								key={metric.key}
+								metric={metric}
+							/>
+						))}
+					</div>
+				</>
+			)}
 		</div>
 	);
 }

@@ -2,31 +2,69 @@
 
 import { useState } from "react";
 import { useInboxAnalytics } from "@/data/use-inbox-analytics";
-import { InboxAnalyticsDisplay } from "./inbox-analytics-display";
+import {
+	InboxAnalyticsDisplay,
+	type InboxAnalyticsDisplayLayout,
+} from "./inbox-analytics-display";
 import type { InboxAnalyticsRangeDays } from "./types";
 
 const DEFAULT_RANGE: InboxAnalyticsRangeDays = 7;
 
-export function InboxAnalytics({ websiteSlug }: { websiteSlug: string }) {
+type UseInboxAnalyticsControllerOptions = {
+	websiteSlug: string;
+	enabled?: boolean;
+};
+
+type InboxAnalyticsProps = UseInboxAnalyticsControllerOptions & {
+	className?: string;
+	controlSize?: "default" | "sm";
+	layout?: InboxAnalyticsDisplayLayout;
+};
+
+export function useInboxAnalyticsController({
+	websiteSlug,
+	enabled = true,
+}: UseInboxAnalyticsControllerOptions) {
 	const [rangeDays, setRangeDays] =
 		useState<InboxAnalyticsRangeDays>(DEFAULT_RANGE);
+	const [isSheetOpen, setIsSheetOpen] = useState(false);
 
 	const query = useInboxAnalytics({
 		websiteSlug,
 		rangeDays,
-		// Analytics now available for all websites via Tinybird
-		enabled: true,
+		enabled,
 	});
 
+	return {
+		data: query.data ?? null,
+		isError: query.isError,
+		isLoading: query.isLoading || query.isFetching,
+		isSheetOpen,
+		rangeDays,
+		setIsSheetOpen,
+		setRangeDays,
+	};
+}
+
+export function InboxAnalytics({
+	websiteSlug,
+	enabled = true,
+	className,
+	controlSize,
+	layout = "inline",
+}: InboxAnalyticsProps) {
+	const analytics = useInboxAnalyticsController({ websiteSlug, enabled });
+
 	return (
-		<div className="px-1">
-			<InboxAnalyticsDisplay
-				data={query.data ?? null}
-				isError={query.isError}
-				isLoading={query.isLoading || query.isFetching}
-				onRangeChange={setRangeDays}
-				rangeDays={rangeDays}
-			/>
-		</div>
+		<InboxAnalyticsDisplay
+			className={className}
+			controlSize={controlSize}
+			data={analytics.data}
+			isError={analytics.isError}
+			isLoading={analytics.isLoading}
+			layout={layout}
+			onRangeChange={analytics.setRangeDays}
+			rangeDays={analytics.rangeDays}
+		/>
 	);
 }

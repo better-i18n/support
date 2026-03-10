@@ -12,6 +12,7 @@ import {
 import { CategoryHeader } from "@/components/conversations-list/category-header";
 import { ConversationItem } from "@/components/conversations-list/conversation-item";
 import type { ConversationHeader } from "@/contexts/inboxes";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { PageContent } from "../ui/layout";
 import {
 	ANALYTICS_HEIGHT,
@@ -100,6 +101,8 @@ export function VirtualizedConversations({
 }: ConversationsListProps) {
 	const scrollAreaRef = useRef<HTMLDivElement>(null);
 	const viewportRef = useRef<HTMLDivElement>(null);
+	const isMobile = useIsMobile();
+	const analyticsHeight = isMobile ? 0 : ANALYTICS_HEIGHT;
 
 	const isSmartMode = smartItems != null;
 	const items = isSmartMode ? smartItems : null;
@@ -122,7 +125,7 @@ export function VirtualizedConversations({
 		parentRef: viewportRef,
 		itemHeight: ITEM_HEIGHT,
 		headerHeight: HEADER_HEIGHT,
-		analyticsHeight: ANALYTICS_HEIGHT,
+		analyticsHeight,
 		enabled: true,
 		onLockedConversationEnter: onLockedConversationActivate,
 	});
@@ -136,13 +139,13 @@ export function VirtualizedConversations({
 					return HEADER_HEIGHT;
 				}
 				if (item?.type === "analytics") {
-					return ANALYTICS_HEIGHT;
+					return analyticsHeight;
 				}
 				return ITEM_HEIGHT;
 			}
 			return ITEM_HEIGHT;
 		},
-		[isSmartMode, items]
+		[analyticsHeight, isSmartMode, items]
 	);
 
 	// Use conversation IDs as keys to ensure proper React reconciliation when list reorders
@@ -171,6 +174,10 @@ export function VirtualizedConversations({
 		gap: 4,
 		overscan: 4,
 	});
+
+	useEffect(() => {
+		virtualizer.measure();
+	}, [analyticsHeight, virtualizer]);
 
 	const virtualItems = virtualizer.getVirtualItems();
 	const totalSize = virtualizer.getTotalSize();

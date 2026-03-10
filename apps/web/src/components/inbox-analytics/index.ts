@@ -1,5 +1,9 @@
-export { InboxAnalytics } from "./inbox-analytics";
-export { InboxAnalyticsDisplay } from "./inbox-analytics-display";
+export { InboxAnalytics, useInboxAnalyticsController } from "./inbox-analytics";
+export type { InboxAnalyticsDisplayLayout } from "./inbox-analytics-display";
+export {
+	InboxAnalyticsDisplay,
+	InboxAnalyticsRangeControl,
+} from "./inbox-analytics-display";
 export {
 	INBOX_ANALYTICS_RANGES,
 	type InboxAnalyticsRangeDays,

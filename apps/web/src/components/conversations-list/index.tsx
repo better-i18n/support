@@ -5,14 +5,25 @@ import { useQuery } from "@tanstack/react-query";
 import { Facehash } from "facehash";
 import Link from "next/link";
 import { useCallback, useState } from "react";
-import { InboxAnalytics } from "@/components/inbox-analytics";
+import {
+	InboxAnalyticsDisplay,
+	InboxAnalyticsRangeControl,
+	useInboxAnalyticsController,
+} from "@/components/inbox-analytics";
 import { UpgradeModal } from "@/components/plan/upgrade-modal";
 import { type ConversationHeader, useInboxes } from "@/contexts/inboxes";
 import { useTRPC } from "@/lib/trpc/client";
 import { Button } from "../ui/button";
 import Icon from "../ui/icons";
 import { Page, PageContent, PageHeader, PageHeaderTitle } from "../ui/layout";
-import { TextEffect } from "../ui/text-effect";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+	SheetTrigger,
+} from "../ui/sheet";
 import { TooltipOnHover } from "../ui/tooltip";
 import { AIAgentOnboarding } from "./ai-agent-onboarding";
 import type { VirtualListItem } from "./types";
@@ -62,14 +73,32 @@ export function ConversationsList({
 
 	const showWaitingForReplyPill = selectedConversationStatus === null;
 	const showAnalytics = selectedConversationStatus === null;
+	const analytics = useInboxAnalyticsController({
+		websiteSlug,
+		enabled: showAnalytics,
+	});
 	const analyticsItems =
 		showAnalytics && smartItems
 			? [{ type: "analytics" as const }, ...smartItems]
 			: smartItems;
 
+	const renderDesktopAnalytics = () => (
+		<div className="hidden px-1 lg:block">
+			<InboxAnalyticsDisplay
+				controlSize="sm"
+				data={analytics.data}
+				isError={analytics.isError}
+				isLoading={analytics.isLoading}
+				onRangeChange={analytics.setRangeDays}
+				rangeDays={analytics.rangeDays}
+				showControl={false}
+			/>
+		</div>
+	);
+
 	return (
 		<Page className="px-0">
-			<PageHeader className="flex items-center justify-between bg-transparent px-4 pl-5 dark:bg-transparent">
+			<PageHeader className="flex items-center justify-between bg-transparent pr-3 pl-5 dark:bg-transparent">
 				<div className="flex items-center gap-2">
 					{!isLeftSidebarOpen && (
 						<TooltipOnHover
@@ -91,14 +120,53 @@ export function ConversationsList({
 						{selectedConversationStatus || "Inbox"}
 					</PageHeaderTitle>
 				</div>
+				{showAnalytics ? (
+					<div className="flex items-center justify-end gap-2">
+						<div className="hidden lg:flex">
+							<InboxAnalyticsRangeControl
+								onRangeChange={analytics.setRangeDays}
+								rangeDays={analytics.rangeDays}
+								size="sm"
+							/>
+						</div>
+						<Sheet
+							onOpenChange={analytics.setIsSheetOpen}
+							open={analytics.isSheetOpen}
+						>
+							<SheetTrigger asChild>
+								<Button className="lg:hidden" size="sm" variant="ghost">
+									Analytics
+								</Button>
+							</SheetTrigger>
+							<SheetContent
+								className="max-h-[85vh] overflow-y-auto border-primary/10 bg-background p-0 lg:hidden"
+								side="bottom"
+							>
+								<SheetHeader className="pr-12">
+									<SheetTitle>Analytics</SheetTitle>
+									<SheetDescription>
+										View inbox performance and adjust the date range.
+									</SheetDescription>
+								</SheetHeader>
+								<div className="px-4 pb-4">
+									<InboxAnalyticsDisplay
+										controlSize="default"
+										data={analytics.data}
+										isError={analytics.isError}
+										isLoading={analytics.isLoading}
+										layout="sheet"
+										onRangeChange={analytics.setRangeDays}
+										rangeDays={analytics.rangeDays}
+									/>
+								</div>
+							</SheetContent>
+						</Sheet>
+					</div>
+				) : null}
 			</PageHeader>
 			{conversations.length === 0 ? (
 				<PageContent className={showAnalytics ? "gap-6" : undefined}>
-					{showAnalytics ? (
-						<div className="px-1">
-							<InboxAnalytics websiteSlug={websiteSlug} />
-						</div>
-					) : null}
+					{showAnalytics ? renderDesktopAnalytics() : null}
 					{isOnboarding ? (
 						<div className="mx-1 mt-4 flex h-2/3 flex-col items-center justify-center gap-6">
 							<Facehash
@@ -147,9 +215,7 @@ export function ConversationsList({
 				</PageContent>
 			) : (
 				<VirtualizedConversations
-					analyticsSlot={
-						showAnalytics ? <InboxAnalytics websiteSlug={websiteSlug} /> : null
-					}
+					analyticsSlot={showAnalytics ? renderDesktopAnalytics() : null}
 					basePath={basePath}
 					conversations={conversations}
 					onLockedConversationActivate={openLockedConversationUpgradeModal}
