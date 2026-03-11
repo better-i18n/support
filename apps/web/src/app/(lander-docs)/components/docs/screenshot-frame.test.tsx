@@ -72,6 +72,8 @@ describe("ScreenshotFrame", () => {
 		});
 
 		expect(html).toContain('data-slot="screenshot-frame"');
+		expect(html).toContain('data-slot="screenshot-frame-stage"');
+		expect(html).toContain("aspect-[16/10]");
 		expect(html).toContain('data-breakout="true"');
 		expect(html).toContain("background-color:#e7e4de");
 		expect(html).toContain(
@@ -120,8 +122,63 @@ describe("ScreenshotFrame", () => {
 
 		expect(html).toContain('data-type="widget"');
 		expect(html).toContain('data-breakout="false"');
+		expect(html).toContain('data-slot="screenshot-frame-stage"');
 		expect(html).toContain('data-slot="widget-shell"');
+		expect(html).toContain('data-slot="screenshot-frame-widget-slide"');
 		expect(html).toContain('data-slot="screenshot-frame-widget-viewport"');
 		expect(html).not.toContain('data-slot="screenshot-frame-navigation"');
+	});
+
+	it("allows a slide to override the frame-level type", () => {
+		const html = renderScreenshotFrame({
+			items: [
+				{
+					alt: "Support widget home",
+					src: "https://cdn.cossistant.com/landing/secondary-large.jpg",
+					type: "widget",
+				},
+			],
+			type: "browser",
+		});
+
+		expect(html).toContain('data-type="widget"');
+		expect(html).toContain('data-slot="screenshot-frame-stage"');
+		expect(html).toContain('data-slot="widget-shell"');
+	});
+
+	it("keeps the shared stage wrapper for mixed browser and widget galleries", () => {
+		const html = renderScreenshotFrame({
+			items: [
+				{
+					alt: "Dashboard overview",
+					src: "https://cdn.cossistant.com/landing/main-large.jpg",
+					type: "browser",
+				},
+				{
+					alt: "Support widget home",
+					src: "https://cdn.cossistant.com/landing/secondary-large.jpg",
+					type: "widget",
+				},
+			],
+			type: "browser",
+		});
+
+		expect(html).toContain('data-slot="screenshot-frame-stage"');
+		expect(html).toContain("aspect-[16/10]");
+		expect(html).toContain('data-slot="screenshot-frame-browser-slide"');
+	});
+
+	it("renders a placeholder when a slide has an empty src", () => {
+		const html = renderScreenshotFrame({
+			items: [
+				{
+					alt: "",
+					src: "",
+				},
+			],
+		});
+
+		expect(html).toContain('data-slot="screenshot-frame-media-placeholder"');
+		expect(html).toContain("Replace screenshot");
 	});
 });

@@ -9,8 +9,10 @@ const registeredHotkeys: Array<{
 const renderedButtonHandlers: Array<() => void> = [];
 const routerPushCalls: string[] = [];
 const closeDetailCalls: string[] = [];
+const setIsChangelogOpenCalls: boolean[] = [];
 
 let pathname = "/acme/inbox";
+let isChangelogOpen = false;
 let activeDetail:
 	| { type: "contact"; contactId: string }
 	| {
@@ -78,9 +80,13 @@ mock.module("@cossistant/next/support", () => {
 });
 
 mock.module("@/components/changelog-notification", () => ({
-	ChangelogNotification: ({ children }: { children: React.ReactNode }) => (
-		<div>{children}</div>
-	),
+	ChangelogNotification: ({
+		children,
+		open,
+	}: {
+		children: React.ReactNode;
+		open: boolean;
+	}) => <div data-changelog-open={String(open)}>{children}</div>,
 }));
 
 mock.module("@/components/support/custom-trigger", () => ({
@@ -122,6 +128,16 @@ mock.module("@/hooks/use-contact-visitor-detail-state", () => ({
 		closeDetailPage: () => {
 			closeDetailCalls.push("close");
 			return Promise.resolve([]);
+		},
+	}),
+}));
+
+mock.module("./use-changelog-overlay-state", () => ({
+	useChangelogOverlayState: () => ({
+		isChangelogOpen,
+		setIsChangelogOpen: (open: boolean) => {
+			isChangelogOpen = open;
+			setIsChangelogOpenCalls.push(open);
 		},
 	}),
 }));
@@ -170,13 +186,36 @@ function resetState() {
 	renderedButtonHandlers.length = 0;
 	routerPushCalls.length = 0;
 	closeDetailCalls.length = 0;
+	setIsChangelogOpenCalls.length = 0;
 	pathname = "/acme/inbox";
+	isChangelogOpen = false;
 	activeDetail = null;
 }
 
-async function renderTopbar() {
+async function renderTopbar(
+	props: Partial<{
+		changelogContent: React.ReactNode;
+		latestRelease: {
+			date: string;
+			description: string;
+			tinyExcerpt: string;
+			version: string;
+		} | null;
+	}> = {}
+) {
 	const { NavigationTopbar } = await modulePromise;
-	return renderToStaticMarkup(<NavigationTopbar />);
+	return renderToStaticMarkup(
+		<NavigationTopbar
+			changelogContent={<div>Latest changes</div>}
+			latestRelease={{
+				date: "2026-03-11",
+				description: "Improved changelog overlay",
+				tinyExcerpt: "New release available",
+				version: "0.1.2",
+			}}
+			{...props}
+		/>
+	);
 }
 
 describe("NavigationTopbar", () => {
@@ -195,6 +234,22 @@ describe("NavigationTopbar", () => {
 		renderedButtonHandlers[0]?.();
 
 		expect(closeDetailCalls).toEqual(["close"]);
+		expect(routerPushCalls).toEqual([]);
+	});
+
+	it("shows the changelog back button instead of the logo and closes the changelog on click", async () => {
+		resetState();
+		isChangelogOpen = true;
+
+		const html = await renderTopbar();
+
+		expect(html).toContain('data-slot="icon-arrow-left"');
+		expect(html).not.toContain('data-slot="logo"');
+
+		renderedButtonHandlers[0]?.();
+
+		expect(setIsChangelogOpenCalls).toEqual([false]);
+		expect(closeDetailCalls).toEqual([]);
 		expect(routerPushCalls).toEqual([]);
 	});
 
@@ -221,16 +276,41 @@ describe("NavigationTopbar", () => {
 		expect(routerPushCalls).toEqual([]);
 	});
 
+	it("closes the changelog on Escape before any detail-page or inbox navigation", async () => {
+		resetState();
+		pathname = "/acme/contacts";
+		isChangelogOpen = true;
+		activeDetail = {
+			type: "visitor",
+			visitorId: "visitor-1",
+		};
+
+		await renderTopbar();
+
+		const escapeHotkey = registeredHotkeys.find(
+			(entry) => entry.keys === "escape"
+		);
+
+		escapeHotkey?.handler({
+			preventDefault() {},
+			stopPropagation() {},
+		});
+
+		expect(setIsChangelogOpenCalls).toEqual([false]);
+		expect(closeDetailCalls).toEqual([]);
+		expect(routerPushCalls).toEqual([]);
+	});
+
 	it("keeps the existing logo and inbox-back states when no detail page is active", async () => {
 		resetState();
-		const inboxHtml = await renderTopbar();
+		const inboxHtml = await renderTopbar({ latestRelease: null });
 
 		expect(inboxHtml).toContain('data-slot="logo"');
 		expect(inboxHtml).not.toContain('data-slot="icon-arrow-left"');
 
 		resetState();
 		pathname = "/acme/contacts";
-		const nonInboxHtml = await renderTopbar();
+		const nonInboxHtml = await renderTopbar({ latestRelease: null });
 
 		expect(nonInboxHtml).toContain('data-slot="icon-arrow-left"');
 		expect(nonInboxHtml).not.toContain('data-slot="logo"');

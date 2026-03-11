@@ -19,7 +19,7 @@ export function BrowserShell({
 	return (
 		<div
 			className={cn(
-				"overflow-hidden rounded-md border border-primary/10 shadow-2xl dark:shadow-primary/5",
+				"overflow-hidden border border-primary/10 shadow-2xl dark:shadow-primary/5",
 				className
 			)}
 			data-slot="browser-shell"
@@ -34,9 +34,9 @@ export function BrowserShell({
 						<div className="size-2.5 rounded-full bg-yellow-500" />
 						<div className="size-2.5 rounded-full bg-green-500" />
 					</div>
-					<div className="ml-4 flex flex-1 items-center justify-center gap-2 px-3 py-1.5">
+					<div className="ml-4 flex flex-1 items-center justify-center gap-2 px-3 py-0.5">
 						<span
-							className="max-w-full truncate rounded-md bg-background-400 px-2 py-1 text-primary/60 text-xs"
+							className="max-w-full truncate rounded bg-background-400 px-2 py-0.5 text-primary/60 text-xs"
 							data-slot="browser-shell-url"
 						>
 							{chromeUrl}

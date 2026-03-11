@@ -17,6 +17,7 @@ import Icon from "../../icons";
 import { Logo } from "../../logo";
 import { TooltipOnHover } from "../../tooltip";
 import { TopbarItem } from "./topbar-item";
+import { useChangelogOverlayState } from "./use-changelog-overlay-state";
 
 type NavigationTopbarProps = {
 	latestRelease?: LatestRelease | null;
@@ -32,6 +33,7 @@ export function NavigationTopbar({
 	const website = useWebsite();
 	const trpc = useTRPC();
 	const { activeDetail, closeDetailPage } = useContactVisitorDetailState();
+	const { isChangelogOpen, setIsChangelogOpen } = useChangelogOverlayState();
 
 	// Data is pre-fetched in the layout, so it will be available immediately
 	const { data: aiAgent } = useQuery(
@@ -46,16 +48,22 @@ export function NavigationTopbar({
 	const baseInboxPath = `/${website?.slug}/inbox`;
 	const isOnInboxView = pathname.startsWith(baseInboxPath);
 	const isDetailPageOpen = activeDetail !== null;
+	const isChangelogVisible = Boolean(latestRelease) && isChangelogOpen;
 
 	useHotkeys(
 		"escape",
 		(event) => {
-			if (!(isDetailPageOpen || !isOnInboxView)) {
+			if (!(isChangelogVisible || isDetailPageOpen || !isOnInboxView)) {
 				return;
 			}
 
 			event.preventDefault();
 			event.stopPropagation();
+
+			if (isChangelogVisible) {
+				setIsChangelogOpen(false);
+				return;
+			}
 
 			if (isDetailPageOpen) {
 				void closeDetailPage();
@@ -65,15 +73,46 @@ export function NavigationTopbar({
 			router.push(baseInboxPath);
 		},
 		{
-			enabled: isDetailPageOpen || !isOnInboxView,
+			enabled: isChangelogVisible || isDetailPageOpen || !isOnInboxView,
 			preventDefault: true,
 			enableOnContentEditable: false,
 			enableOnFormTags: false,
 		},
-		[baseInboxPath, closeDetailPage, isDetailPageOpen, isOnInboxView, router]
+		[
+			baseInboxPath,
+			closeDetailPage,
+			isChangelogVisible,
+			isDetailPageOpen,
+			isOnInboxView,
+			router,
+			setIsChangelogOpen,
+		]
 	);
 
-	const leadingControl = isDetailPageOpen ? (
+	const leadingControl = isChangelogVisible ? (
+		<TooltipOnHover content="Back" shortcuts={["Esc"]} side="right">
+			<motion.div
+				animate={{ opacity: 1, scale: 1 }}
+				exit={{ opacity: 0, scale: 0.8 }}
+				initial={{ opacity: 0, scale: 0.8 }}
+				key="changelog-back"
+				transition={{ duration: 0.1 }}
+			>
+				<Button
+					className="mr-2 size-5.5 rounded-md hover:bg-background-200"
+					onClick={() => {
+						setIsChangelogOpen(false);
+					}}
+					size="icon-small"
+					type="button"
+					variant="ghost"
+				>
+					<Icon className="size-4 text-primary" name="arrow-left" />
+					<span className="sr-only">Back</span>
+				</Button>
+			</motion.div>
+		</TooltipOnHover>
+	) : isDetailPageOpen ? (
 		<TooltipOnHover content="Back" shortcuts={["Esc"]} side="right">
 			<motion.div
 				animate={{ opacity: 1, scale: 1 }}
@@ -135,6 +174,8 @@ export function NavigationTopbar({
 					<ChangelogNotification
 						date={latestRelease.date}
 						description={latestRelease.description}
+						onOpenChange={setIsChangelogOpen}
+						open={isChangelogOpen}
 						tinyExcerpt={latestRelease.tinyExcerpt}
 						version={latestRelease.version}
 					>
