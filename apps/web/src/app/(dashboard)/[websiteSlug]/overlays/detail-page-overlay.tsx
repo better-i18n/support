@@ -637,25 +637,6 @@ function DetailPrimaryPanel({
 					>
 						{visitorInsight}
 					</p>
-
-					{globeLocations ? (
-						<div
-							className="lg:hidden"
-							data-slot="contact-visitor-detail-mobile-globe-wrapper"
-						>
-							<LivePresenceGlobe
-								className="pointer-events-none rounded-none"
-								globeProps={{
-									config: {
-										offset: [0, 28],
-									},
-								}}
-								showSummaryBadge={false}
-								staticLocations={globeLocations}
-								websiteSlug={websiteSlug}
-							/>
-						</div>
-					) : null}
 				</div>
 			</ScrollArea>
 		</div>

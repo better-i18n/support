@@ -114,7 +114,7 @@ export function ConversationItemView({
 		<TooltipOnHover content="Click to get more details" delay={150}>
 			<button
 				aria-label={`Open details for ${visitorName}`}
-				className="shrink-0 cursor-pointer rounded-[2px] transition-transform duration-150 hover:scale-105 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+				className="size-8 cursor-pointer rounded-[2px] transition-transform duration-150 hover:scale-105 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 				data-slot="conversation-item-avatar-trigger"
 				onClick={onAvatarClick}
 				onMouseEnter={onMouseEnter}
