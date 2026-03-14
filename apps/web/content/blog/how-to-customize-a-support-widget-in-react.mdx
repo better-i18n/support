@@ -1,0 +1,361 @@
+---
+title: "How to Customize a Support Widget in React"
+description: "Learn how to customize a support widget in React with Cossistant, from simple style overrides to custom triggers, custom content, and headless primitives."
+date: "2026-03-14"
+author: "Anthony Riera"
+tags: ["react", "support", "tutorial", "customization", "open-source"]
+image: "https://cdn.cossistant.com/landing/main-large.jpg"
+top: false
+related: []
+published: true
+---
+
+A lot of support widgets are easy to install.
+
+That part is not the problem.
+
+The problem starts when you want the widget to actually feel like *your* product.
+
+You want to change the chat bubble.
+You want to move the panel.
+You want the styles to match your app.
+You want the support experience in your navbar, your sidebar, or your own layout instead of some floating black box glued to the corner.
+
+That is where most tools get annoying.
+
+So let's do this properly.
+
+Here's how to customize a support widget in React with Cossistant, from simple styling all the way to fully composed, headless control.
+
+## Why customization matters
+
+For engineering-led teams, support is not just another plugin.
+
+It lives inside the product experience.
+
+If your app is polished and product-native everywhere else, but the support widget looks and behaves like a foreign object, users feel it immediately.
+
+That is why this matters.
+
+Not because customization is fun.
+Because support is part of the UX.
+
+## The real problem with most widgets
+
+Most support widgets stop being flexible right when things get interesting.
+
+You can usually:
+- change a color
+- upload a logo
+- maybe tweak a few labels
+
+But once you want real control — custom trigger, custom layout, custom interaction model, headless building blocks — the experience gets a lot worse.
+
+Cossistant is built differently.
+
+The docs are explicit about the model:
+- start with zero config
+- add styling
+- replace the trigger
+- control the content container
+- move to full composition
+- go headless with primitives if needed
+
+That is the right model for React teams.
+
+## 1. Start with style overrides
+
+If you do not need full control yet, start small.
+
+You can override widget styles with `classNames`:
+
+```tsx title="src/App.tsx"
+import { Support } from "@cossistant/react";
+
+export default function App() {
+  return (
+    <Support
+      classNames={{
+        trigger: "bg-purple-600 hover:bg-purple-700",
+        content: "border-purple-200 shadow-2xl",
+      }}
+    />
+  );
+}
+```
+
+This is the fastest path when your goal is:
+- keep the default behavior
+- improve visual fit
+- avoid overengineering
+
+## 2. Change the position and behavior
+
+A lot of teams do not want the default placement.
+
+Cossistant lets you control:
+- side
+- alignment
+- offset
+- collision behavior
+- viewport padding
+
+```tsx title="src/App.tsx"
+import { Support } from "@cossistant/react";
+
+export default function App() {
+  return (
+    <Support
+      side="bottom"
+      align="end"
+      sideOffset={16}
+      collisionPadding={{ top: 8, bottom: 24, left: 8, right: 8 }}
+    />
+  );
+}
+```
+
+That already gives you more real control than the usual "pick one of three canned layouts" approach.
+
+## 3. Replace the default chat bubble
+
+This is the customization point most people care about first.
+
+With `Support.Trigger`, you can replace the default floating trigger with your own button.
+
+```tsx title="src/App.tsx"
+import { Support, type TriggerRenderProps } from "@cossistant/react";
+
+export default function App() {
+  return (
+    <Support side="bottom" align="end">
+      <Support.Trigger className="fixed bottom-6 right-6 flex items-center gap-2 rounded-full bg-black px-4 py-3 text-sm font-medium text-white shadow-lg">
+        {({ isOpen, unreadCount }: TriggerRenderProps) => (
+          <>
+            <span>{isOpen ? "Close" : "Chat with us"}</span>
+            {unreadCount > 0 && (
+              <span className="rounded-full bg-white px-2 py-0.5 text-xs text-black">
+                {unreadCount}
+              </span>
+            )}
+          </>
+        )}
+      </Support.Trigger>
+    </Support>
+  );
+}
+```
+
+This is already a big difference.
+
+You are not just repainting a vendor bubble.
+You are controlling the trigger itself.
+
+The render props also expose useful state:
+- `isOpen`
+- `unreadCount`
+- `isTyping`
+- `toggle`
+
+That means the trigger can behave like part of your app, not just like a sticker on top of it.
+
+## 4. Control the content container too
+
+If the trigger is not enough, move to `Support.Content`.
+
+This lets you control the support panel itself more directly:
+
+```tsx title="src/App.tsx"
+import { Support } from "@cossistant/react";
+
+export default function App() {
+  return (
+    <Support>
+      <Support.Trigger className="rounded-full bg-indigo-600 px-4 py-2 text-white">
+        {({ isOpen }) => <span>{isOpen ? "Close" : "Help"}</span>}
+      </Support.Trigger>
+      <Support.Content
+        side="bottom"
+        align="end"
+        sideOffset={8}
+        className="border-2 border-indigo-200 shadow-2xl"
+      >
+        <Support.Router />
+      </Support.Content>
+    </Support>
+  );
+}
+```
+
+At this point, the widget is not just styled.
+It is composed.
+
+That is a very different level of customization.
+
+## 5. Use full composition when the default shape is not enough
+
+If you want full control over how the pieces fit together, use `Support.Root`.
+
+```tsx title="src/App.tsx"
+import { Support } from "@cossistant/react";
+
+export default function App() {
+  return (
+    <Support.Root defaultOpen={false} theme="dark">
+      <Support.Trigger asChild>
+        <button className="rounded-md bg-indigo-600 px-4 py-2 text-white" type="button">
+          Help
+        </button>
+      </Support.Trigger>
+      <Support.Content side="bottom" align="end" className="custom-content">
+        <Support.Router />
+      </Support.Content>
+    </Support.Root>
+  );
+}
+```
+
+This is where the difference becomes obvious.
+
+A lot of widgets let you configure options.
+Cossistant lets you compose the experience in code.
+
+That is what real customization looks like.
+
+## 6. Go headless with primitives
+
+If you want complete control, use the `Primitives` API.
+
+The docs describe these primitives as:
+- headless
+- composable
+- developer-owned
+- inspired by shadcn/ui
+
+That gives you access to building blocks like:
+- `Primitives.Trigger`
+- `Primitives.Window`
+- `Primitives.Avatar`
+- `Primitives.ConversationTimeline`
+- `Primitives.MultimodalInput`
+
+Example:
+
+```tsx title="src/CustomWidget.tsx"
+import { Primitives } from "@cossistant/react";
+
+export function CustomWidget() {
+  return (
+    <>
+      <Primitives.Trigger>
+        {({ toggle, unreadCount }) => (
+          <button onClick={toggle} type="button">
+            {unreadCount > 0 ? `Help (${unreadCount})` : "Help"}
+          </button>
+        )}
+      </Primitives.Trigger>
+
+      <Primitives.Window>
+        {({ isOpen, close }) =>
+          isOpen && (
+            <div className="fixed bottom-20 right-4 w-96 rounded-lg bg-white shadow-xl">
+              <button onClick={close} type="button">Close</button>
+              <p>Custom support content</p>
+            </div>
+          )
+        }
+      </Primitives.Window>
+    </>
+  );
+}
+```
+
+This is not "change the accent color."
+This is: build the support experience the way your product needs it.
+
+## Why Cossistant is the right option if you actually care about customization
+
+Let’s say this cleanly.
+
+A lot of support tools are built to be configurable.
+Cossistant is built to be composable.
+
+That is the difference.
+
+Configurable means:
+- pick from settings
+- override some labels
+- tweak surface-level styling
+
+Composable means:
+- replace the trigger
+- control the content container
+- fully compose the widget tree
+- go headless when needed
+- build support into your actual product UI
+
+For teams that just want to drop in a support bubble and never touch it again, that difference may not matter.
+
+For React teams that care about product feel, it matters a lot.
+
+## A practical way to think about it
+
+Use the right level for the job:
+
+### Level 1
+Use `classNames` if you just want visual polish.
+
+### Level 2
+Use positioning props if placement matters.
+
+### Level 3
+Use `Support.Trigger` if you want your own chat bubble.
+
+### Level 4
+Use `Support.Content` or `Support.Root` if the widget layout needs to feel product-native.
+
+### Level 5
+Use `Primitives` if you want full control.
+
+That progression is one of the strongest things about the product.
+
+## Full customization ladder
+
+<Steps className="mt-10">
+  <Step>
+    Start with the default widget
+  </Step>
+  <Step>
+    Override styles with `classNames`
+  </Step>
+  <Step>
+    Reposition the widget with `side`, `align`, and `sideOffset`
+  </Step>
+  <Step>
+    Replace the default bubble with `Support.Trigger`
+  </Step>
+  <Step>
+    Control the panel with `Support.Content` or `Support.Root`
+  </Step>
+  <Step>
+    Move to `Primitives` when you want full headless control
+  </Step>
+</Steps>
+
+## Final thought
+
+If your idea of customization is "change the blue to purple," most support widgets will probably get you there.
+
+If your idea of customization is "make support feel like part of my product," that is a different category.
+
+That is where Cossistant gets interesting.
+
+It lets you start simple.
+Then it lets you keep going.
+
+That is the whole point.
+
+<SignUpCTA
+  title="Need more than a skinnable support widget?"
+  description="Cossistant is an open-source, code-first support framework for React and Next.js. Start with the default widget, then customize the trigger, the layout, and even the primitives when your product needs more control."
+/>
