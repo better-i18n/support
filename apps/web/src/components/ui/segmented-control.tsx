@@ -7,7 +7,7 @@ import { TooltipOnHover } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const segmentedControlVariants = cva(
-	"relative inline-grid w-fit items-stretch overflow-visible rounded-[2px] border border-primary/10 bg-background dark:bg-background-50",
+	"relative inline-grid w-fit items-stretch overflow-visible rounded-[2px] border border-border bg-background dark:bg-background-50",
 	{
 		variants: {
 			size: {
@@ -48,7 +48,7 @@ const segmentedControlIndicatorVariants = cva(
 	{
 		variants: {
 			colorVariant: {
-				default: "border-primary/10 dark:border-primary/5",
+				default: "border-border",
 				private:
 					"border-cossistant-yellow-600/25 dark:border-cossistant-yellow-600/20",
 			},

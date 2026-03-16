@@ -368,10 +368,10 @@ export function ComposerCentralBlock({
 	return (
 		<div
 			className={cn(
-				"relative flex h-fit flex-col rounded-[2px] border",
+				"relative flex h-fit flex-col rounded-[2px] border shadow-xs",
 				isPrivate
 					? "border-cossistant-yellow-600/40 border-dashed bg-cossistant-yellow-100/30 dark:border-cossistant-yellow-600/20 dark:bg-cossistant-yellow-100/5"
-					: "border-border/50 bg-background-50 dark:border-border/50 dark:bg-background-200",
+					: "border-border bg-background dark:border-border dark:bg-background-200",
 				className
 			)}
 			data-composer-central-block="true"
