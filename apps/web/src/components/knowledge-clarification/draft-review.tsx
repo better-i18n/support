@@ -5,10 +5,6 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	SettingsRow,
-	SettingsRowFooter,
-} from "@/components/ui/layout/settings-layout";
 import { Textarea } from "@/components/ui/textarea";
 
 type KnowledgeClarificationDraftReviewProps = {
@@ -113,7 +109,7 @@ export function KnowledgeClarificationDraftReview({
 	);
 
 	const footer = (
-		<>
+		<div className="flex items-center justify-between gap-3">
 			<Button
 				disabled={isSubmitting}
 				onClick={() => {
@@ -133,17 +129,19 @@ export function KnowledgeClarificationDraftReview({
 			>
 				{isSubmitting ? "Applying..." : "Approve draft"}
 			</Button>
-		</>
+		</div>
 	);
 
 	if (variant === "page") {
 		return (
-			<SettingsRow description={description} title={title}>
-				<div className="p-4">{fields}</div>
-				<SettingsRowFooter className="flex items-center justify-between gap-3">
-					{footer}
-				</SettingsRowFooter>
-			</SettingsRow>
+			<div className="space-y-6">
+				<div className="space-y-1">
+					<div className="font-medium text-base">{title}</div>
+					<p className="text-muted-foreground text-sm">{description}</p>
+				</div>
+				{fields}
+				{footer}
+			</div>
 		);
 	}
 
@@ -156,7 +154,7 @@ export function KnowledgeClarificationDraftReview({
 				</div>
 				{fields}
 			</div>
-			<div className="flex items-center justify-between gap-3">{footer}</div>
+			{footer}
 		</div>
 	);
 }

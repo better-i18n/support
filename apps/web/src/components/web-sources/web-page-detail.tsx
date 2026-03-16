@@ -9,10 +9,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	SettingsRow,
-	SettingsRowFooter,
-} from "@/components/ui/layout/settings-layout";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useWebsite } from "@/contexts/website";
@@ -284,132 +280,129 @@ export function WebPageDetail({ knowledgeId }: WebPageDetailProps) {
 		});
 	};
 
+	const headerActions =
+		!isLoading && knowledge && knowledge.type === "url" ? (
+			<>
+				<Button
+					disabled={toggleIncludedMutation.isPending}
+					onClick={handleToggleIncluded}
+					size="sm"
+					type="button"
+					variant="ghost"
+				>
+					{knowledge.isIncluded ? "Exclude" : "Include"}
+				</Button>
+				<Button
+					disabled={reindexMutation.isPending || !knowledge.linkSourceId}
+					onClick={handleReindex}
+					size="sm"
+					type="button"
+					variant="ghost"
+				>
+					{reindexMutation.isPending ? (
+						<>
+							<Spinner className="size-4" />
+							Re-indexing...
+						</>
+					) : (
+						<>
+							<RefreshCwIcon className="size-4" />
+							Re-index
+						</>
+					)}
+				</Button>
+				<Button
+					disabled={deleteMutation.isPending}
+					onClick={handleDelete}
+					size="sm"
+					type="button"
+					variant="ghost"
+				>
+					Delete
+				</Button>
+				<Button
+					disabled={!canSave}
+					onClick={handleSave}
+					size="sm"
+					type="button"
+				>
+					{isSaving ? "Saving..." : "Save"}
+				</Button>
+			</>
+		) : null;
+
 	if (!isLoading && (!knowledge || knowledge.type !== "url")) {
 		return (
 			<TrainingEntryDetailLayout backHref={listHref} title="Page not found">
-				<SettingsRow
-					description="This crawled page no longer exists or cannot be opened."
-					title="Unavailable"
-				>
-					<div className="p-4 text-muted-foreground text-sm">
-						The selected page could not be loaded.
-					</div>
-				</SettingsRow>
+				<div className="space-y-2 py-12 text-center">
+					<h2 className="font-medium text-base text-primary">Unavailable</h2>
+					<p className="text-muted-foreground text-sm">
+						This crawled page no longer exists or cannot be opened.
+					</p>
+				</div>
 			</TrainingEntryDetailLayout>
 		);
 	}
 
 	return (
-		<TrainingEntryDetailLayout backHref={listHref} title={headerTitle}>
-			<SettingsRow
-				description="Edit the page title and markdown content your agent should use."
-				title="Page"
-			>
-				<div className="space-y-4 p-4">
-					<div className="space-y-2">
-						<Label htmlFor="web-source-title">Page title</Label>
-						<Input
-							disabled={isLoading || isSaving}
-							id="web-source-title"
-							onChange={(event) => setSourceTitle(event.target.value)}
-							placeholder="Getting Started"
-							value={sourceTitle}
-						/>
-					</div>
-					<div className="space-y-2">
-						<div className="font-medium text-sm">Source URL</div>
-						{knowledge?.sourceUrl ? (
-							<div className="flex flex-wrap items-center gap-3 text-sm">
+		<TrainingEntryDetailLayout
+			backHref={listHref}
+			headerActions={headerActions}
+			title={headerTitle}
+		>
+			<form className="space-y-6" onSubmit={(event) => event.preventDefault()}>
+				<div className="space-y-2">
+					<Label htmlFor="web-source-title">Page title</Label>
+					<Input
+						disabled={isLoading || isSaving}
+						id="web-source-title"
+						onChange={(event) => setSourceTitle(event.target.value)}
+						placeholder="Getting Started"
+						value={sourceTitle}
+					/>
+				</div>
+				<div className="space-y-2">
+					<div className="font-medium text-sm">Source URL</div>
+					{knowledge?.sourceUrl ? (
+						<div className="flex flex-wrap items-center gap-3 text-sm">
+							<a
+								className="min-w-0 truncate text-primary underline"
+								href={knowledge.sourceUrl}
+								rel="noopener noreferrer"
+								target="_blank"
+							>
+								{knowledge.sourceUrl}
+							</a>
+							<Button asChild size="sm" variant="ghost">
 								<a
-									className="min-w-0 truncate text-primary underline"
 									href={knowledge.sourceUrl}
 									rel="noopener noreferrer"
 									target="_blank"
 								>
-									{knowledge.sourceUrl}
+									<ExternalLinkIcon className="size-4" />
+									Open original
 								</a>
-								<Button asChild size="sm" variant="ghost">
-									<a
-										href={knowledge.sourceUrl}
-										rel="noopener noreferrer"
-										target="_blank"
-									>
-										<ExternalLinkIcon className="size-4" />
-										Open original
-									</a>
-								</Button>
-							</div>
-						) : (
-							<p className="text-muted-foreground text-sm">
-								No source URL saved.
-							</p>
-						)}
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="web-markdown">Markdown</Label>
-						<Textarea
-							className="min-h-[320px] font-mono text-sm"
-							disabled={isLoading || isSaving}
-							id="web-markdown"
-							onChange={(event) => setMarkdown(event.target.value)}
-							placeholder="# Page content"
-							rows={14}
-							value={markdown}
-						/>
-					</div>
-				</div>
-				<SettingsRowFooter className="flex items-center justify-between gap-3">
-					<div className="flex flex-wrap items-center gap-2">
-						{knowledge ? (
-							<Button
-								disabled={toggleIncludedMutation.isPending}
-								onClick={handleToggleIncluded}
-								size="sm"
-								type="button"
-								variant="ghost"
-							>
-								{knowledge.isIncluded ? "Exclude" : "Include"}
 							</Button>
-						) : null}
-						<Button
-							disabled={reindexMutation.isPending || !knowledge?.linkSourceId}
-							onClick={handleReindex}
-							size="sm"
-							type="button"
-							variant="ghost"
-						>
-							{reindexMutation.isPending ? (
-								<>
-									<Spinner className="size-4" />
-									Re-indexing...
-								</>
-							) : (
-								<>
-									<RefreshCwIcon className="size-4" />
-									Re-index
-								</>
-							)}
-						</Button>
-						<Button
-							disabled={deleteMutation.isPending}
-							onClick={handleDelete}
-							size="sm"
-							type="button"
-							variant="ghost"
-						>
-							Delete
-						</Button>
-					</div>
-					<Button
-						disabled={!canSave}
-						onClick={handleSave}
-						size="sm"
-						type="button"
-					>
-						{isSaving ? "Saving..." : "Save"}
-					</Button>
-				</SettingsRowFooter>
-			</SettingsRow>
+						</div>
+					) : (
+						<p className="text-muted-foreground text-sm">
+							No source URL saved.
+						</p>
+					)}
+				</div>
+				<div className="space-y-2">
+					<Label htmlFor="web-markdown">Markdown</Label>
+					<Textarea
+						className="min-h-[320px] font-mono text-sm"
+						disabled={isLoading || isSaving}
+						id="web-markdown"
+						onChange={(event) => setMarkdown(event.target.value)}
+						placeholder="# Page content"
+						rows={14}
+						value={markdown}
+					/>
+				</div>
+			</form>
 		</TrainingEntryDetailLayout>
 	);
 }

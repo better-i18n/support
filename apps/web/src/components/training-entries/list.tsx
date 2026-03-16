@@ -32,7 +32,7 @@ type TrainingEntryListProps = {
 };
 
 type TrainingEntryListSectionProps = {
-	title: string;
+	title?: string;
 	description?: string;
 	children: ReactNode;
 	className?: string;
@@ -58,7 +58,7 @@ function TrainingEntryRowContent({
 	return (
 		<>
 			<div className="flex min-w-0 flex-1 items-center gap-3">
-				<div className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-background-200 text-primary/70 dark:bg-background-300">
+				<div className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background-200 text-primary dark:bg-background-400">
 					{icon}
 				</div>
 				<div className="min-w-0 flex-1">
@@ -118,8 +118,8 @@ export function TrainingEntryListSection({
 }: TrainingEntryListSectionProps) {
 	return (
 		<section className={cn("space-y-2", className)}>
-			<div className="px-2">
-				<div className="font-medium text-sm">{title}</div>
+			<div className="px-0">
+				{title ? <div className="font-medium text-sm">{title}</div> : null}
 				{description ? (
 					<p className="text-muted-foreground text-sm">{description}</p>
 				) : null}

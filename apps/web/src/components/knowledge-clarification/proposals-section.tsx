@@ -80,7 +80,7 @@ export function KnowledgeClarificationProposalsSection({
 					return (
 						<TrainingEntryRow
 							href={href}
-							icon={<Logo className="size-4 text-cossistant-orange" />}
+							icon={<Logo className="size-4.5 text-primary" />}
 							key={proposal.id}
 							onHoverPrefetch={() => prefetchProposal(proposal.id, href)}
 							primary={getProposalPrimaryLabel(proposal)}

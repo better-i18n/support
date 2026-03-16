@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { SettingsRow } from "@/components/ui/layout/settings-layout";
 import { useWebsite } from "@/contexts/website";
 import { useTRPC } from "@/lib/trpc/client";
 import { TrainingEntryDetailLayout } from "../training-entries";
@@ -70,25 +69,20 @@ export function KnowledgeClarificationProposalPage({
 			backHref={`/${website.slug}/agent/training/faq`}
 			title={headerTitle}
 		>
-			<SettingsRow
-				description="Review the AI suggestion, continue the clarification flow, or turn it into a saved FAQ."
-				title="AI suggestion"
-			>
-				<div className="flex flex-wrap items-center gap-2 p-4">
-					<Badge variant="secondary">AI Suggestion</Badge>
-					{flow.currentRequest ? (
-						<Badge
-							variant={
-								flow.currentRequest.status === "draft_ready"
-									? "success"
-									: "secondary"
-							}
-						>
-							{getStatusLabel(flow.currentRequest)}
-						</Badge>
-					) : null}
-				</div>
-			</SettingsRow>
+			<div className="flex flex-wrap items-center gap-2">
+				<Badge variant="secondary">AI Suggestion</Badge>
+				{flow.currentRequest ? (
+					<Badge
+						variant={
+							flow.currentRequest.status === "draft_ready"
+								? "success"
+								: "secondary"
+						}
+					>
+						{getStatusLabel(flow.currentRequest)}
+					</Badge>
+				) : null}
+			</div>
 			<KnowledgeClarificationFlowContent
 				currentRequest={flow.currentRequest}
 				currentStep={flow.currentStep}

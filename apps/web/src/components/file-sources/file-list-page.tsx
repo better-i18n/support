@@ -161,10 +161,7 @@ export function FileListPage() {
 							</div>
 						) : null}
 
-						<TrainingEntryListSection
-							description="Saved files your agent can search during training."
-							title="Files"
-						>
+						<TrainingEntryListSection description="Saved files your agent can search during training.">
 							<TrainingEntryList
 								emptyState={
 									<TrainingEmptyState

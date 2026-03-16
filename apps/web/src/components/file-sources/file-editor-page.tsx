@@ -5,10 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-	SettingsRow,
-	SettingsRowFooter,
-} from "@/components/ui/layout/settings-layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTRPC } from "@/lib/trpc/client";
 import {
@@ -218,84 +214,71 @@ export function FileEditorPage({ knowledgeId }: FileEditorPageProps) {
 		isDirty &&
 		!isSaving &&
 		!(isCreateMode && isAtFileLimit);
+	const headerActions = isUnavailable ? null : (
+		<>
+			{!isCreateMode && knowledge ? (
+				<Button
+					disabled={isToggling}
+					onClick={handleToggleEntryIncluded}
+					size="sm"
+					type="button"
+					variant="ghost"
+				>
+					{knowledge.isIncluded ? "Exclude" : "Include"}
+				</Button>
+			) : null}
+			{isCreateMode ? null : (
+				<Button
+					disabled={isDeleting}
+					onClick={handleDeleteEntry}
+					size="sm"
+					type="button"
+					variant="ghost"
+				>
+					Delete
+				</Button>
+			)}
+			{activeTab === "manual" ? (
+				<Button
+					disabled={!canSave}
+					onClick={handleSave}
+					size="sm"
+					type="button"
+				>
+					{isSaving ? "Saving..." : "Save"}
+				</Button>
+			) : null}
+		</>
+	);
 
 	return (
 		<>
-			<TrainingEntryDetailLayout backHref={listHref} title={headerTitle}>
+			<TrainingEntryDetailLayout
+				backHref={listHref}
+				headerActions={headerActions}
+				title={headerTitle}
+			>
 				{isUnavailable ? (
-					<SettingsRow
-						description="This file no longer exists or cannot be edited."
-						title="Unavailable"
-					>
-						<div className="p-4 text-muted-foreground text-sm">
-							The selected file could not be loaded.
-						</div>
-					</SettingsRow>
+					<div className="space-y-2 py-12 text-center">
+						<h2 className="font-medium text-base text-primary">Unavailable</h2>
+						<p className="text-muted-foreground text-sm">
+							This file no longer exists or cannot be edited.
+						</p>
+					</div>
 				) : isCreateMode ? (
-					<SettingsRow
-						description="Choose how you want to add this training file."
-						title="New file"
+					<Tabs
+						onValueChange={(value) =>
+							setActiveTab(value as "manual" | "upload")
+						}
+						value={activeTab}
 					>
-						<div className="p-4">
-							<Tabs
-								onValueChange={(value) =>
-									setActiveTab(value as "manual" | "upload")
-								}
-								value={activeTab}
-							>
-								<TabsList className="grid w-full grid-cols-2">
-									<TabsTrigger value="manual">Manual entry</TabsTrigger>
-									<TabsTrigger value="upload">Upload file</TabsTrigger>
-								</TabsList>
-								<TabsContent className="pt-4" value="manual">
-									<FileManualEntryFields
-										disabled={isSaving}
-										markdown={markdown}
-										onMarkdownChange={setMarkdown}
-										onSummaryChange={setSummary}
-										onTitleChange={setTitle}
-										summary={summary}
-										title={title}
-									/>
-								</TabsContent>
-								<TabsContent className="pt-4" value="upload">
-									<div className="space-y-2">
-										<p className="text-muted-foreground text-sm">
-											Upload markdown or text files and we will convert them
-											into training entries.
-										</p>
-									</div>
-									<div className="pt-4">
-										<FileUploadZone
-											disabled={isAtFileLimit}
-											isUploading={isUploading}
-											onUpload={handleUploadFiles}
-										/>
-									</div>
-								</TabsContent>
-							</Tabs>
-						</div>
-						{activeTab === "manual" ? (
-							<SettingsRowFooter className="flex items-center justify-end gap-2">
-								<Button
-									disabled={!canSave}
-									onClick={handleSave}
-									size="sm"
-									type="button"
-								>
-									{isSaving ? "Saving..." : "Save"}
-								</Button>
-							</SettingsRowFooter>
-						) : null}
-					</SettingsRow>
-				) : (
-					<SettingsRow
-						description="Edit the file title, summary, and markdown your agent should use."
-						title="File"
-					>
-						<div className="p-4">
+						<TabsList className="grid w-full grid-cols-2">
+							<TabsTrigger value="manual">Manual entry</TabsTrigger>
+							<TabsTrigger value="upload">Upload file</TabsTrigger>
+						</TabsList>
+						<TabsContent className="pt-6" value="manual">
 							<FileManualEntryFields
-								disabled={isSaving || isLoadingKnowledge}
+								disabled={isSaving}
 								markdown={markdown}
 								onMarkdownChange={setMarkdown}
 								onSummaryChange={setSummary}
@@ -303,40 +286,29 @@ export function FileEditorPage({ knowledgeId }: FileEditorPageProps) {
 								summary={summary}
 								title={title}
 							/>
-						</div>
-						<SettingsRowFooter className="flex items-center justify-between gap-3">
-							<div className="flex flex-wrap items-center gap-2">
-								{knowledge ? (
-									<Button
-										disabled={isToggling}
-										onClick={handleToggleEntryIncluded}
-										size="sm"
-										type="button"
-										variant="ghost"
-									>
-										{knowledge.isIncluded ? "Exclude" : "Include"}
-									</Button>
-								) : null}
-								<Button
-									disabled={isDeleting}
-									onClick={handleDeleteEntry}
-									size="sm"
-									type="button"
-									variant="ghost"
-								>
-									Delete
-								</Button>
-							</div>
-							<Button
-								disabled={!canSave}
-								onClick={handleSave}
-								size="sm"
-								type="button"
-							>
-								{isSaving ? "Saving..." : "Save"}
-							</Button>
-						</SettingsRowFooter>
-					</SettingsRow>
+						</TabsContent>
+						<TabsContent className="space-y-4 pt-6" value="upload">
+							<p className="text-muted-foreground text-sm">
+								Upload markdown or text files and we will convert them into
+								training entries.
+							</p>
+							<FileUploadZone
+								disabled={isAtFileLimit}
+								isUploading={isUploading}
+								onUpload={handleUploadFiles}
+							/>
+						</TabsContent>
+					</Tabs>
+				) : (
+					<FileManualEntryFields
+						disabled={isSaving || isLoadingKnowledge}
+						markdown={markdown}
+						onMarkdownChange={setMarkdown}
+						onSummaryChange={setSummary}
+						onTitleChange={setTitle}
+						summary={summary}
+						title={title}
+					/>
 				)}
 			</TrainingEntryDetailLayout>
 			{pageState.upgradeModal}
