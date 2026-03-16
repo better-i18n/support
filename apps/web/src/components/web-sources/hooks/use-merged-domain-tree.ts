@@ -12,7 +12,6 @@ import {
 	buildMergedDomainTree,
 	calculateDomainSummary,
 	type DomainSummary,
-	type MergedPageNode,
 } from "../utils";
 
 type UseMergedDomainTreeOptions = {
@@ -24,15 +23,13 @@ type DomainTreeData = {
 	domain: string;
 	summary: DomainSummary;
 	sources: LinkSource[];
-	tree: MergedPageNode[];
-	isLoading: boolean;
 };
 
 type GroupedDomainData = Map<string, DomainTreeData>;
 
 /**
- * Hook to fetch all link sources and their pages, grouped by domain
- * with merged page trees for each domain
+ * Hook to fetch all link sources and group them by domain.
+ * Page trees stay lazy and load only when a domain expands.
  */
 export function useMergedDomainTree({
 	websiteSlug,
@@ -60,98 +57,28 @@ export function useMergedDomainTree({
 		}
 		return groupLinkSourcesByDomain(linkSources.items);
 	}, [linkSources?.items]);
-
-	// Get all source IDs for fetching pages
-	const allSourceIds = useMemo(
-		() => linkSources?.items.map((s) => s.id) ?? [],
-		[linkSources?.items]
-	);
-
-	// Fetch pages for all sources in parallel
-	const pagesQueries = useQueries({
-		queries: allSourceIds.map((sourceId) =>
-			trpc.linkSource.listKnowledgeByLinkSource.queryOptions({
-				websiteSlug,
-				linkSourceId: sourceId,
-				limit: 100, // API max limit is 100
-			})
-		),
-	});
-
-	// Build the pages map (sourceId -> pages[])
-	const pagesMap = useMemo(() => {
-		const map = new Map<string, KnowledgePage[]>();
-
-		for (const [index, query] of pagesQueries.entries()) {
-			const sourceId = allSourceIds[index];
-			if (sourceId && query.data?.items) {
-				map.set(sourceId, query.data.items);
-			}
-		}
-
-		return map;
-	}, [pagesQueries, allSourceIds]);
-
-	// Check if any pages are still loading
-	const isLoadingPages = pagesQueries.some((q) => q.isLoading);
-
-	// Build the grouped domain data with merged trees
 	const groupedDomainData: GroupedDomainData = useMemo(() => {
 		const result = new Map<string, DomainTreeData>();
 
 		for (const [domain, sources] of groupedByDomain.entries()) {
-			// Use crawledPagesCount from sources directly (no pagesMap needed for summary)
 			const summary = calculateDomainSummary(domain, sources);
-			const tree = buildMergedDomainTree(sources, pagesMap);
-
-			// Check if any source in this domain is still loading pages
-			const domainSourceIds = new Set(sources.map((s) => s.id));
-			const isDomainLoading = pagesQueries.some((q, index) => {
-				const sourceId = allSourceIds[index];
-				return sourceId && domainSourceIds.has(sourceId) && q.isLoading;
-			});
 
 			result.set(domain, {
 				domain,
 				summary,
 				sources,
-				tree,
-				isLoading: isDomainLoading,
 			});
 		}
 
 		return result;
-	}, [groupedByDomain, pagesMap, pagesQueries, allSourceIds]);
-
-	// Check if there's any active crawl
-	const hasAnyCrawling = useMemo(
-		() =>
-			linkSources?.items.some(
-				(item) => item.status === "crawling" || item.status === "mapping"
-			),
-		[linkSources?.items]
-	);
+	}, [groupedByDomain]);
 
 	return {
-		// Raw data
-		linkSources: linkSources?.items ?? [],
 		groupedByDomain,
-		pagesMap,
-
-		// Processed data
 		groupedDomainData,
-
-		// Loading states
 		isLoading: isLoadingLinkSources,
-		isLoadingPages,
-
-		// Status
-		hasAnyCrawling,
 		error: linkSourcesError,
-
-		// Counts
 		totalDomains: groupedByDomain.size,
-		totalSources: linkSources?.items.length ?? 0,
 	};
 }
 

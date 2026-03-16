@@ -1,36 +1,21 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import type { RouterOutputs } from "@api/trpc/types";
 import { UsageBar } from "@/components/plan/usage-bar";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useTRPC } from "@/lib/trpc/client";
 import { formatBytes } from "./utils";
 
+type TrainingStats = RouterOutputs["linkSource"]["getTrainingStats"];
+
 type UsageStatsCardProps = {
-	websiteSlug: string;
-	aiAgentId: string | null;
+	stats: TrainingStats | undefined;
+	isLoading?: boolean;
 };
 
 export function UsageStatsCard({
-	websiteSlug,
-	aiAgentId,
+	stats,
+	isLoading = false,
 }: UsageStatsCardProps) {
-	const trpc = useTRPC();
-
-	const { data: stats, isLoading } = useQuery(
-		trpc.linkSource.getTrainingStats.queryOptions({
-			websiteSlug,
-			aiAgentId,
-		})
-	);
-
 	if (isLoading) {
 		return (
 			<div className="flex flex-col gap-4">
@@ -73,43 +58,6 @@ export function UsageStatsCard({
 			</div>
 		</div>
 	);
-}
-
-/**
- * Hook to get usage stats for checking limits
- */
-export function useUsageStats({
-	websiteSlug,
-	aiAgentId,
-}: {
-	websiteSlug: string;
-	aiAgentId: string | null;
-}) {
-	const trpc = useTRPC();
-
-	const { data: stats, isLoading } = useQuery(
-		trpc.linkSource.getTrainingStats.queryOptions({
-			websiteSlug,
-			aiAgentId,
-		})
-	);
-
-	const isAtLinkLimit =
-		stats?.planLimitLinks !== null &&
-		stats?.planLimitLinks !== undefined &&
-		(stats?.linkSourcesCount ?? 0) >= stats.planLimitLinks;
-
-	const isNearLinkLimit =
-		stats?.planLimitLinks !== null &&
-		stats?.planLimitLinks !== undefined &&
-		(stats?.linkSourcesCount ?? 0) >= stats.planLimitLinks * 0.8;
-
-	return {
-		stats,
-		isLoading,
-		isAtLinkLimit,
-		isNearLinkLimit,
-	};
 }
 
 export type { UsageStatsCardProps };

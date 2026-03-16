@@ -1,7 +1,39 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import type { KnowledgeClarificationRequest } from "@cossistant/types";
 import { renderToStaticMarkup } from "react-dom/server";
 import { KnowledgeClarificationProposalsSection } from "./proposals-section";
+
+mock.module("next/navigation", () => ({
+	useRouter: () => ({
+		prefetch: () => {},
+	}),
+}));
+
+mock.module("@tanstack/react-query", () => ({
+	useQueryClient: () => ({
+		getQueryState: () => null,
+		prefetchQuery: () => Promise.resolve(),
+	}),
+}));
+
+mock.module("@/lib/trpc/client", () => ({
+	useTRPC: () => ({
+		knowledgeClarification: {
+			getProposal: {
+				queryOptions: (input: unknown) => ({
+					queryKey: ["knowledgeClarification.getProposal", input],
+				}),
+			},
+		},
+		knowledge: {
+			get: {
+				queryOptions: (input: unknown) => ({
+					queryKey: ["knowledge.get", input],
+				}),
+			},
+		},
+	}),
+}));
 
 function createProposal(
 	overrides: Partial<KnowledgeClarificationRequest> = {}
@@ -32,8 +64,8 @@ describe("KnowledgeClarificationProposalsSection", () => {
 	it("renders nothing when there are no proposals", () => {
 		const html = renderToStaticMarkup(
 			<KnowledgeClarificationProposalsSection
-				onOpenProposal={() => {}}
 				proposals={[]}
+				websiteSlug="acme"
 			/>
 		);
 
@@ -43,7 +75,6 @@ describe("KnowledgeClarificationProposalsSection", () => {
 	it("renders ready-to-review proposals with clearer status and CTA", () => {
 		const html = renderToStaticMarkup(
 			<KnowledgeClarificationProposalsSection
-				onOpenProposal={() => {}}
 				proposals={[
 					createProposal({
 						source: "conversation",
@@ -57,16 +88,17 @@ describe("KnowledgeClarificationProposalsSection", () => {
 						},
 					}),
 				]}
+				websiteSlug="acme"
 			/>
 		);
 
-		expect(html).toContain("FAQ drafts and follow-up questions");
+		expect(html).toContain("AI Suggestions (1)");
 		expect(html).toContain(
-			"These are saved questions and draft FAQs the AI wants you to review."
+			"Draft FAQs and clarification threads the AI wants you to review."
 		);
-		expect(html).toContain("Draft FAQ");
+		expect(html).toContain("AI Suggestion");
 		expect(html).toContain("From conversation");
-		expect(html).toContain("Review draft");
+		expect(html).toContain("Ready for review");
 		expect(html).toContain("Can annual plans get a refund?");
 	});
 });

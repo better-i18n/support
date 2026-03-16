@@ -1,7 +1,8 @@
 "use client";
 
-import { parseAsString, useQueryState } from "nuqs";
+import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
+import { useTrainingEntryPrefetch } from "@/components/training-entries";
 import { generateTreePrefix, type MergedPageNode } from "../utils";
 import { PageTreeItemView } from "./page-tree-item";
 
@@ -13,7 +14,6 @@ type PageTreeNodeProps = {
 	onReindex?: (linkSourceId: string, knowledgeId: string) => void;
 	onDelete?: (knowledgeId: string) => void;
 	onIgnore?: (linkSourceId: string, knowledgeId: string) => void;
-	onScanSubpages?: (linkSourceId: string, knowledgeId: string) => void;
 	isToggling: boolean;
 	isReindexing?: boolean;
 	isDeleting?: boolean;
@@ -31,7 +31,6 @@ export function PageTreeNode({
 	onReindex,
 	onDelete,
 	onIgnore,
-	onScanSubpages,
 	isToggling,
 	isReindexing = false,
 	isDeleting = false,
@@ -41,7 +40,9 @@ export function PageTreeNode({
 }: PageTreeNodeProps) {
 	const hasChildren = node.children.length > 0;
 	const [isExpanded, setIsExpanded] = useState(() => !hasChildren);
-	const [, setKnowledgeId] = useQueryState("knowledge", parseAsString);
+	const router = useRouter();
+	const { prefetchKnowledgeEntry } = useTrainingEntryPrefetch(websiteSlug);
+	const detailHref = `/${websiteSlug}/agent/training/web/${node.knowledgeId}`;
 
 	// Generate the ASCII tree prefix for this node
 	const treePrefix = useMemo(
@@ -58,8 +59,12 @@ export function PageTreeNode({
 	}, [node.knowledgeId, node.isIncluded, onToggleIncluded]);
 
 	const handleViewContent = useCallback(() => {
-		void setKnowledgeId(node.knowledgeId);
-	}, [node.knowledgeId, setKnowledgeId]);
+		router.push(detailHref);
+	}, [detailHref, router]);
+
+	const handlePrefetchContent = useCallback(() => {
+		prefetchKnowledgeEntry(node.knowledgeId, detailHref);
+	}, [detailHref, node.knowledgeId, prefetchKnowledgeEntry]);
 
 	const handleReindex = useCallback(() => {
 		onReindex?.(linkSourceId, node.knowledgeId);
@@ -85,6 +90,7 @@ export function PageTreeNode({
 				isToggling={isToggling}
 				onDelete={onDelete ? handleDelete : undefined}
 				onIgnore={onIgnore ? handleIgnore : undefined}
+				onPrefetchContent={handlePrefetchContent}
 				onReindex={onReindex ? handleReindex : undefined}
 				onToggleExpand={handleToggleExpand}
 				onToggleIncluded={handleToggleIncluded}
@@ -92,10 +98,7 @@ export function PageTreeNode({
 				pageCount={node.descendantCount}
 				path={node.path}
 				sizeBytes={node.sizeBytes}
-				sourceUrl={node.linkSourceUrl}
-				title={node.title}
 				treePrefix={treePrefix}
-				updatedAt={node.updatedAt}
 				url={node.url}
 			/>
 
@@ -116,7 +119,6 @@ export function PageTreeNode({
 							onDelete={onDelete}
 							onIgnore={onIgnore}
 							onReindex={onReindex}
-							onScanSubpages={onScanSubpages}
 							onToggleIncluded={onToggleIncluded}
 							websiteSlug={websiteSlug}
 						/>

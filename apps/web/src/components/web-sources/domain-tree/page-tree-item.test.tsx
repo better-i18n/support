@@ -14,9 +14,7 @@ function renderPageTreeItem(
 			pageCount={0}
 			path="/docs/getting-started/installation"
 			sizeBytes={2048}
-			title="Installation"
 			treePrefix="└── "
-			updatedAt="2026-03-12T00:00:00.000Z"
 			url="https://example.com/docs/getting-started/installation"
 			{...props}
 		/>
@@ -51,15 +49,15 @@ describe("PageTreeItemView", () => {
 	it("renders the page size inline after the title", () => {
 		const html = renderPageTreeItem();
 
-		expect(html).toMatch(
-			/Installation<\/span><span class="[^"]*text-muted-foreground text-xs">2 KB<\/span>/
+		expect(html).toContain(
+			'>installation</span><span class="shrink-0 text-muted-foreground text-xs">2 KB</span>'
 		);
 	});
 
-	it("caps the title width so long titles truncate", () => {
+	it("keeps the path label in the monospace row treatment", () => {
 		const html = renderPageTreeItem();
 
-		expect(html).toContain("max-w-[50px] shrink-0 truncate");
+		expect(html).toContain("truncate font-mono text-sm");
 	});
 
 	it("shows descendant count text and a persistent expand control for rows with children", () => {

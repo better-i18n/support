@@ -11,7 +11,6 @@ import {
 	ToggleRightIcon,
 	Trash2Icon,
 } from "lucide-react";
-import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -25,70 +24,47 @@ import { cn } from "@/lib/utils";
 import { formatBytes, getPathDisplayName } from "../utils";
 
 type PageTreeItemViewProps = {
-	// Content
-	title: string | null;
 	path: string;
 	url: string;
 	sizeBytes: number;
-	updatedAt: string;
-
-	// Tree visualization
 	treePrefix: string;
-
-	// State
 	isIncluded: boolean;
 	hasChildren: boolean;
 	isExpanded: boolean;
 	pageCount: number;
-
-	// Source info
-	sourceUrl?: string;
-
-	// Actions
 	onToggleExpand?: () => void;
 	onToggleIncluded?: () => void;
 	onReindex?: () => void;
 	onDelete?: () => void;
 	onIgnore?: () => void;
 	onViewContent?: () => void;
-
-	// Loading states
+	onPrefetchContent?: () => void;
 	isToggling?: boolean;
 	isReindexing?: boolean;
 	isDeleting?: boolean;
 	isIgnoring?: boolean;
-
-	// Focus state
-	focused?: boolean;
-	rightContent?: ReactNode;
-	className?: string;
 };
 
 export function PageTreeItemView({
-	title,
 	path,
 	url,
 	sizeBytes,
-	updatedAt,
 	treePrefix,
 	isIncluded,
 	hasChildren,
 	isExpanded,
 	pageCount,
-	sourceUrl,
 	onToggleExpand,
 	onToggleIncluded,
 	onReindex,
 	onDelete,
 	onIgnore,
 	onViewContent,
+	onPrefetchContent,
 	isToggling = false,
 	isReindexing = false,
 	isDeleting = false,
 	isIgnoring = false,
-	focused = false,
-	rightContent,
-	className,
 }: PageTreeItemViewProps) {
 	const isAnyActionPending =
 		isToggling || isReindexing || isDeleting || isIgnoring;
@@ -100,9 +76,7 @@ export function PageTreeItemView({
 				"group/tree-item -ml-4 -mr-3.5 relative flex items-center gap-2 px-2 py-0 text-sm",
 				"transition-colors hover:bg-muted/50",
 				"focus-visible:outline-none focus-visible:ring-0",
-				focused && "bg-background-200 dark:bg-background-300",
-				!isIncluded && "opacity-50",
-				className
+				!isIncluded && "opacity-50"
 			)}
 		>
 			{/* Tree prefix - ASCII art visualization */}
@@ -114,19 +88,13 @@ export function PageTreeItemView({
 			<button
 				className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 overflow-hidden pr-2 text-left transition-colors hover:text-primary"
 				onClick={onViewContent}
+				onFocus={onPrefetchContent}
+				onMouseEnter={onPrefetchContent}
 				type="button"
 			>
 				<span className="min-w-0 truncate font-mono text-sm" title={url}>
 					{getPathDisplayName(path)}
 				</span>
-				{/* {title && (
-          <span
-            className="max-w-[150px] shrink-0 truncate text-muted-foreground text-sm"
-            title={title}
-          >
-            {title}
-          </span>
-        )} */}
 				<span className="shrink-0 text-muted-foreground text-xs">
 					{formatBytes(sizeBytes)}
 				</span>
@@ -139,7 +107,6 @@ export function PageTreeItemView({
 							Excluded
 						</span>
 					)}
-					{rightContent}
 				</div>
 
 				<div className="pointer-events-none absolute inset-y-0 right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/tree-item:pointer-events-auto group-hover/tree-item:opacity-100">

@@ -1,0 +1,252 @@
+"use client";
+
+import type {
+	KnowledgeClarificationDraftFaq,
+	KnowledgeClarificationRequest,
+	KnowledgeClarificationStepResponse,
+} from "@cossistant/types";
+import { LoaderCircleIcon } from "lucide-react";
+import { TrainingEntrySection } from "@/components/training-entries";
+import { Button } from "@/components/ui/button";
+import { KnowledgeClarificationDraftReview } from "./draft-review";
+import { KnowledgeClarificationQuestionCard } from "./question-card";
+
+type KnowledgeClarificationFlowContentProps = {
+	variant: "dialog" | "page";
+	isLoading?: boolean;
+	currentStep: KnowledgeClarificationStepResponse | null;
+	fallbackStep: KnowledgeClarificationStepResponse | null;
+	currentRequest: KnowledgeClarificationRequest | null;
+	isSubmittingAnswer?: boolean;
+	isSubmittingApproval?: boolean;
+	isRetrying?: boolean;
+	onAnswer: (
+		requestId: string,
+		payload: {
+			selectedAnswer?: string;
+			freeAnswer?: string;
+		}
+	) => unknown | Promise<unknown>;
+	onDefer: (requestId: string) => unknown | Promise<unknown>;
+	onDismiss: (requestId: string) => unknown | Promise<unknown>;
+	onApprove: (
+		requestId: string,
+		draft: KnowledgeClarificationDraftFaq
+	) => unknown | Promise<unknown>;
+	onRetry: (requestId: string) => unknown | Promise<unknown>;
+	onClose: () => unknown | Promise<unknown>;
+};
+
+function RetryState({
+	currentRequest,
+	isRetrying = false,
+	onClose,
+	onRetry,
+	variant,
+}: Pick<
+	KnowledgeClarificationFlowContentProps,
+	"currentRequest" | "isRetrying" | "onClose" | "onRetry" | "variant"
+>) {
+	if (!currentRequest) {
+		return null;
+	}
+
+	if (variant === "page") {
+		return (
+			<TrainingEntrySection
+				description="Retry the flow if the AI did not complete the previous step cleanly."
+				title="Needs attention"
+			>
+				<div className="space-y-4">
+					<p className="text-muted-foreground text-sm">
+						{currentRequest.lastError ??
+							"The AI did not finish the previous step cleanly."}
+					</p>
+					<Button
+						onClick={() => {
+							void onRetry(currentRequest.id);
+						}}
+						type="button"
+						variant="outline"
+					>
+						<LoaderCircleIcon
+							className={`size-4 ${isRetrying ? "animate-spin" : ""}`}
+						/>
+						Retry
+					</Button>
+				</div>
+			</TrainingEntrySection>
+		);
+	}
+
+	return (
+		<div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed px-6 py-10 text-center">
+			<LoaderCircleIcon
+				className={`h-6 w-6 ${isRetrying ? "animate-spin" : ""}`}
+			/>
+			<div className="space-y-1">
+				<div className="font-medium">This clarification needs a retry</div>
+				<p className="text-muted-foreground text-sm">
+					{currentRequest.lastError ??
+						"The AI did not finish the previous step cleanly."}
+				</p>
+			</div>
+			<div className="flex items-center gap-2">
+				<button
+					className="inline-flex h-9 items-center justify-center rounded-[2px] border px-4 text-sm"
+					onClick={() => {
+						void onRetry(currentRequest.id);
+					}}
+					type="button"
+				>
+					Retry AI
+				</button>
+				<button
+					className="inline-flex h-9 items-center justify-center rounded-[2px] px-4 text-sm"
+					onClick={() => {
+						void onClose();
+					}}
+					type="button"
+				>
+					Close
+				</button>
+			</div>
+		</div>
+	);
+}
+
+export function KnowledgeClarificationFlowContent({
+	variant,
+	isLoading = false,
+	currentStep,
+	fallbackStep,
+	currentRequest,
+	isSubmittingAnswer = false,
+	isSubmittingApproval = false,
+	isRetrying = false,
+	onAnswer,
+	onDefer,
+	onDismiss,
+	onApprove,
+	onRetry,
+	onClose,
+}: KnowledgeClarificationFlowContentProps) {
+	if (isLoading) {
+		return variant === "page" ? (
+			<TrainingEntrySection
+				description="Loading this clarification flow."
+				title="Loading"
+			>
+				<div className="flex items-center gap-3 text-muted-foreground text-sm">
+					<LoaderCircleIcon className="size-4 animate-spin" />
+					Preparing AI suggestion...
+				</div>
+			</TrainingEntrySection>
+		) : (
+			<div className="flex items-center gap-3 rounded-2xl border border-dashed px-6 py-8 text-muted-foreground text-sm">
+				<LoaderCircleIcon className="size-4 animate-spin" />
+				Preparing AI suggestion...
+			</div>
+		);
+	}
+
+	if (currentStep?.kind === "question") {
+		return (
+			<KnowledgeClarificationQuestionCard
+				description="Answer the current question now, save it for later, or remove it entirely."
+				isAnalyzing={isSubmittingAnswer}
+				isSubmitting={isSubmittingAnswer}
+				maxSteps={currentStep.request.maxSteps}
+				onDefer={() => {
+					void onDefer(currentStep.request.id);
+				}}
+				onDismiss={() => {
+					void onDismiss(currentStep.request.id);
+				}}
+				onSubmit={(payload) => {
+					void onAnswer(currentStep.request.id, payload);
+				}}
+				question={currentStep.question}
+				stepIndex={currentStep.request.stepIndex}
+				suggestedAnswers={currentStep.suggestedAnswers}
+			/>
+		);
+	}
+
+	if (currentStep?.kind === "draft_ready") {
+		return (
+			<KnowledgeClarificationDraftReview
+				draft={currentStep.draftFaqPayload}
+				isSubmitting={isSubmittingApproval}
+				onApprove={(draft) => {
+					void onApprove(currentStep.request.id, draft);
+				}}
+				onDismiss={() => {
+					void onClose();
+				}}
+			/>
+		);
+	}
+
+	if (fallbackStep?.kind === "question") {
+		return (
+			<KnowledgeClarificationQuestionCard
+				description={
+					variant === "page"
+						? "This suggestion is waiting for another answer."
+						: "This proposal is waiting for another answer."
+				}
+				isSubmitting={isSubmittingAnswer}
+				maxSteps={fallbackStep.request.maxSteps}
+				onDefer={() => {
+					void onDefer(fallbackStep.request.id);
+				}}
+				onDismiss={() => {
+					void onDismiss(fallbackStep.request.id);
+				}}
+				onSubmit={(payload) => {
+					void onAnswer(fallbackStep.request.id, payload);
+				}}
+				question={fallbackStep.question}
+				stepIndex={fallbackStep.request.stepIndex}
+				suggestedAnswers={fallbackStep.suggestedAnswers}
+			/>
+		);
+	}
+
+	if (fallbackStep?.kind === "draft_ready") {
+		return (
+			<KnowledgeClarificationDraftReview
+				draft={fallbackStep.draftFaqPayload}
+				isSubmitting={isSubmittingApproval}
+				onApprove={(draft) => {
+					void onApprove(fallbackStep.request.id, draft);
+				}}
+				onDismiss={() => {
+					void onClose();
+				}}
+			/>
+		);
+	}
+
+	if (currentRequest) {
+		return (
+			<RetryState
+				currentRequest={currentRequest}
+				isRetrying={isRetrying}
+				onClose={onClose}
+				onRetry={onRetry}
+				variant={variant}
+			/>
+		);
+	}
+
+	return variant === "page" ? (
+		<TrainingEntrySection
+			description="This AI suggestion no longer exists."
+			title="Unavailable"
+		/>
+	) : null;
+}
+
+export type { KnowledgeClarificationFlowContentProps };

@@ -18,6 +18,8 @@ import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { ulid } from "ulid";
 
 const PROPOSAL_STATUSES: KnowledgeClarificationStatus[] = [
+	"analyzing",
+	"awaiting_answer",
 	"deferred",
 	"draft_ready",
 ];

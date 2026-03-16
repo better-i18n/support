@@ -34,6 +34,8 @@ import {
 	type FaqKnowledgePayload,
 	getActiveKnowledgeClarificationRequestSchema,
 	getActiveKnowledgeClarificationResponseSchema,
+	getKnowledgeClarificationProposalRequestSchema,
+	getKnowledgeClarificationProposalResponseSchema,
 	type KnowledgeResponse,
 	knowledgeClarificationRequestSchema,
 	knowledgeClarificationStepEnvelopeSchema,
@@ -270,6 +272,29 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 				request: await maybeSerializeClarificationRequest({
 					db,
 					request,
+				}),
+			};
+		}),
+
+	getProposal: protectedProcedure
+		.input(getKnowledgeClarificationProposalRequestSchema)
+		.output(getKnowledgeClarificationProposalResponseSchema)
+		.query(async ({ ctx: { db, user }, input }) => {
+			const { request } = await loadClarificationRequest({
+				db,
+				userId: user.id,
+				websiteSlug: input.websiteSlug,
+				requestId: input.requestId,
+			});
+
+			const turns = await listKnowledgeClarificationTurns(db, {
+				requestId: request.id,
+			});
+
+			return {
+				request: serializeKnowledgeClarificationRequest({
+					request,
+					turns,
 				}),
 			};
 		}),

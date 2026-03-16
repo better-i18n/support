@@ -177,6 +177,15 @@ export const listKnowledgeClarificationProposalsResponseSchema = z.object({
 	items: z.array(knowledgeClarificationRequestSchema),
 });
 
+export const getKnowledgeClarificationProposalRequestSchema = z.object({
+	websiteSlug: z.string(),
+	requestId: z.ulid(),
+});
+
+export const getKnowledgeClarificationProposalResponseSchema = z.object({
+	request: knowledgeClarificationRequestSchema.nullable(),
+});
+
 export const approveKnowledgeClarificationDraftRequestSchema = z.object({
 	websiteSlug: z.string(),
 	requestId: z.ulid(),
@@ -234,6 +243,12 @@ export type AnswerKnowledgeClarificationRequest = z.infer<
 >;
 export type SkipKnowledgeClarificationRequest = z.infer<
 	typeof skipKnowledgeClarificationRequestSchema
+>;
+export type GetKnowledgeClarificationProposalRequest = z.infer<
+	typeof getKnowledgeClarificationProposalRequestSchema
+>;
+export type GetKnowledgeClarificationProposalResponse = z.infer<
+	typeof getKnowledgeClarificationProposalResponseSchema
 >;
 export type ApproveKnowledgeClarificationDraftRequest = z.infer<
 	typeof approveKnowledgeClarificationDraftRequestSchema

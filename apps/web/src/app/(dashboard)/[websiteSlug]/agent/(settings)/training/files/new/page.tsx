@@ -1,8 +1,8 @@
-import { WebListPage } from "@/components/web-sources/web-list-page";
+import { FileEditorPage } from "@/components/file-sources/file-editor-page";
 import {
+	prefetchFileEditorPageData,
 	prefetchTrainingShell,
-	prefetchWebListPageData,
-} from "../_lib/prefetch";
+} from "../../_lib/prefetch";
 
 type PageProps = {
 	params: Promise<{
@@ -14,7 +14,7 @@ export default async function Page({ params }: PageProps) {
 	const { websiteSlug } = await params;
 
 	await prefetchTrainingShell(websiteSlug);
-	await prefetchWebListPageData(websiteSlug);
+	await prefetchFileEditorPageData(websiteSlug);
 
-	return <WebListPage />;
+	return <FileEditorPage />;
 }

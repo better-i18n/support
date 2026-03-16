@@ -354,23 +354,6 @@ export function useLinkSourceMutations({
 		})
 	);
 
-	// Scan subpages mutation
-	const scanSubpagesMutation = useMutation(
-		trpc.linkSource.scanSubpages.mutationOptions({
-			onSuccess: () => {
-				toast.success("Scanning subpages...");
-				void queryClient.invalidateQueries({
-					queryKey: trpc.linkSource.list.queryKey({
-						websiteSlug,
-					}),
-				});
-			},
-			onError: (error) => {
-				toast.error(error.message || "Failed to scan subpages");
-			},
-		})
-	);
-
 	// Toggle knowledge included mutation
 	const toggleIncludedMutation = useMutation(
 		trpc.linkSource.toggleKnowledgeIncluded.mutationOptions({
@@ -537,17 +520,6 @@ export function useLinkSourceMutations({
 		[cancelMutation, websiteSlug]
 	);
 
-	const handleScanSubpages = useCallback(
-		async (linkSourceId: string, knowledgeId: string) => {
-			await scanSubpagesMutation.mutateAsync({
-				websiteSlug,
-				linkSourceId,
-				knowledgeId,
-			});
-		},
-		[scanSubpagesMutation, websiteSlug]
-	);
-
 	const handleToggleIncluded = useCallback(
 		async (knowledgeId: string, isIncluded: boolean) => {
 			await toggleIncludedMutation.mutateAsync({
@@ -687,7 +659,6 @@ export function useLinkSourceMutations({
 		deleteMutation,
 		recrawlMutation,
 		cancelMutation,
-		scanSubpagesMutation,
 		toggleIncludedMutation,
 		reindexPageMutation,
 		deletePageMutation,
@@ -699,7 +670,6 @@ export function useLinkSourceMutations({
 		handleDeleteMultiple,
 		handleRecrawl,
 		handleCancel,
-		handleScanSubpages,
 		handleToggleIncluded,
 		handleReindexPage,
 		handleDeletePage,
@@ -710,7 +680,6 @@ export function useLinkSourceMutations({
 		isDeleting: deleteMutation.isPending,
 		isRecrawling: recrawlMutation.isPending,
 		isCancelling: cancelMutation.isPending,
-		isScanning: scanSubpagesMutation.isPending,
 		isToggling: toggleIncludedMutation.isPending,
 		isReindexing: reindexPageMutation.isPending,
 		isIgnoring: ignorePageMutation.isPending,

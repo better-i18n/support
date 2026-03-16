@@ -62,7 +62,6 @@ export function DomainNode({
 	// Mutations hook
 	const {
 		handleToggleIncluded,
-		handleScanSubpages,
 		handleDeleteMultiple,
 		handleReindexPage,
 		handleDeletePage,
@@ -168,7 +167,6 @@ export function DomainNode({
 										onDelete={handleDeletePage}
 										onIgnore={handleIgnorePage}
 										onReindex={handleReindexPage}
-										onScanSubpages={handleScanSubpages}
 										onToggleIncluded={handleToggleIncluded}
 										websiteSlug={websiteSlug}
 									/>

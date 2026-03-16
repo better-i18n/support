@@ -66,13 +66,6 @@ export function TrainingSummarySidebar({
 		})
 	);
 
-	// Fetch AI agent to get its ID
-	const { data: agent } = useQuery(
-		trpc.aiAgent.get.queryOptions({
-			websiteSlug: website.slug,
-		})
-	);
-
 	// Fetch training status
 	const { data: trainingStatus, isLoading: isLoadingTrainingStatus } = useQuery(
 		trpc.aiAgent.getTrainingStatus.queryOptions({
@@ -150,7 +143,7 @@ export function TrainingSummarySidebar({
 	const isOnCooldown = readiness?.canTrainAt != null;
 	const canTrain =
 		totalSources > 0 &&
-		agent?.id &&
+		aiAgentId &&
 		!isTraining &&
 		needsTraining &&
 		!isOnCooldown;
@@ -163,7 +156,7 @@ export function TrainingSummarySidebar({
 		: null;
 
 	const handleStartTraining = () => {
-		if (!agent?.id) {
+		if (!aiAgentId) {
 			return;
 		}
 
@@ -175,7 +168,7 @@ export function TrainingSummarySidebar({
 
 		startTrainingMutation.mutate({
 			websiteSlug: website.slug,
-			aiAgentId: agent.id,
+			aiAgentId,
 		});
 	};
 
@@ -183,7 +176,7 @@ export function TrainingSummarySidebar({
 	// Disabled when: no agent, already training, mutation pending, or nothing new to train
 	// Enabled when on cooldown (clicking opens upgrade modal)
 	const isButtonDisabled =
-		!agent?.id ||
+		!aiAgentId ||
 		isTraining ||
 		startTrainingMutation.isPending ||
 		!needsTraining;

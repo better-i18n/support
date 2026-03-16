@@ -2,9 +2,13 @@
 
 import type { KnowledgeClarificationDraftFaq } from "@cossistant/types";
 import { useEffect, useState } from "react";
+import {
+	TrainingEntryField,
+	TrainingEntryMarkdownField,
+	TrainingEntrySection,
+	TrainingEntryTagsField,
+} from "@/components/training-entries";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 
 type KnowledgeClarificationDraftReviewProps = {
 	draft: KnowledgeClarificationDraftFaq;
@@ -41,84 +45,43 @@ export function KnowledgeClarificationDraftReview({
 
 	return (
 		<div className="space-y-4">
-			<div className="space-y-1">
-				<h3 className="font-semibold text-xl">{title}</h3>
-				<p className="text-muted-foreground text-sm">{description}</p>
-			</div>
-
-			<div className="space-y-3">
-				<div className="space-y-2">
-					<label
-						className="font-medium text-sm"
-						htmlFor="clarification-draft-title"
-					>
-						Proposal title
-					</label>
-					<Input
-						id="clarification-draft-title"
-						onChange={(event) => setDraftTitle(event.target.value)}
-						placeholder="Optional internal title"
-						value={draftTitle}
-					/>
-				</div>
-				<div className="space-y-2">
-					<label
-						className="font-medium text-sm"
-						htmlFor="clarification-draft-question"
-					>
-						FAQ question
-					</label>
-					<Input
-						id="clarification-draft-question"
-						onChange={(event) => setQuestion(event.target.value)}
-						placeholder="How does this work?"
-						value={question}
-					/>
-				</div>
-				<div className="space-y-2">
-					<label
-						className="font-medium text-sm"
-						htmlFor="clarification-draft-answer"
-					>
-						FAQ answer
-					</label>
-					<Textarea
-						id="clarification-draft-answer"
-						onChange={(event) => setAnswer(event.target.value)}
-						rows={8}
-						value={answer}
-					/>
-				</div>
-				<div className="space-y-2">
-					<label
-						className="font-medium text-sm"
-						htmlFor="clarification-draft-categories"
-					>
-						Categories
-					</label>
-					<Input
-						id="clarification-draft-categories"
-						onChange={(event) => setCategories(event.target.value)}
-						placeholder="Billing, Plans, Limits"
-						value={categories}
-					/>
-				</div>
-				<div className="space-y-2">
-					<label
-						className="font-medium text-sm"
-						htmlFor="clarification-draft-related"
-					>
-						Related questions
-					</label>
-					<Input
-						id="clarification-draft-related"
-						onChange={(event) => setRelatedQuestions(event.target.value)}
-						placeholder="Comma-separated related questions"
-						value={relatedQuestions}
-					/>
-				</div>
-			</div>
-
+			<TrainingEntrySection description={description} title={title}>
+				<TrainingEntryField
+					id="clarification-draft-title"
+					label="Proposal title"
+					onChange={setDraftTitle}
+					placeholder="Optional internal title"
+					value={draftTitle}
+				/>
+				<TrainingEntryField
+					id="clarification-draft-question"
+					label="FAQ question"
+					onChange={setQuestion}
+					placeholder="How does this work?"
+					value={question}
+				/>
+				<TrainingEntryMarkdownField
+					id="clarification-draft-answer"
+					label="FAQ answer"
+					onChange={setAnswer}
+					rows={10}
+					value={answer}
+				/>
+				<TrainingEntryTagsField
+					id="clarification-draft-categories"
+					label="Categories"
+					onChange={setCategories}
+					placeholder="Billing, Plans, Limits"
+					value={categories}
+				/>
+				<TrainingEntryTagsField
+					id="clarification-draft-related"
+					label="Related questions"
+					onChange={setRelatedQuestions}
+					placeholder="Comma-separated related questions"
+					value={relatedQuestions}
+				/>
+			</TrainingEntrySection>
 			<div className="flex items-center justify-between gap-3">
 				<Button
 					disabled={isSubmitting}

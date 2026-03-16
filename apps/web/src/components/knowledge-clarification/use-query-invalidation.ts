@@ -41,6 +41,17 @@ export function useKnowledgeClarificationQueryInvalidation(
 				);
 			}
 
+			if (request?.id) {
+				invalidations.push(
+					queryClient.invalidateQueries({
+						queryKey: trpc.knowledgeClarification.getProposal.queryKey({
+							websiteSlug,
+							requestId: request.id,
+						}),
+					})
+				);
+			}
+
 			if (includeKnowledgeQueries) {
 				invalidations.push(
 					queryClient.invalidateQueries({
