@@ -152,7 +152,7 @@ async function loadWebsite(params: {
 }
 
 async function loadClarificationRequest(params: {
-	db: Parameters<typeof getKnowledgeClarificationRequestById>[0];
+	db: Parameters<typeof getWebsiteBySlugWithAccess>[0];
 	userId: string;
 	websiteSlug: string;
 	requestId: string;
@@ -194,6 +194,27 @@ async function maybeSerializeClarificationRequest(params: {
 	return serializeKnowledgeClarificationRequest({
 		request: params.request,
 		turns,
+	});
+}
+
+async function emitRetryableConversationClarificationFailure(params: {
+	db: Database;
+	websiteId: string;
+	requestId: string;
+	conversation: Awaited<
+		ReturnType<typeof loadKnowledgeClarificationRuntime>
+	>["conversation"];
+}) {
+	const failedRequest = await getKnowledgeClarificationRequestById(params.db, {
+		requestId: params.requestId,
+		websiteId: params.websiteId,
+	});
+
+	await emitConversationClarificationUpdate({
+		db: params.db,
+		conversation: params.conversation,
+		request: failedRequest,
+		aiAgentId: null,
 	});
 }
 
@@ -249,6 +270,12 @@ function stripDraftTitle(
 	};
 }
 
+function isTerminalClarificationRequestStatus(
+	status: string
+): status is "applied" | "dismissed" {
+	return status === "applied" || status === "dismissed";
+}
+
 export const knowledgeClarificationRouter = createTRPCRouter({
 	getActiveForConversation: protectedProcedure
 		.input(getActiveKnowledgeClarificationRequestSchema)
@@ -280,12 +307,18 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 		.input(getKnowledgeClarificationProposalRequestSchema)
 		.output(getKnowledgeClarificationProposalResponseSchema)
 		.query(async ({ ctx: { db, user }, input }) => {
-			const { request } = await loadClarificationRequest({
+			const website = await loadWebsite({
 				db,
 				userId: user.id,
 				websiteSlug: input.websiteSlug,
-				requestId: input.requestId,
 			});
+			const request = await getKnowledgeClarificationRequestById(db, {
+				requestId: input.requestId,
+				websiteId: website.id,
+			});
+			if (!request) {
+				return { request: null };
+			}
 
 			const turns = await listKnowledgeClarificationTurns(db, {
 				requestId: request.id,
@@ -323,7 +356,7 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 			}
 
 			try {
-				const { step } = await startConversationKnowledgeClarification({
+				const result = await startConversationKnowledgeClarification({
 					db,
 					organizationId: website.organizationId,
 					websiteId: website.id,
@@ -331,24 +364,40 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 					conversation,
 					topicSummary: input.topicSummary,
 					actor: { userId: user.id },
+					creationMode: "manual",
 				});
+				if (!result.step) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message:
+							"This clarification trigger already maps to a completed request",
+					});
+				}
 
-				await emitConversationClarificationUpdate({
-					db,
-					conversation,
-					request: step.request.status === "draft_ready" ? null : step.request,
-					aiAgentId: null,
-				});
+				try {
+					await emitConversationClarificationUpdate({
+						db,
+						conversation,
+						request: result.step.request,
+						aiAgentId: null,
+					});
+				} catch (error) {
+					console.warn(
+						"[KnowledgeClarification] Failed to emit conversation start update",
+						{
+							conversationId: conversation.id,
+							requestId: result.step.request.id,
+							error:
+								error instanceof Error ? error.message : "Unknown emit failure",
+						}
+					);
+				}
 
-				return { step };
+				return { step: result.step };
 			} catch (error) {
-				await emitConversationClarificationUpdate({
-					db,
-					conversation,
-					request: null,
-					aiAgentId: null,
-				});
-
+				if (error instanceof TRPCError) {
+					throw error;
+				}
 				throw new TRPCError({
 					code: "INTERNAL_SERVER_ERROR",
 					message:
@@ -429,10 +478,13 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 				requestId: input.requestId,
 			});
 
-			if (request.status === "dismissed" || request.status === "applied") {
+			if (
+				request.status !== "awaiting_answer" &&
+				request.status !== "deferred"
+			) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
-					message: "This clarification request is no longer active",
+					message: "This clarification request is not waiting for an answer",
 				});
 			}
 
@@ -499,11 +551,11 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 
 				return { step };
 			} catch (error) {
-				await emitConversationClarificationUpdate({
+				await emitRetryableConversationClarificationFailure({
 					db,
+					websiteId: website.id,
+					requestId: analyzingRequest.id,
 					conversation: runtime.conversation,
-					request: null,
-					aiAgentId: null,
 				});
 
 				throw new TRPCError({
@@ -527,10 +579,13 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 				requestId: input.requestId,
 			});
 
-			if (request.status === "dismissed" || request.status === "applied") {
+			if (
+				request.status !== "awaiting_answer" &&
+				request.status !== "deferred"
+			) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
-					message: "This clarification request is no longer active",
+					message: "This clarification request is not waiting for an answer",
 				});
 			}
 
@@ -595,11 +650,11 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 
 				return { step };
 			} catch (error) {
-				await emitConversationClarificationUpdate({
+				await emitRetryableConversationClarificationFailure({
 					db,
+					websiteId: website.id,
+					requestId: analyzingRequest.id,
 					conversation: runtime.conversation,
-					request: null,
-					aiAgentId: null,
 				});
 
 				throw new TRPCError({
@@ -622,7 +677,7 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 				websiteSlug: input.websiteSlug,
 				requestId: input.requestId,
 			});
-			if (request.status === "dismissed" || request.status === "applied") {
+			if (request.status !== "retry_required") {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message: "This clarification request cannot be retried",
@@ -674,11 +729,11 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 				});
 				return { step };
 			} catch (error) {
-				await emitConversationClarificationUpdate({
+				await emitRetryableConversationClarificationFailure({
 					db,
+					websiteId: website.id,
+					requestId: analyzingRequest.id,
 					conversation: runtime.conversation,
-					request: null,
-					aiAgentId: null,
 				});
 
 				throw new TRPCError({
@@ -701,6 +756,12 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 				websiteSlug: input.websiteSlug,
 				requestId: input.requestId,
 			});
+			if (isTerminalClarificationRequestStatus(request.status)) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "This clarification request can no longer be changed",
+				});
+			}
 			const updatedRequest = await updateKnowledgeClarificationRequest(db, {
 				requestId: request.id,
 				updates: {
@@ -754,6 +815,12 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 				websiteSlug: input.websiteSlug,
 				requestId: input.requestId,
 			});
+			if (isTerminalClarificationRequestStatus(request.status)) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "This clarification request can no longer be changed",
+				});
+			}
 			const updatedRequest = await updateKnowledgeClarificationRequest(db, {
 				requestId: request.id,
 				updates: {
@@ -834,6 +901,12 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 				websiteSlug: input.websiteSlug,
 				requestId: input.requestId,
 			});
+			if (request.status !== "draft_ready") {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "This clarification draft is no longer ready to approve",
+				});
+			}
 			const faqPayload = stripDraftTitle(input.draft);
 
 			const targetKnowledge = request.targetKnowledgeId

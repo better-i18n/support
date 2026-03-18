@@ -3,10 +3,17 @@
 import type { KnowledgeClarificationRequest } from "@cossistant/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
+import {
+	removeProposalRequestFromCache,
+	setProposalResponseInCache,
+	syncProposalRequestInCache,
+} from "@/data/knowledge-clarification-cache";
 import { useTRPC } from "@/lib/trpc/client";
 
 type InvalidateKnowledgeClarificationOptions = {
 	request?: KnowledgeClarificationRequest | null;
+	requestId?: string | null;
+	conversationId?: string | null;
 	includeKnowledgeQueries?: boolean;
 };
 
@@ -19,34 +26,65 @@ export function useKnowledgeClarificationQueryInvalidation(
 	return useCallback(
 		async ({
 			request,
+			requestId = null,
+			conversationId = null,
 			includeKnowledgeQueries = false,
 		}: InvalidateKnowledgeClarificationOptions = {}) => {
+			const resolvedRequestId = request?.id ?? requestId;
+			const resolvedConversationId = request?.conversationId ?? conversationId;
+			const proposalsQueryKey =
+				trpc.knowledgeClarification.listProposals.queryKey({
+					websiteSlug,
+				});
+
+			if (request) {
+				syncProposalRequestInCache(queryClient, proposalsQueryKey, request);
+			} else if (resolvedRequestId) {
+				removeProposalRequestFromCache(
+					queryClient,
+					proposalsQueryKey,
+					resolvedRequestId
+				);
+			}
+
+			if (resolvedRequestId) {
+				const proposalQueryKey =
+					trpc.knowledgeClarification.getProposal.queryKey({
+						websiteSlug,
+						requestId: resolvedRequestId,
+					});
+
+				setProposalResponseInCache(
+					queryClient,
+					proposalQueryKey,
+					request ?? null
+				);
+			}
+
 			const invalidations: Promise<unknown>[] = [
 				queryClient.invalidateQueries({
-					queryKey: trpc.knowledgeClarification.listProposals.queryKey({
-						websiteSlug,
-					}),
+					queryKey: proposalsQueryKey,
 				}),
 			];
 
-			if (request?.conversationId) {
+			if (resolvedConversationId) {
 				invalidations.push(
 					queryClient.invalidateQueries({
 						queryKey:
 							trpc.knowledgeClarification.getActiveForConversation.queryKey({
 								websiteSlug,
-								conversationId: request.conversationId,
+								conversationId: resolvedConversationId,
 							}),
 					})
 				);
 			}
 
-			if (request?.id) {
+			if (resolvedRequestId) {
 				invalidations.push(
 					queryClient.invalidateQueries({
 						queryKey: trpc.knowledgeClarification.getProposal.queryKey({
 							websiteSlug,
-							requestId: request.id,
+							requestId: resolvedRequestId,
 						}),
 					})
 				);

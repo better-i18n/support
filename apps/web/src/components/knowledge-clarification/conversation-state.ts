@@ -36,19 +36,18 @@ export function resolveEngagedConversationClarificationRequestId(params: {
 export function shouldShowConversationClarificationPrompt(params: {
 	summary: ConversationClarificationSummary | null | undefined;
 	engagedRequestId: string | null;
-	hasEscalation: boolean;
 	hasLimitAction: boolean;
 }): boolean {
 	if (params.hasLimitAction) {
 		return false;
 	}
 
-	if (!params.summary?.question) {
+	if (!params.summary) {
 		return false;
 	}
 
-	if (params.hasEscalation) {
-		return true;
+	if (params.summary.status !== "retry_required" && !params.summary.question) {
+		return false;
 	}
 
 	return params.engagedRequestId !== params.summary.requestId;
@@ -83,22 +82,17 @@ export function resolveConversationClarificationDisplayState(params: {
 		engagedRequestId: params.engagedRequestId,
 	});
 	const showAction =
-		!(params.hasEscalation || params.hasLimitAction) &&
+		!params.hasLimitAction &&
 		shouldShowConversationClarificationAction({
 			summary: params.summary,
 			engagedRequestId,
 		});
 	const showDraftBanner = Boolean(
-		!(
-			params.hasEscalation ||
-			params.hasLimitAction ||
-			params.summary?.status !== "draft_ready"
-		)
+		!(params.hasLimitAction || params.summary?.status !== "draft_ready")
 	);
 	const showPrompt = shouldShowConversationClarificationPrompt({
 		summary: params.summary,
 		engagedRequestId,
-		hasEscalation: params.hasEscalation,
 		hasLimitAction: params.hasLimitAction,
 	});
 

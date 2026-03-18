@@ -39,6 +39,14 @@ type KnowledgeClarificationDraftReviewBodyProps = {
 	description?: string;
 };
 
+function runDraftReviewAction(action: () => void | Promise<void>) {
+	const result = action();
+
+	if (result && typeof result.catch === "function") {
+		void result.catch(() => {});
+	}
+}
+
 export function useKnowledgeClarificationDraftReviewState(
 	draft: KnowledgeClarificationDraftFaq | null
 ): KnowledgeClarificationDraftReviewState {
@@ -170,7 +178,9 @@ export function KnowledgeClarificationDraftReview({
 			<Button
 				disabled={isSubmitting}
 				onClick={() => {
-					void onDismiss?.();
+					if (onDismiss) {
+						runDraftReviewAction(onDismiss);
+					}
 				}}
 				type="button"
 				variant="ghost"
@@ -180,7 +190,7 @@ export function KnowledgeClarificationDraftReview({
 			<Button
 				disabled={isSubmitting || !state.canApprove}
 				onClick={() => {
-					void onApprove(state.parsedDraft);
+					runDraftReviewAction(() => onApprove(state.parsedDraft));
 				}}
 				type="button"
 			>

@@ -27,6 +27,7 @@ export function ClarificationPrompt({
 		useKnowledgeClarificationQueryInvalidation(websiteSlug);
 	const deferMutation = useMutation(
 		trpc.knowledgeClarification.defer.mutationOptions({
+			retry: false,
 			onSuccess: async (request) => {
 				await invalidateClarificationQueries({ request });
 			},
@@ -37,6 +38,7 @@ export function ClarificationPrompt({
 	);
 	const dismissMutation = useMutation(
 		trpc.knowledgeClarification.dismiss.mutationOptions({
+			retry: false,
 			onSuccess: async (request) => {
 				await invalidateClarificationQueries({ request });
 			},
@@ -51,7 +53,7 @@ export function ClarificationPrompt({
 		<div className={cn("px-2 pt-2 pb-2", className)}>
 			<div className="flex items-start justify-between gap-4">
 				<div className="space-y-1">
-					<div className="font-medium text-xs">Clarification</div>
+					<div className="font-medium text-sm">Clarification</div>
 					<p className="text-muted-foreground text-sm">
 						{summary.topicSummary}
 					</p>
@@ -60,11 +62,7 @@ export function ClarificationPrompt({
 					className="absolute top-2 right-2"
 					disabled={isPending}
 					onClick={() => {
-						// void dismissMutation.mutateAsync({
-						//   websiteSlug,
-						//   requestId: summary.requestId,
-						// });
-						void deferMutation.mutateAsync({
+						dismissMutation.mutate({
 							websiteSlug,
 							requestId: summary.requestId,
 						});
@@ -81,7 +79,7 @@ export function ClarificationPrompt({
 				<Button
 					disabled={isPending}
 					onClick={() => {
-						void deferMutation.mutateAsync({
+						deferMutation.mutate({
 							websiteSlug,
 							requestId: summary.requestId,
 						});

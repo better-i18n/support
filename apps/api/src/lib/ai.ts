@@ -23,10 +23,16 @@ import { embed, embedMany, type LanguageModel, wrapLanguageModel } from "ai";
 
 // Re-export commonly used AI SDK functions for convenience
 export {
+	APICallError,
+	EmptyResponseBodyError,
 	generateObject,
 	generateText,
 	hasToolCall,
 	type ModelMessage,
+	NoContentGeneratedError,
+	NoObjectGeneratedError,
+	NoOutputGeneratedError,
+	NoSuchModelError,
 	Output,
 	stepCountIs,
 	streamObject,
@@ -76,6 +82,22 @@ export type ModelOptions = {
 	devTools?: boolean;
 };
 
+type WrappableLanguageModel = Parameters<typeof wrapLanguageModel>[0]["model"];
+
+function wrapWithOptionalDevTools(
+	model: WrappableLanguageModel,
+	devTools: boolean
+): WrappableLanguageModel {
+	if (!devTools) {
+		return model;
+	}
+
+	return wrapLanguageModel({
+		model,
+		middleware: devToolsMiddleware(),
+	});
+}
+
 /**
  * Create a language model with OpenRouter and optional DevTools integration
  *
@@ -100,17 +122,28 @@ export function createModel(
 	const { devTools = isDevToolsEnabled } = options;
 
 	const openrouter = getOpenRouter();
-	const baseModel = openrouter.chat(modelId);
+	return wrapWithOptionalDevTools(openrouter.chat(modelId), devTools);
+}
 
-	// Wrap with DevTools middleware in development
-	if (devTools) {
-		return wrapLanguageModel({
-			model: baseModel,
-			middleware: devToolsMiddleware(),
-		});
-	}
+/**
+ * Create a language model for structured-output calls that require a provider
+ * supporting the full request parameter set.
+ */
+export function createStructuredOutputModel(
+	modelId: string,
+	options: ModelOptions = {}
+): LanguageModel {
+	const { devTools = isDevToolsEnabled } = options;
 
-	return baseModel;
+	const openrouter = getOpenRouter();
+	return wrapWithOptionalDevTools(
+		openrouter.chat(modelId, {
+			provider: {
+				require_parameters: true,
+			},
+		}),
+		devTools
+	);
 }
 
 /**

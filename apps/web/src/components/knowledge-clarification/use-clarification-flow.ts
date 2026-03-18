@@ -7,10 +7,13 @@ import type {
 	KnowledgeClarificationStepResponse,
 } from "@cossistant/types";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
-import { stepFromKnowledgeClarificationRequest } from "./helpers";
+import {
+	shouldPreferKnowledgeClarificationRequestState,
+	stepFromKnowledgeClarificationRequest,
+} from "./helpers";
 import { useKnowledgeClarificationQueryInvalidation } from "./use-query-invalidation";
 
 type UseKnowledgeClarificationFlowOptions = {
@@ -52,6 +55,7 @@ export function useKnowledgeClarificationFlow({
 
 	const answerMutation = useMutation(
 		trpc.knowledgeClarification.answer.mutationOptions({
+			retry: false,
 			onSuccess: async (result) => {
 				setStep(result.step);
 				setRequestFallback(result.step.request);
@@ -59,14 +63,20 @@ export function useKnowledgeClarificationFlow({
 					request: result.step.request,
 				});
 			},
-			onError: (error) => {
-				toast.error(error.message || "Failed to submit clarification answer");
+			onError: async (_error, variables) => {
+				await invalidateQueries({
+					requestId: variables.requestId,
+					conversationId:
+						requestFallback?.conversationId ?? initialRequest?.conversationId,
+				});
+				toast.error("The AI hit a temporary issue. You can retry from here.");
 			},
 		})
 	);
 
 	const deferMutation = useMutation(
 		trpc.knowledgeClarification.defer.mutationOptions({
+			retry: false,
 			onSuccess: async (request) => {
 				await invalidateQueries({ request });
 				await onDeferred?.(request);
@@ -79,6 +89,7 @@ export function useKnowledgeClarificationFlow({
 
 	const dismissMutation = useMutation(
 		trpc.knowledgeClarification.dismiss.mutationOptions({
+			retry: false,
 			onSuccess: async (request) => {
 				await invalidateQueries({ request });
 				await onDismissed?.(request);
@@ -91,6 +102,7 @@ export function useKnowledgeClarificationFlow({
 
 	const retryMutation = useMutation(
 		trpc.knowledgeClarification.retry.mutationOptions({
+			retry: false,
 			onSuccess: async (result) => {
 				setStep(result.step);
 				setRequestFallback(result.step.request);
@@ -98,14 +110,20 @@ export function useKnowledgeClarificationFlow({
 					request: result.step.request,
 				});
 			},
-			onError: (error) => {
-				toast.error(error.message || "Failed to retry clarification");
+			onError: async (_error, variables) => {
+				await invalidateQueries({
+					requestId: variables.requestId,
+					conversationId:
+						requestFallback?.conversationId ?? initialRequest?.conversationId,
+				});
+				toast.error("The AI hit a temporary issue. You can retry from here.");
 			},
 		})
 	);
 
 	const approveMutation = useMutation(
 		trpc.knowledgeClarification.approveDraft.mutationOptions({
+			retry: false,
 			onSuccess: async (result) => {
 				await invalidateQueries({
 					request: result.request,
@@ -119,14 +137,31 @@ export function useKnowledgeClarificationFlow({
 		})
 	);
 
-	const currentRequest = step?.request ?? requestFallback;
+	const requestStep = useMemo(
+		() => stepFromKnowledgeClarificationRequest(requestFallback),
+		[requestFallback]
+	);
+	const shouldPreferRequestState = useMemo(
+		() =>
+			shouldPreferKnowledgeClarificationRequestState({
+				request: requestFallback,
+				step,
+			}),
+		[requestFallback, step]
+	);
+	const currentStep = shouldPreferRequestState
+		? requestStep
+		: (step ?? requestStep);
+	const currentRequest = shouldPreferRequestState
+		? requestFallback
+		: (currentStep?.request ?? requestFallback);
 	const fallbackStep = currentRequest
 		? stepFromKnowledgeClarificationRequest(currentRequest)
 		: null;
 
 	return {
 		currentRequest,
-		currentStep: step,
+		currentStep,
 		fallbackStep,
 		answerMutation,
 		deferMutation,
@@ -140,31 +175,28 @@ export function useKnowledgeClarificationFlow({
 				freeAnswer?: string;
 			}
 		) =>
-			await answerMutation.mutateAsync({
+			answerMutation.mutate({
 				websiteSlug,
 				requestId,
 				...payload,
 			}),
-		deferRequest: async (requestId: string) =>
-			await deferMutation.mutateAsync({
+		deferRequest: (requestId: string) =>
+			deferMutation.mutate({
 				websiteSlug,
 				requestId,
 			}),
-		dismissRequest: async (requestId: string) =>
-			await dismissMutation.mutateAsync({
+		dismissRequest: (requestId: string) =>
+			dismissMutation.mutate({
 				websiteSlug,
 				requestId,
 			}),
-		retryRequest: async (requestId: string) =>
-			await retryMutation.mutateAsync({
+		retryRequest: (requestId: string) =>
+			retryMutation.mutate({
 				websiteSlug,
 				requestId,
 			}),
-		approveDraft: async (
-			requestId: string,
-			draft: KnowledgeClarificationDraftFaq
-		) =>
-			await approveMutation.mutateAsync({
+		approveDraft: (requestId: string, draft: KnowledgeClarificationDraftFaq) =>
+			approveMutation.mutate({
 				websiteSlug,
 				requestId,
 				draft,

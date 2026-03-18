@@ -2,7 +2,7 @@
 
 import type { FaqKnowledgePayload } from "@cossistant/types";
 import { useQuery } from "@tanstack/react-query";
-import { EyeIcon, EyeOffIcon, HelpCircleIcon, Trash2Icon } from "lucide-react";
+import { Trash2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { TrainingEmptyState } from "@/components/agents/training-empty-state";
@@ -42,11 +42,13 @@ export function FaqListPage() {
 			limit: 100,
 		})
 	);
-	const { data: proposalsData } = useQuery(
-		trpc.knowledgeClarification.listProposals.queryOptions({
+	const { data: proposalsData } = useQuery({
+		...trpc.knowledgeClarification.listProposals.queryOptions({
 			websiteSlug: pageState.websiteSlug,
-		})
-	);
+		}),
+		staleTime: 0,
+		refetchOnMount: "always",
+	});
 
 	const { handleDelete, handleToggleIncluded, isDeleting, isToggling } =
 		useFaqMutations({
@@ -71,7 +73,9 @@ export function FaqListPage() {
 
 				return (
 					<TrainingEntryRow
-						actions={[
+						href={href}
+						icon={<span className="font-medium">?</span>}
+						inlineActions={[
 							{
 								label: faq.isIncluded
 									? "Exclude from training"
@@ -79,22 +83,24 @@ export function FaqListPage() {
 								onSelect: () => {
 									void handleToggleIncluded(faq.id, !faq.isIncluded);
 								},
-								Icon: faq.isIncluded ? EyeOffIcon : EyeIcon,
+								icon: (
+									<Icon
+										filledOnHover
+										name={faq.isIncluded ? "eye-off" : "eye"}
+									/>
+								),
 								disabled: isToggling,
 							},
 							{
-								label: "Delete",
+								label: "Delete FAQ",
 								onSelect: () => {
 									void handleDelete(faq.id);
 								},
-								Icon: Trash2Icon,
+								icon: <Trash2Icon className="size-4" />,
 								disabled: isDeleting,
 								destructive: true,
-								separatorBefore: true,
 							},
 						]}
-						href={href}
-						icon={<span className="font-medium">?</span>}
 						key={faq.id}
 						onHoverPrefetch={() => prefetchKnowledgeEntry(faq.id, href)}
 						primary={payload.question}

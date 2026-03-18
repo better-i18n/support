@@ -10,6 +10,11 @@ mock.module("next/navigation", () => ({
 }));
 
 mock.module("@tanstack/react-query", () => ({
+	useMutation: () => ({
+		isPending: false,
+		mutate: () => {},
+		variables: undefined,
+	}),
 	useQueryClient: () => ({
 		getQueryState: () => null,
 		prefetchQuery: () => Promise.resolve(),
@@ -18,11 +23,38 @@ mock.module("@tanstack/react-query", () => ({
 
 mock.module("@/lib/trpc/client", () => ({
 	useTRPC: () => ({
+		aiAgent: {
+			getTrainingReadiness: {
+				queryKey: (input: unknown) => ["aiAgent.getTrainingReadiness", input],
+			},
+		},
 		knowledgeClarification: {
+			approveDraft: {
+				mutationOptions: (options: unknown) => options,
+			},
+			dismiss: {
+				mutationOptions: (options: unknown) => options,
+			},
 			getProposal: {
 				queryOptions: (input: unknown) => ({
 					queryKey: ["knowledgeClarification.getProposal", input],
 				}),
+				queryKey: (input: unknown) => [
+					"knowledgeClarification.getProposal",
+					input,
+				],
+			},
+			getActiveForConversation: {
+				queryKey: (input: unknown) => [
+					"knowledgeClarification.getActiveForConversation",
+					input,
+				],
+			},
+			listProposals: {
+				queryKey: (input: unknown) => [
+					"knowledgeClarification.listProposals",
+					input,
+				],
 			},
 		},
 		knowledge: {
@@ -30,6 +62,14 @@ mock.module("@/lib/trpc/client", () => ({
 				queryOptions: (input: unknown) => ({
 					queryKey: ["knowledge.get", input],
 				}),
+			},
+			list: {
+				queryKey: (input: unknown) => ["knowledge.list", input],
+			},
+		},
+		linkSource: {
+			getTrainingStats: {
+				queryKey: (input: unknown) => ["linkSource.getTrainingStats", input],
 			},
 		},
 	}),
@@ -99,10 +139,42 @@ describe("KnowledgeClarificationProposalsSection", () => {
 			"Draft FAQs and clarification threads the AI wants you to review."
 		);
 		expect(html).toContain("Cossistant Logo");
-		expect(html).toContain("AI Suggestion");
 		expect(html).toContain("Ready for review");
 		expect(html).toContain("Clarify how refunds work for annual plans");
+		expect(html).toContain('aria-label="Approve"');
+		expect(html).toContain('aria-label="Delete suggestion"');
+		expect(html).toContain('data-slot="training-entry-inline-actions"');
+		expect(html).not.toContain(">AI Suggestion<");
 		expect(html).not.toContain("From conversation");
 		expect(html).not.toContain("Can annual plans get a refund?");
+	});
+
+	it("renders distinct labels for retry-required and deferred proposals", () => {
+		const html = renderToStaticMarkup(
+			<KnowledgeClarificationProposalsSection
+				proposals={[
+					createProposal({
+						id: "01JQJ2V0A00000000000000010",
+						status: "retry_required",
+						currentQuestion: null,
+						currentSuggestedAnswers: null,
+						currentQuestionInputMode: null,
+						currentQuestionScope: null,
+						lastError: "No output generated.",
+					}),
+					createProposal({
+						id: "01JQJ2V0A00000000000000011",
+						status: "deferred",
+					}),
+				]}
+				websiteSlug="acme"
+			/>
+		);
+
+		expect(html).toContain("Needs retry");
+		expect(html).toContain("Saved for later");
+		expect(html).toContain('aria-label="Delete suggestion"');
+		expect(html).not.toContain('aria-label="Approve"');
+		expect(html).not.toContain("Needs attention");
 	});
 });

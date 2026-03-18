@@ -1,4 +1,12 @@
+import type { RouterOutputs } from "@api/trpc/types";
 import type { QueryClient } from "@tanstack/react-query";
+
+export type KnowledgeClarificationProposalsResponse =
+	RouterOutputs["knowledgeClarification"]["listProposals"];
+export type KnowledgeClarificationProposalResponse =
+	RouterOutputs["knowledgeClarification"]["getProposal"];
+export type KnowledgeClarificationProposalRequest =
+	KnowledgeClarificationProposalsResponse["items"][number];
 
 type ActiveClarificationQueryInput = {
 	websiteSlug?: string;
@@ -9,6 +17,18 @@ type QueryKeyInput = {
 	input?: ActiveClarificationQueryInput;
 	type?: string;
 };
+
+function shouldAppearInProposalList(
+	request: KnowledgeClarificationProposalRequest
+): boolean {
+	return (
+		request.status === "analyzing" ||
+		request.status === "awaiting_answer" ||
+		request.status === "retry_required" ||
+		request.status === "deferred" ||
+		request.status === "draft_ready"
+	);
+}
 
 function extractActiveClarificationInput(
 	queryKey: readonly unknown[]
@@ -78,4 +98,78 @@ export function invalidateActiveConversationClarificationQuery(
 			});
 		},
 	});
+}
+
+export function syncProposalRequestInCache(
+	queryClient: QueryClient,
+	queryKey: readonly unknown[],
+	request: KnowledgeClarificationProposalRequest
+): void {
+	queryClient.setQueryData<KnowledgeClarificationProposalsResponse | undefined>(
+		queryKey,
+		(existing) => {
+			if (!existing) {
+				return shouldAppearInProposalList(request)
+					? { items: [request] }
+					: existing;
+			}
+
+			const itemsWithoutRequest = existing.items.filter(
+				(item) => item.id !== request.id
+			);
+
+			if (!shouldAppearInProposalList(request)) {
+				if (itemsWithoutRequest.length === existing.items.length) {
+					return existing;
+				}
+
+				return {
+					...existing,
+					items: itemsWithoutRequest,
+				};
+			}
+
+			return {
+				...existing,
+				items: [request, ...itemsWithoutRequest],
+			};
+		}
+	);
+}
+
+export function removeProposalRequestFromCache(
+	queryClient: QueryClient,
+	queryKey: readonly unknown[],
+	requestId: string
+): void {
+	queryClient.setQueryData<KnowledgeClarificationProposalsResponse | undefined>(
+		queryKey,
+		(existing) => {
+			if (!existing) {
+				return existing;
+			}
+
+			const items = existing.items.filter((item) => item.id !== requestId);
+
+			if (items.length === existing.items.length) {
+				return existing;
+			}
+
+			return {
+				...existing,
+				items,
+			};
+		}
+	);
+}
+
+export function setProposalResponseInCache(
+	queryClient: QueryClient,
+	queryKey: readonly unknown[],
+	request: KnowledgeClarificationProposalRequest | null
+): void {
+	queryClient.setQueryData<KnowledgeClarificationProposalResponse | undefined>(
+		queryKey,
+		{ request }
+	);
 }

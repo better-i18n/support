@@ -29,6 +29,14 @@ type KnowledgeClarificationQuestionCardProps = {
 	variant?: "dialog" | "page";
 };
 
+function runQuestionCardAction(action: () => void | Promise<void>) {
+	const result = action();
+
+	if (result && typeof result.catch === "function") {
+		void result.catch(() => {});
+	}
+}
+
 export function KnowledgeClarificationQuestionCard({
 	question,
 	suggestedAnswers,
@@ -48,11 +56,12 @@ export function KnowledgeClarificationQuestionCard({
 	const draft = useKnowledgeClarificationAnswerDraft(question, inputMode);
 
 	const handleSubmit = () => {
-		if (!draft.submitPayload) {
+		const submitPayload = draft.submitPayload;
+		if (!submitPayload) {
 			return;
 		}
 
-		void onSubmit(draft.submitPayload);
+		runQuestionCardAction(() => onSubmit(submitPayload));
 	};
 
 	return (
@@ -92,7 +101,9 @@ export function KnowledgeClarificationQuestionCard({
 					<Button
 						disabled={isSubmitting || isAnalyzing}
 						onClick={() => {
-							void onDismiss?.();
+							if (onDismiss) {
+								runQuestionCardAction(onDismiss);
+							}
 						}}
 						type="button"
 						variant="ghost"
@@ -103,7 +114,7 @@ export function KnowledgeClarificationQuestionCard({
 						<Button
 							disabled={isSubmitting || isAnalyzing}
 							onClick={() => {
-								void onDefer();
+								runQuestionCardAction(onDefer);
 							}}
 							type="button"
 							variant="outline"

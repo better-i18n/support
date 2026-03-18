@@ -131,6 +131,7 @@ const AI_AGENT_MODEL_MAP = new Map<string, AiAgentModelCatalogItem>(
 const DEFAULT_MODEL_ID =
 	AI_AGENT_MODEL_CATALOG.find((model) => model.isDefault === true)?.id ??
 	AI_AGENT_MODEL_CATALOG[0]?.id;
+const CLARIFICATION_MODEL_ID = "moonshotai/kimi-k2.5";
 
 const EXCLUDED_TOOL_SET = new Set<string>(
 	AI_CREDIT_PRICING_CONFIG.excludedToolNames
@@ -229,6 +230,20 @@ export function resolveModelForExecution(
 		modelIdOriginal: modelId,
 		modelIdResolved: getDefaultModelId(),
 		modelMigrationApplied: true,
+	};
+}
+
+export function resolveClarificationModelForExecution(
+	modelId: string
+): ResolvedAiAgentModel {
+	const clarificationModelId = isKnownModel(CLARIFICATION_MODEL_ID)
+		? CLARIFICATION_MODEL_ID
+		: getDefaultModelId();
+
+	return {
+		modelIdOriginal: modelId,
+		modelIdResolved: clarificationModelId,
+		modelMigrationApplied: modelId !== clarificationModelId,
 	};
 }
 

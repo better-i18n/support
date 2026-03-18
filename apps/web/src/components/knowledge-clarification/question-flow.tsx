@@ -5,6 +5,7 @@ import { useEffect, useId, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Spinner } from "../../../../../packages/react/src/support/components/spinner";
+import { Logo } from "../ui/logo";
 import { Separator } from "../ui/separator";
 
 export type KnowledgeClarificationAnswerPayload = {
@@ -122,6 +123,15 @@ export function KnowledgeClarificationQuestionContent({
 	const otherAnswerId = useId();
 	const trimmedFreeAnswer = freeAnswer.trim();
 
+	if (isAnalyzing) {
+		return (
+			<div className="flex items-center gap-2 px-1 py-1 text-muted-foreground text-sm">
+				<Spinner size={16} />
+				{analyzingMessage}
+			</div>
+		);
+	}
+
 	return (
 		<div
 			aria-busy={isAnalyzing}
@@ -131,8 +141,11 @@ export function KnowledgeClarificationQuestionContent({
 				className
 			)}
 		>
-			<div className="space-y-3">
-				<h3 className="font-bold text-sm leading-tight">{question}</h3>
+			<div className="space-y-4">
+				<h3 className="font-medium text-sm">
+					<Logo className="mr-1 mb-1 inline size-3.5 text-primary" />:{" "}
+					{question}
+				</h3>
 				{isAnalyzing ? (
 					<div className="flex items-center gap-2 rounded-xl border border-dashed bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
 						<Spinner size={16} />
@@ -148,7 +161,8 @@ export function KnowledgeClarificationQuestionContent({
 						</label>
 						<Textarea
 							aria-label="Describe how it works today"
-							className="min-h-28 resize-y rounded-xl border bg-background px-3 py-2 text-sm shadow-none focus-visible:ring-1"
+							autoFocus
+							className="min-h-28 w-full resize-y border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
 							disabled={isSubmitting || isAnalyzing}
 							id={otherAnswerId}
 							maxLength={500}
@@ -158,7 +172,6 @@ export function KnowledgeClarificationQuestionContent({
 							value={freeAnswer}
 						/>
 					</div>
-
 					<div className="space-y-2">
 						<div className="font-medium text-muted-foreground text-xs uppercase tracking-[0.12em]">
 							Starter ideas

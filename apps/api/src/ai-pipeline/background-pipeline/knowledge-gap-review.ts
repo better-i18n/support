@@ -123,9 +123,11 @@ export async function runBackgroundKnowledgeGapReview(params: {
 			visibility?: "public" | "private";
 		}>;
 		triggerMessage: {
+			messageId: string;
 			content: string;
 			senderType: "visitor" | "human_agent" | "ai_agent";
 			visibility: "public" | "private";
+			timestamp?: string | null;
 		} | null;
 	};
 }): Promise<
@@ -268,6 +270,19 @@ If you choose create:
 				timestamp: null,
 				visibility: entry.visibility ?? "public",
 			})) as never,
+		triggerMessage: params.intake.triggerMessage
+			? {
+					messageId:
+						params.intake.triggerMessage.messageId ??
+						params.input.sourceMessageId,
+					content: params.intake.triggerMessage.content,
+					senderType: params.intake.triggerMessage.senderType,
+					senderId: null,
+					senderName: null,
+					timestamp: params.intake.triggerMessage.timestamp ?? null,
+					visibility: params.intake.triggerMessage.visibility,
+				}
+			: null,
 		searchEvidence: latestWorkflowEvidence,
 	});
 	const contextSnapshot = {

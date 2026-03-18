@@ -42,6 +42,7 @@ function isActiveConversationClarificationStatus(
 	return (
 		status === "analyzing" ||
 		status === "awaiting_answer" ||
+		status === "retry_required" ||
 		status === "draft_ready"
 	);
 }

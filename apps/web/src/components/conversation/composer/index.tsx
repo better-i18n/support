@@ -305,7 +305,7 @@ export const Composer: React.FC<ComposerProps> = ({
 
 	return (
 		<div
-			className="absolute right-0 bottom-0 left-0 z-10 mx-auto flex w-full flex-col gap-1 bg-background px-3 pb-1 xl:max-w-xl xl:px-0 2xl:max-w-2xl dark:bg-background-50"
+			className="absolute right-0 bottom-0 left-0 z-10 mx-auto flex w-full flex-col gap-1 bg-background px-3 pb-2 xl:max-w-xl xl:px-0 2xl:max-w-2xl dark:bg-background-50"
 			ref={rootContainerRef}
 		>
 			<ComposerBlocksFrame highlighted={hasCustomBlocks}>

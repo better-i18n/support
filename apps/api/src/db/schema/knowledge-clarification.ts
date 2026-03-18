@@ -4,6 +4,7 @@ import {
 	type InferInsertModel,
 	type InferSelectModel,
 	relations,
+	sql,
 } from "drizzle-orm";
 import {
 	index,
@@ -12,6 +13,7 @@ import {
 	pgEnum,
 	pgTable,
 	text,
+	uniqueIndex,
 	varchar,
 } from "drizzle-orm/pg-core";
 import {
@@ -36,6 +38,7 @@ export const knowledgeClarificationStatusEnum = pgEnum(
 	[
 		"analyzing",
 		"awaiting_answer",
+		"retry_required",
 		"draft_ready",
 		"deferred",
 		"applied",
@@ -71,6 +74,8 @@ export const knowledgeClarificationRequest = pgTable(
 			.default("awaiting_answer")
 			.notNull(),
 		topicSummary: text("topic_summary").notNull(),
+		sourceTriggerMessageId: text("source_trigger_message_id"),
+		topicFingerprint: varchar("topic_fingerprint", { length: 32 }),
 		stepIndex: integer("step_index").notNull().default(0),
 		maxSteps: integer("max_steps").notNull().default(3),
 		contextSnapshot:
@@ -96,9 +101,25 @@ export const knowledgeClarificationRequest = pgTable(
 			table.conversationId
 		),
 		index("knowledge_clarification_request_status_idx").on(table.status),
+		index("knowledge_clarification_request_source_trigger_message_idx").on(
+			table.sourceTriggerMessageId
+		),
+		index("knowledge_clarification_request_topic_fingerprint_idx").on(
+			table.topicFingerprint
+		),
 		index("knowledge_clarification_request_target_knowledge_idx").on(
 			table.targetKnowledgeId
 		),
+		uniqueIndex("knowledge_clarification_request_conv_trigger_unique")
+			.on(table.conversationId, table.sourceTriggerMessageId)
+			.where(
+				sql`${table.conversationId} is not null and ${table.sourceTriggerMessageId} is not null`
+			),
+		uniqueIndex("knowledge_clarification_request_conv_topic_fingerprint_unique")
+			.on(table.conversationId, table.topicFingerprint)
+			.where(
+				sql`${table.source} = 'conversation' and ${table.conversationId} is not null and ${table.sourceTriggerMessageId} is null and ${table.topicFingerprint} is not null and ${table.status} in ('analyzing', 'awaiting_answer', 'retry_required', 'draft_ready', 'deferred')`
+			),
 	]
 );
 

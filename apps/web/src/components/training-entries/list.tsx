@@ -2,7 +2,7 @@
 
 import { type LucideIcon, MoreHorizontalIcon } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -12,6 +12,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TooltipOnHover } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 type TrainingEntryMenuAction = {
@@ -21,6 +22,14 @@ type TrainingEntryMenuAction = {
 	disabled?: boolean;
 	destructive?: boolean;
 	separatorBefore?: boolean;
+};
+
+type TrainingEntryInlineAction = {
+	label: string;
+	onSelect: () => void;
+	icon: ReactNode;
+	disabled?: boolean;
+	destructive?: boolean;
 };
 
 type TrainingEntryListProps = {
@@ -46,6 +55,7 @@ type TrainingEntryRowProps = {
 	primary: string;
 	rightMeta?: ReactNode;
 	actions?: TrainingEntryMenuAction[];
+	inlineActions?: TrainingEntryInlineAction[];
 	focused?: boolean;
 	className?: string;
 };
@@ -53,22 +63,16 @@ type TrainingEntryRowProps = {
 function TrainingEntryRowContent({
 	icon,
 	primary,
-	rightMeta,
-}: Pick<TrainingEntryRowProps, "icon" | "primary" | "rightMeta">) {
+}: Pick<TrainingEntryRowProps, "icon" | "primary">) {
 	return (
-		<>
-			<div className="flex min-w-0 flex-1 items-center gap-3">
-				<div className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background-200 text-primary dark:bg-background-400">
-					{icon}
-				</div>
-				<div className="min-w-0 flex-1">
-					<p className="truncate font-medium text-primary">{primary}</p>
-				</div>
+		<div className="flex min-w-0 flex-1 items-center gap-3">
+			<div className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background-200 text-primary dark:bg-background-400">
+				{icon}
 			</div>
-			{rightMeta ? (
-				<div className="flex shrink-0 items-center gap-2">{rightMeta}</div>
-			) : null}
-		</>
+			<div className="min-w-0 flex-1">
+				<p className="truncate font-medium text-primary">{primary}</p>
+			</div>
+		</div>
 	);
 }
 
@@ -137,9 +141,11 @@ export function TrainingEntryRow({
 	primary,
 	rightMeta,
 	actions = [],
+	inlineActions = [],
 	focused = false,
 	className,
 }: TrainingEntryRowProps) {
+	const hasInlineActions = inlineActions.length > 0;
 	const baseClasses = cn(
 		"group/training-entry relative flex w-full min-w-0 items-center gap-3 rounded px-2 py-2 text-left text-sm transition-colors",
 		"bg-transparent hover:bg-background-200/80 dark:hover:bg-background-300/70",
@@ -147,15 +153,17 @@ export function TrainingEntryRow({
 		className
 	);
 	const contentClasses =
-		"flex min-w-0 flex-1 items-center justify-between gap-3 rounded-[inherit] focus-visible:outline-none focus-visible:ring-0";
+		"flex min-w-0 flex-1 items-center gap-3 rounded-[inherit] focus-visible:outline-none focus-visible:ring-0";
 
-	const content = (
-		<TrainingEntryRowContent
-			icon={icon}
-			primary={primary}
-			rightMeta={rightMeta}
-		/>
-	);
+	const content = <TrainingEntryRowContent icon={icon} primary={primary} />;
+
+	const handleInlineActionClick =
+		(action: TrainingEntryInlineAction) =>
+		(event: MouseEvent<HTMLButtonElement>) => {
+			event.preventDefault();
+			event.stopPropagation();
+			action.onSelect();
+		};
 
 	return (
 		<div className={baseClasses}>
@@ -180,45 +188,96 @@ export function TrainingEntryRow({
 					{content}
 				</button>
 			)}
-			{actions.length > 0 ? (
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							className="h-8 w-8 shrink-0 opacity-0 transition-opacity group-focus-within/training-entry:opacity-100 group-hover/training-entry:opacity-100"
-							size="icon"
-							variant="ghost"
+			{rightMeta || hasInlineActions || actions.length > 0 ? (
+				<div className="grid shrink-0 items-center justify-items-end">
+					{rightMeta ? (
+						<div
+							className={cn(
+								"col-start-1 row-start-1 flex items-center gap-2 justify-self-end",
+								hasInlineActions &&
+									"transition-opacity duration-150 group-focus-within/training-entry:pointer-events-none group-focus-within/training-entry:opacity-0 group-hover/training-entry:pointer-events-none group-hover/training-entry:opacity-0"
+							)}
+							data-slot="training-entry-right-meta"
 						>
-							<MoreHorizontalIcon className="size-4" />
-							<span className="sr-only">Open entry actions</span>
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						{actions.map((action) => [
-							action.separatorBefore ? (
-								<DropdownMenuSeparator key={`${action.label}-separator`} />
-							) : null,
-							<DropdownMenuItem
-								className={
-									action.destructive
-										? "text-destructive focus:text-destructive"
-										: undefined
-								}
-								disabled={action.disabled}
-								key={action.label}
-								onClick={action.onSelect}
-							>
-								<action.Icon className="mr-2 size-4" />
-								{action.label}
-							</DropdownMenuItem>,
-						])}
-					</DropdownMenuContent>
-				</DropdownMenu>
+							{rightMeta}
+						</div>
+					) : null}
+					{hasInlineActions ? (
+						<div
+							className={cn(
+								"col-start-1 row-start-1 flex items-center justify-end gap-2 justify-self-end opacity-0 transition-opacity duration-150",
+								"pointer-events-none group-hover/training-entry:pointer-events-auto group-hover/training-entry:opacity-100",
+								"group-focus-within/training-entry:pointer-events-auto group-focus-within/training-entry:opacity-100"
+							)}
+							data-slot="training-entry-inline-actions"
+						>
+							{inlineActions.map((action) => (
+								<TooltipOnHover
+									content={action.label}
+									delay={150}
+									key={action.label}
+								>
+									<Button
+										aria-label={action.label}
+										className={cn(
+											action.destructive &&
+												"[&_svg]:text-destructive/70 hover:[&_svg]:text-destructive focus-visible:[&_svg]:text-destructive"
+										)}
+										data-slot="training-entry-inline-action"
+										disabled={action.disabled}
+										onClick={handleInlineActionClick(action)}
+										size="icon-small"
+										type="button"
+										variant="ghost"
+									>
+										{action.icon}
+									</Button>
+								</TooltipOnHover>
+							))}
+						</div>
+					) : actions.length > 0 ? (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									className="h-8 w-8 shrink-0 opacity-0 transition-opacity group-focus-within/training-entry:opacity-100 group-hover/training-entry:opacity-100"
+									data-slot="training-entry-actions-menu-trigger"
+									size="icon"
+									variant="ghost"
+								>
+									<MoreHorizontalIcon className="size-4" />
+									<span className="sr-only">Open entry actions</span>
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								{actions.map((action) => [
+									action.separatorBefore ? (
+										<DropdownMenuSeparator key={`${action.label}-separator`} />
+									) : null,
+									<DropdownMenuItem
+										className={
+											action.destructive
+												? "text-destructive focus:text-destructive"
+												: undefined
+										}
+										disabled={action.disabled}
+										key={action.label}
+										onClick={action.onSelect}
+									>
+										<action.Icon className="mr-2 size-4" />
+										{action.label}
+									</DropdownMenuItem>,
+								])}
+							</DropdownMenuContent>
+						</DropdownMenu>
+					) : null}
+				</div>
 			) : null}
 		</div>
 	);
 }
 
 export type {
+	TrainingEntryInlineAction,
 	TrainingEntryListProps,
 	TrainingEntryListSectionProps,
 	TrainingEntryMenuAction,

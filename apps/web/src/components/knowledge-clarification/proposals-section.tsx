@@ -1,6 +1,9 @@
 "use client";
 
 import type { KnowledgeClarificationRequest } from "@cossistant/types";
+import { useMutation } from "@tanstack/react-query";
+import { Trash2Icon } from "lucide-react";
+import { toast } from "sonner";
 import {
 	TrainingEntryList,
 	TrainingEntryListSection,
@@ -8,7 +11,10 @@ import {
 	useTrainingEntryPrefetch,
 } from "@/components/training-entries";
 import { Badge } from "@/components/ui/badge";
+import Icon from "@/components/ui/icons";
 import { Logo } from "@/components/ui/logo";
+import { useTRPC } from "@/lib/trpc/client";
+import { useKnowledgeClarificationQueryInvalidation } from "./use-query-invalidation";
 
 type KnowledgeClarificationProposalsSectionProps = {
 	websiteSlug: string;
@@ -42,6 +48,20 @@ function getProposalAppearance(
 		};
 	}
 
+	if (proposal.status === "retry_required") {
+		return {
+			statusLabel: "Needs retry",
+			statusVariant: "secondary",
+		};
+	}
+
+	if (proposal.status === "deferred") {
+		return {
+			statusLabel: "Saved for later",
+			statusVariant: "secondary",
+		};
+	}
+
 	if (proposal.status === "analyzing") {
 		return {
 			statusLabel: "AI working",
@@ -61,6 +81,36 @@ export function KnowledgeClarificationProposalsSection({
 	className,
 }: KnowledgeClarificationProposalsSectionProps) {
 	const { prefetchProposal } = useTrainingEntryPrefetch(websiteSlug);
+	const trpc = useTRPC();
+	const invalidateQueries =
+		useKnowledgeClarificationQueryInvalidation(websiteSlug);
+	const dismissMutation = useMutation(
+		trpc.knowledgeClarification.dismiss.mutationOptions({
+			retry: false,
+			onSuccess: async (request) => {
+				await invalidateQueries({ request });
+			},
+			onError: (error) => {
+				toast.error(error.message || "Failed to remove clarification");
+			},
+		})
+	);
+	const approveMutation = useMutation(
+		trpc.knowledgeClarification.approveDraft.mutationOptions({
+			retry: false,
+			onSuccess: async (result) => {
+				await invalidateQueries({
+					request: result.request,
+					includeKnowledgeQueries: true,
+				});
+			},
+			onError: (error) => {
+				toast.error(error.message || "Failed to approve draft");
+			},
+		})
+	);
+	const actionsDisabled =
+		dismissMutation.isPending || approveMutation.isPending;
 
 	if (proposals.length === 0) {
 		return null;
@@ -76,21 +126,54 @@ export function KnowledgeClarificationProposalsSection({
 				{proposals.map((proposal) => {
 					const appearance = getProposalAppearance(proposal);
 					const href = `/${websiteSlug}/agent/training/faq/proposals/${proposal.id}`;
+					const canApprove =
+						proposal.status === "draft_ready" && !!proposal.draftFaqPayload;
 
 					return (
 						<TrainingEntryRow
 							href={href}
 							icon={<Logo className="size-4.5 text-primary" />}
+							inlineActions={[
+								...(canApprove
+									? [
+											{
+												label: "Approve",
+												onSelect: () => {
+													if (!proposal.draftFaqPayload) {
+														return;
+													}
+
+													approveMutation.mutate({
+														websiteSlug,
+														requestId: proposal.id,
+														draft: proposal.draftFaqPayload,
+													});
+												},
+												icon: <Icon filledOnHover name="check" />,
+												disabled: actionsDisabled,
+											},
+										]
+									: []),
+								{
+									label: "Delete suggestion",
+									onSelect: () => {
+										dismissMutation.mutate({
+											websiteSlug,
+											requestId: proposal.id,
+										});
+									},
+									icon: <Trash2Icon className="size-4" />,
+									disabled: actionsDisabled,
+									destructive: true,
+								},
+							]}
 							key={proposal.id}
 							onHoverPrefetch={() => prefetchProposal(proposal.id, href)}
 							primary={getProposalPrimaryLabel(proposal)}
 							rightMeta={
-								<div className="flex flex-wrap items-center justify-end gap-2 text-xs">
-									<Badge variant="secondary">AI Suggestion</Badge>
-									<Badge variant={appearance.statusVariant}>
-										{appearance.statusLabel}
-									</Badge>
-								</div>
+								<Badge variant={appearance.statusVariant}>
+									{appearance.statusLabel}
+								</Badge>
 							}
 						/>
 					);

@@ -42,6 +42,14 @@ type KnowledgeClarificationFlowContentProps = {
 	pageDraftReviewState?: KnowledgeClarificationDraftReviewState | null;
 };
 
+function runFlowAction(action: () => unknown | Promise<unknown>) {
+	const result = action();
+
+	if (result && typeof (result as Promise<unknown>).catch === "function") {
+		void (result as Promise<unknown>).catch(() => {});
+	}
+}
+
 function PageMessageRow({
 	title,
 	description,
@@ -90,7 +98,7 @@ function RetryState({
 				footer={
 					<Button
 						onClick={() => {
-							void onRetry(currentRequest.id);
+							runFlowAction(() => onRetry(currentRequest.id));
 						}}
 						type="button"
 						variant="outline"
@@ -101,7 +109,7 @@ function RetryState({
 						Retry
 					</Button>
 				}
-				title="Needs attention"
+				title="Needs retry"
 			>
 				<p className="text-muted-foreground text-sm">
 					{currentRequest.lastError ??
@@ -127,7 +135,7 @@ function RetryState({
 				<button
 					className="inline-flex h-9 items-center justify-center rounded-[2px] border px-4 text-sm"
 					onClick={() => {
-						void onRetry(currentRequest.id);
+						runFlowAction(() => onRetry(currentRequest.id));
 					}}
 					type="button"
 				>
@@ -136,13 +144,40 @@ function RetryState({
 				<button
 					className="inline-flex h-9 items-center justify-center rounded-[2px] px-4 text-sm"
 					onClick={() => {
-						void onClose();
+						runFlowAction(onClose);
 					}}
 					type="button"
 				>
 					Close
 				</button>
 			</div>
+		</div>
+	);
+}
+
+function TerminalState({
+	currentRequest,
+	variant,
+}: Pick<KnowledgeClarificationFlowContentProps, "currentRequest" | "variant">) {
+	if (!currentRequest) {
+		return null;
+	}
+
+	const title =
+		currentRequest.status === "applied" ? "Already applied" : "Dismissed";
+	const description =
+		currentRequest.status === "applied"
+			? "This clarification was already approved and added to the knowledge base."
+			: "This clarification was removed and is no longer active.";
+
+	return variant === "page" ? (
+		<PageMessageRow description={description} title={title}>
+			<div className="text-muted-foreground text-sm">{description}</div>
+		</PageMessageRow>
+	) : (
+		<div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed px-6 py-10 text-center">
+			<div className="font-medium">{title}</div>
+			<p className="text-muted-foreground text-sm">{description}</p>
 		</div>
 	);
 }
@@ -196,13 +231,13 @@ export function KnowledgeClarificationFlowContent({
 				isSubmitting={isSubmittingAnswer}
 				maxSteps={currentStep.request.maxSteps}
 				onDefer={() => {
-					void onDefer(currentStep.request.id);
+					runFlowAction(() => onDefer(currentStep.request.id));
 				}}
 				onDismiss={() => {
-					void onDismiss(currentStep.request.id);
+					runFlowAction(() => onDismiss(currentStep.request.id));
 				}}
 				onSubmit={(payload) => {
-					void onAnswer(currentStep.request.id, payload);
+					runFlowAction(() => onAnswer(currentStep.request.id, payload));
 				}}
 				question={currentStep.question}
 				stepIndex={currentStep.request.stepIndex}
@@ -224,11 +259,23 @@ export function KnowledgeClarificationFlowContent({
 				draft={currentStep.draftFaqPayload}
 				isSubmitting={isSubmittingApproval}
 				onApprove={(draft) => {
-					void onApprove(currentStep.request.id, draft);
+					runFlowAction(() => onApprove(currentStep.request.id, draft));
 				}}
 				onDismiss={() => {
-					void onClose();
+					runFlowAction(onClose);
 				}}
+				variant={variant}
+			/>
+		);
+	}
+
+	if (currentStep?.kind === "retry_required") {
+		return (
+			<RetryState
+				currentRequest={currentStep.request}
+				isRetrying={isRetrying}
+				onClose={onClose}
+				onRetry={onRetry}
 				variant={variant}
 			/>
 		);
@@ -246,13 +293,13 @@ export function KnowledgeClarificationFlowContent({
 				isSubmitting={isSubmittingAnswer}
 				maxSteps={fallbackStep.request.maxSteps}
 				onDefer={() => {
-					void onDefer(fallbackStep.request.id);
+					runFlowAction(() => onDefer(fallbackStep.request.id));
 				}}
 				onDismiss={() => {
-					void onDismiss(fallbackStep.request.id);
+					runFlowAction(() => onDismiss(fallbackStep.request.id));
 				}}
 				onSubmit={(payload) => {
-					void onAnswer(fallbackStep.request.id, payload);
+					runFlowAction(() => onAnswer(fallbackStep.request.id, payload));
 				}}
 				question={fallbackStep.question}
 				stepIndex={fallbackStep.request.stepIndex}
@@ -274,17 +321,29 @@ export function KnowledgeClarificationFlowContent({
 				draft={fallbackStep.draftFaqPayload}
 				isSubmitting={isSubmittingApproval}
 				onApprove={(draft) => {
-					void onApprove(fallbackStep.request.id, draft);
+					runFlowAction(() => onApprove(fallbackStep.request.id, draft));
 				}}
 				onDismiss={() => {
-					void onClose();
+					runFlowAction(onClose);
 				}}
 				variant={variant}
 			/>
 		);
 	}
 
-	if (currentRequest) {
+	if (fallbackStep?.kind === "retry_required") {
+		return (
+			<RetryState
+				currentRequest={fallbackStep.request}
+				isRetrying={isRetrying}
+				onClose={onClose}
+				onRetry={onRetry}
+				variant={variant}
+			/>
+		);
+	}
+
+	if (currentRequest?.status === "retry_required") {
 		return (
 			<RetryState
 				currentRequest={currentRequest}
@@ -294,6 +353,13 @@ export function KnowledgeClarificationFlowContent({
 				variant={variant}
 			/>
 		);
+	}
+
+	if (
+		currentRequest?.status === "applied" ||
+		currentRequest?.status === "dismissed"
+	) {
+		return <TerminalState currentRequest={currentRequest} variant={variant} />;
 	}
 
 	return variant === "page" ? (

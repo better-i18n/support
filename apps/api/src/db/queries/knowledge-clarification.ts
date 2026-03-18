@@ -1,4 +1,4 @@
-import type { Database } from "@api/db";
+import type { DatabaseClient } from "@api/db";
 import {
 	type KnowledgeClarificationRequestInsert,
 	type KnowledgeClarificationRequestSelect,
@@ -17,21 +17,27 @@ import type {
 import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { ulid } from "ulid";
 
-const PROPOSAL_STATUSES: KnowledgeClarificationStatus[] = [
+export const PROPOSAL_STATUSES: KnowledgeClarificationStatus[] = [
 	"analyzing",
 	"awaiting_answer",
+	"retry_required",
 	"deferred",
 	"draft_ready",
 ];
 
-const ACTIVE_CONVERSATION_STATUSES: KnowledgeClarificationStatus[] = [
+export const ACTIVE_CONVERSATION_STATUSES: KnowledgeClarificationStatus[] = [
 	"analyzing",
 	"awaiting_answer",
+	"retry_required",
 	"draft_ready",
 ];
 
+export const REUSABLE_CONVERSATION_TOPIC_FINGERPRINT_STATUSES = [
+	...PROPOSAL_STATUSES,
+] as const satisfies KnowledgeClarificationStatus[];
+
 export async function getKnowledgeClarificationRequestById(
-	db: Database,
+	db: DatabaseClient,
 	params: {
 		requestId: string;
 		websiteId: string;
@@ -52,7 +58,7 @@ export async function getKnowledgeClarificationRequestById(
 }
 
 export async function getActiveKnowledgeClarificationForConversation(
-	db: Database,
+	db: DatabaseClient,
 	params: {
 		conversationId: string;
 		websiteId: string;
@@ -78,7 +84,7 @@ export async function getActiveKnowledgeClarificationForConversation(
 }
 
 export async function listKnowledgeClarificationProposals(
-	db: Database,
+	db: DatabaseClient,
 	params: {
 		websiteId: string;
 	}
@@ -96,7 +102,7 @@ export async function listKnowledgeClarificationProposals(
 }
 
 export async function listKnowledgeClarificationTurns(
-	db: Database,
+	db: DatabaseClient,
 	params: {
 		requestId: string;
 	}
@@ -109,7 +115,7 @@ export async function listKnowledgeClarificationTurns(
 }
 
 export async function listKnowledgeClarificationTurnsForRequests(
-	db: Database,
+	db: DatabaseClient,
 	params: {
 		requestIds: string[];
 	}
@@ -129,7 +135,7 @@ export async function listKnowledgeClarificationTurnsForRequests(
 }
 
 export async function listActiveKnowledgeClarificationRequestsForConversations(
-	db: Database,
+	db: DatabaseClient,
 	params: {
 		websiteId: string;
 		conversationIds: string[];
@@ -163,7 +169,7 @@ export async function listActiveKnowledgeClarificationRequestsForConversations(
 }
 
 export async function listActiveKnowledgeClarificationSummariesForConversations(
-	db: Database,
+	db: DatabaseClient,
 	params: {
 		websiteId: string;
 		conversationIds: string[];
@@ -217,8 +223,73 @@ export async function listActiveKnowledgeClarificationSummariesForConversations(
 	return summaryByConversationId;
 }
 
+export async function getLatestKnowledgeClarificationForConversationBySourceTriggerMessageId(
+	db: DatabaseClient,
+	params: {
+		conversationId: string;
+		websiteId: string;
+		sourceTriggerMessageId: string;
+	}
+): Promise<KnowledgeClarificationRequestSelect | null> {
+	const [request] = await db
+		.select()
+		.from(knowledgeClarificationRequest)
+		.where(
+			and(
+				eq(knowledgeClarificationRequest.conversationId, params.conversationId),
+				eq(knowledgeClarificationRequest.websiteId, params.websiteId),
+				eq(
+					knowledgeClarificationRequest.sourceTriggerMessageId,
+					params.sourceTriggerMessageId
+				)
+			)
+		)
+		.orderBy(
+			desc(knowledgeClarificationRequest.updatedAt),
+			desc(knowledgeClarificationRequest.createdAt)
+		)
+		.limit(1);
+
+	return request ?? null;
+}
+
+export async function getLatestKnowledgeClarificationForConversationByTopicFingerprint(
+	db: DatabaseClient,
+	params: {
+		conversationId: string;
+		websiteId: string;
+		topicFingerprint: string;
+		statuses?: readonly KnowledgeClarificationStatus[];
+	}
+): Promise<KnowledgeClarificationRequestSelect | null> {
+	const statuses =
+		params.statuses ?? REUSABLE_CONVERSATION_TOPIC_FINGERPRINT_STATUSES;
+	const [request] = await db
+		.select()
+		.from(knowledgeClarificationRequest)
+		.where(
+			and(
+				eq(knowledgeClarificationRequest.source, "conversation"),
+				eq(knowledgeClarificationRequest.conversationId, params.conversationId),
+				eq(knowledgeClarificationRequest.websiteId, params.websiteId),
+				eq(
+					knowledgeClarificationRequest.topicFingerprint,
+					params.topicFingerprint
+				),
+				inArray(knowledgeClarificationRequest.status, [...statuses])
+			)
+		)
+		.orderBy(
+			desc(knowledgeClarificationRequest.updatedAt),
+			desc(knowledgeClarificationRequest.createdAt)
+		)
+		.limit(1);
+
+	return request ?? null;
+}
+
 export async function createKnowledgeClarificationRequest(
-	db: Database,
+	db: DatabaseClient,
 	params: {
 		organizationId: string;
 		websiteId: string;
@@ -226,6 +297,8 @@ export async function createKnowledgeClarificationRequest(
 		conversationId?: string | null;
 		source: KnowledgeClarificationRequestInsert["source"];
 		topicSummary: string;
+		sourceTriggerMessageId?: string | null;
+		topicFingerprint?: string | null;
 		targetKnowledgeId?: string | null;
 		contextSnapshot?: KnowledgeClarificationContextSnapshot | null;
 		maxSteps?: number;
@@ -246,6 +319,8 @@ export async function createKnowledgeClarificationRequest(
 			source: params.source,
 			status: params.status ?? "awaiting_answer",
 			topicSummary: params.topicSummary,
+			sourceTriggerMessageId: params.sourceTriggerMessageId ?? null,
+			topicFingerprint: params.topicFingerprint ?? null,
 			stepIndex: 0,
 			maxSteps: params.maxSteps ?? 3,
 			contextSnapshot: params.contextSnapshot ?? null,
@@ -265,7 +340,7 @@ export async function createKnowledgeClarificationRequest(
 }
 
 export async function updateKnowledgeClarificationRequest(
-	db: Database,
+	db: DatabaseClient,
 	params: {
 		requestId: string;
 		updates: Partial<{
@@ -293,7 +368,7 @@ export async function updateKnowledgeClarificationRequest(
 }
 
 export async function createKnowledgeClarificationTurn(
-	db: Database,
+	db: DatabaseClient,
 	params: {
 		requestId: string;
 		role: KnowledgeClarificationTurnInsert["role"];

@@ -132,9 +132,11 @@ function createParams() {
 				},
 			],
 			triggerMessage: {
+				messageId: "msg-2",
 				content: "It should only change on the next invoice.",
 				senderType: "human_agent" as const,
 				visibility: "public" as const,
+				timestamp: "2026-03-13T10:05:00.000Z",
 			},
 		},
 	};
@@ -206,6 +208,7 @@ describe("runBackgroundKnowledgeGapReview", () => {
 				topicSummary: "Clarify when billing changes take effect",
 				contextSnapshot: expect.objectContaining({
 					sourceTrigger: expect.objectContaining({
+						messageId: "msg-2",
 						text: "It should only change on the next invoice.",
 						senderType: "human_agent",
 					}),
@@ -235,6 +238,7 @@ describe("runBackgroundKnowledgeGapReview", () => {
 			intake: {
 				...createParams().intake,
 				triggerMessage: {
+					messageId: "msg-2",
 					content: "Thanks",
 					senderType: "visitor",
 					visibility: "public",

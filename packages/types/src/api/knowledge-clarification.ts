@@ -15,6 +15,7 @@ export const knowledgeClarificationStatusSchema = z
 	.enum([
 		"analyzing",
 		"awaiting_answer",
+		"retry_required",
 		"draft_ready",
 		"deferred",
 		"applied",
@@ -29,6 +30,7 @@ export const activeConversationKnowledgeClarificationStatusSchema = z
 	.union([
 		z.literal("analyzing"),
 		z.literal("awaiting_answer"),
+		z.literal("retry_required"),
 		z.literal("draft_ready"),
 	])
 	.openapi({
@@ -144,8 +146,14 @@ export const knowledgeClarificationDraftStepSchema = z.object({
 	draftFaqPayload: knowledgeClarificationDraftFaqSchema,
 });
 
+export const knowledgeClarificationRetryRequiredStepSchema = z.object({
+	kind: z.literal("retry_required"),
+	request: knowledgeClarificationRequestSchema,
+});
+
 export const knowledgeClarificationStepResponseSchema = z.union([
 	knowledgeClarificationQuestionStepSchema,
+	knowledgeClarificationRetryRequiredStepSchema,
 	knowledgeClarificationDraftStepSchema,
 ]);
 

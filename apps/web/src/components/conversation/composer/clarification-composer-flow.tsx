@@ -9,7 +9,10 @@ import { useRouter } from "next/navigation";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { stepFromKnowledgeClarificationRequest } from "@/components/knowledge-clarification/helpers";
+import {
+	shouldPreferKnowledgeClarificationRequestState,
+	stepFromKnowledgeClarificationRequest,
+} from "@/components/knowledge-clarification/helpers";
 import {
 	KnowledgeClarificationQuestionContent,
 	useKnowledgeClarificationAnswerDraft,
@@ -19,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { Spinner } from "../../../../../../packages/react/src/support/components/spinner";
+import Icon from "../../ui/icons";
 import { ComposerBottomBlock } from "./composer-bottom-block";
 import { ComposerCentralBlock } from "./composer-central-block";
 
@@ -53,6 +57,13 @@ type ClarificationActionsBlockProps = {
 	onSubmit: () => void;
 };
 
+type ClarificationRetryBlockProps = {
+	request: KnowledgeClarificationRequest;
+	isRetrying: boolean;
+	onCancel: () => void;
+	onRetry: () => void;
+};
+
 function ClarificationTopicBlock({
 	topicSummary,
 	stepIndex,
@@ -61,15 +72,12 @@ function ClarificationTopicBlock({
 }: ClarificationTopicBlockProps) {
 	return (
 		<div
-			className={cn(
-				"mb-4 flex flex-col gap-6 rounded-[2px] px-2 py-2",
-				className
-			)}
+			className={cn("mb-4 flex flex-col gap-6 px-2 py-2", className)}
 			data-clarification-slot="topic"
 		>
 			<div className="flex items-center justify-between gap-3">
 				<div className="space-y-1">
-					<div className="font-medium text-xs">Clarification questions</div>
+					<div className="font-medium text-sm">Clarification questions</div>
 					<p className="text-muted-foreground text-sm">{topicSummary}</p>
 				</div>
 				<div className="shrink-0 self-start font-medium text-muted-foreground text-xs">
@@ -94,6 +102,53 @@ function ClarificationLoadingBlock() {
 	);
 }
 
+function ClarificationRetryBlock({
+	request,
+	isRetrying,
+	onCancel,
+	onRetry,
+}: ClarificationRetryBlockProps) {
+	return (
+		<ComposerCentralBlock>
+			<div
+				className="flex flex-col items-start gap-4 p-4"
+				data-clarification-slot="retry"
+			>
+				<div className="space-y-1">
+					<div className="font-medium text-sm">
+						This clarification needs a retry
+					</div>
+					<p className="text-muted-foreground text-sm">
+						{request.lastError ??
+							"The AI did not finish the previous step cleanly."}
+					</p>
+				</div>
+
+				<div className="flex items-center gap-2">
+					<Button onClick={onRetry} size="xs" type="button">
+						{isRetrying ? (
+							<>
+								<Spinner size={16} />
+								Retry
+							</>
+						) : (
+							"Retry AI"
+						)}
+					</Button>
+					<Button
+						onClick={onCancel}
+						size="icon-small"
+						type="button"
+						variant="ghost"
+					>
+						<Icon className="size-3.5" name="x" variant="filled" />
+					</Button>
+				</div>
+			</div>
+		</ComposerCentralBlock>
+	);
+}
+
 function ClarificationDraftReadyBanner({
 	request,
 	topicSummary,
@@ -111,11 +166,11 @@ function ClarificationDraftReadyBanner({
 }) {
 	return (
 		<div
-			className="mb-4 flex items-center justify-between gap-3 rounded-[2px] border border-dashed px-3 py-2"
+			className="mb-4 flex items-start justify-between gap-3 px-2 py-2"
 			data-clarification-slot="draft-ready-banner"
 		>
 			<div className="min-w-0">
-				<div className="font-medium text-xs">FAQ draft ready</div>
+				<div className="font-medium text-sm">FAQ draft ready</div>
 				<p className="truncate text-muted-foreground text-sm">{topicSummary}</p>
 			</div>
 
@@ -144,8 +199,13 @@ function ClarificationDraftReadyBanner({
 						"Approve"
 					)}
 				</Button>
-				<Button onClick={onClose} size="xs" type="button" variant="ghost">
-					Close
+				<Button
+					onClick={onClose}
+					size="icon-small"
+					type="button"
+					variant="ghost"
+				>
+					<Icon className="size-3.5" name="x" variant="filled" />
 				</Button>
 			</div>
 		</div>
@@ -165,7 +225,7 @@ function ClarificationActionsBlock({
 	return (
 		<ComposerBottomBlock className="pl-0">
 			<div
-				className="flex w-full items-center justify-between gap-3 py-0.4"
+				className="flex w-full items-center justify-between gap-3 p-2"
 				data-clarification-slot="actions"
 			>
 				<Button
@@ -248,9 +308,21 @@ export function useClarificationComposerFlow({
 		);
 	}, [request]);
 
-	const step = useMemo(
-		() => localStep ?? stepFromKnowledgeClarificationRequest(request),
+	const requestStep = useMemo(
+		() => stepFromKnowledgeClarificationRequest(request),
+		[request]
+	);
+	const shouldPreferRequestState = useMemo(
+		() =>
+			shouldPreferKnowledgeClarificationRequestState({
+				request,
+				step: localStep,
+			}),
 		[localStep, request]
+	);
+	const step = useMemo(
+		() => (shouldPreferRequestState ? requestStep : (localStep ?? requestStep)),
+		[localStep, requestStep, shouldPreferRequestState]
 	);
 
 	const answerDraft = useKnowledgeClarificationAnswerDraft(
@@ -269,24 +341,49 @@ export function useClarificationComposerFlow({
 
 	const answerMutation = useMutation(
 		trpc.knowledgeClarification.answer.mutationOptions({
+			retry: false,
 			onSuccess: handleMutationSuccess,
-			onError: (error) => {
-				toast.error(error.message || "Failed to submit clarification answer");
+			onError: async (_error, variables) => {
+				await invalidateClarificationQueries({
+					requestId: variables.requestId,
+					conversationId: request?.conversationId ?? null,
+				});
+				toast.error("The AI hit a temporary issue. You can retry from here.");
 			},
 		})
 	);
 
 	const skipMutation = useMutation(
 		trpc.knowledgeClarification.skip.mutationOptions({
+			retry: false,
 			onSuccess: handleMutationSuccess,
-			onError: (error) => {
-				toast.error(error.message || "Failed to skip clarification question");
+			onError: async (_error, variables) => {
+				await invalidateClarificationQueries({
+					requestId: variables.requestId,
+					conversationId: request?.conversationId ?? null,
+				});
+				toast.error("The AI hit a temporary issue. You can retry from here.");
+			},
+		})
+	);
+
+	const retryMutation = useMutation(
+		trpc.knowledgeClarification.retry.mutationOptions({
+			retry: false,
+			onSuccess: handleMutationSuccess,
+			onError: async (_error, variables) => {
+				await invalidateClarificationQueries({
+					requestId: variables.requestId,
+					conversationId: request?.conversationId ?? null,
+				});
+				toast.error("The AI hit a temporary issue. You can retry from here.");
 			},
 		})
 	);
 
 	const approveMutation = useMutation(
 		trpc.knowledgeClarification.approveDraft.mutationOptions({
+			retry: false,
 			onSuccess: async (result) => {
 				await invalidateClarificationQueries({
 					request: result.request,
@@ -294,13 +391,19 @@ export function useClarificationComposerFlow({
 				});
 				toast.success("FAQ draft approved");
 			},
-			onError: (error) => {
-				toast.error(error.message || "Failed to approve draft");
+			onError: async (_error, variables) => {
+				await invalidateClarificationQueries({
+					requestId: variables.requestId,
+					conversationId: request?.conversationId ?? null,
+				});
+				toast.error("Failed to approve draft");
 			},
 		})
 	);
 
-	const currentRequest = step?.request ?? request;
+	const currentRequest = shouldPreferRequestState
+		? request
+		: (step?.request ?? request);
 	if (!summary) {
 		return null;
 	}
@@ -342,7 +445,7 @@ export function useClarificationComposerFlow({
 							return;
 						}
 
-						void approveMutation.mutateAsync({
+						approveMutation.mutate({
 							websiteSlug,
 							requestId: currentRequest.id,
 							draft: currentRequest.draftFaqPayload,
@@ -374,15 +477,22 @@ export function useClarificationComposerFlow({
 	const maxSteps = currentRequest?.maxSteps ?? summary.maxSteps;
 	const isSubmitting = answerMutation.isPending;
 	const isSkipping = skipMutation.isPending;
-	const isPending = isSubmitting || isSkipping;
+	const isRetrying = retryMutation.isPending;
+	const isPending = isSubmitting || isSkipping || isRetrying;
 	const canSkip = Boolean(step?.kind === "question");
+	const retryRequest =
+		step?.kind === "retry_required"
+			? step.request
+			: currentRequest?.status === "retry_required"
+				? currentRequest
+				: null;
 
 	const handleSubmit = () => {
 		if (!(step?.kind === "question" && answerDraft.submitPayload)) {
 			return;
 		}
 
-		void answerMutation.mutateAsync({
+		answerMutation.mutate({
 			websiteSlug,
 			requestId: step.request.id,
 			...answerDraft.submitPayload,
@@ -394,9 +504,20 @@ export function useClarificationComposerFlow({
 			return;
 		}
 
-		void skipMutation.mutateAsync({
+		skipMutation.mutate({
 			websiteSlug,
 			requestId: step.request.id,
+		});
+	};
+
+	const handleRetry = () => {
+		if (!currentRequest) {
+			return;
+		}
+
+		retryMutation.mutate({
+			websiteSlug,
+			requestId: currentRequest.id,
 		});
 	};
 
@@ -408,28 +529,34 @@ export function useClarificationComposerFlow({
 				topicSummary={topicSummary}
 			/>
 		),
-		centralBlock:
-			step?.kind === "question" ? (
-				<ComposerCentralBlock key="question">
-					<div className="p-2" data-clarification-slot="question-flow">
-						<KnowledgeClarificationQuestionContent
-							freeAnswer={answerDraft.freeAnswer}
-							inputMode={step.inputMode}
-							isAnalyzing={isPending}
-							isOtherSelected={answerDraft.isOtherSelected}
-							isSubmitting={isPending}
-							onFreeAnswerChange={answerDraft.setFreeAnswer}
-							onSelectAnswer={answerDraft.selectAnswer}
-							question={step.question}
-							selectedAnswer={answerDraft.selectedAnswer}
-							suggestedAnswers={step.suggestedAnswers}
-						/>
-					</div>
-				</ComposerCentralBlock>
-			) : (
-				<ClarificationLoadingBlock key="loading" />
-			),
-		bottomBlock: (
+		centralBlock: retryRequest ? (
+			<ClarificationRetryBlock
+				isRetrying={isRetrying}
+				onCancel={onCancel}
+				onRetry={handleRetry}
+				request={retryRequest}
+			/>
+		) : step?.kind === "question" ? (
+			<ComposerCentralBlock key="question">
+				<div className="p-3" data-clarification-slot="question-flow">
+					<KnowledgeClarificationQuestionContent
+						freeAnswer={answerDraft.freeAnswer}
+						inputMode={step.inputMode}
+						isAnalyzing={isPending}
+						isOtherSelected={answerDraft.isOtherSelected}
+						isSubmitting={isPending}
+						onFreeAnswerChange={answerDraft.setFreeAnswer}
+						onSelectAnswer={answerDraft.selectAnswer}
+						question={step.question}
+						selectedAnswer={answerDraft.selectedAnswer}
+						suggestedAnswers={step.suggestedAnswers}
+					/>
+				</div>
+			</ComposerCentralBlock>
+		) : (
+			<ClarificationLoadingBlock key="loading" />
+		),
+		bottomBlock: retryRequest ? null : (
 			<ClarificationActionsBlock
 				canSkip={canSkip}
 				canSubmit={answerDraft.canSubmit}

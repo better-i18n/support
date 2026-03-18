@@ -2,6 +2,11 @@ import { describe, expect, it, mock } from "bun:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
+const answerMutationOptionsMock = mock((options: unknown) => options);
+const skipMutationOptionsMock = mock((options: unknown) => options);
+const retryMutationOptionsMock = mock((options: unknown) => options);
+const approveDraftMutationOptionsMock = mock((options: unknown) => options);
+
 mock.module("next/navigation", () => ({
 	useRouter: () => ({
 		push: () => {},
@@ -11,6 +16,7 @@ mock.module("next/navigation", () => ({
 mock.module("@tanstack/react-query", () => ({
 	useMutation: () => ({
 		isPending: false,
+		mutate: () => null,
 		mutateAsync: async () => null,
 	}),
 }));
@@ -26,13 +32,16 @@ mock.module("@/lib/trpc/client", () => ({
 	useTRPC: () => ({
 		knowledgeClarification: {
 			answer: {
-				mutationOptions: (options: unknown) => options,
+				mutationOptions: answerMutationOptionsMock,
 			},
 			skip: {
-				mutationOptions: (options: unknown) => options,
+				mutationOptions: skipMutationOptionsMock,
+			},
+			retry: {
+				mutationOptions: retryMutationOptionsMock,
 			},
 			approveDraft: {
-				mutationOptions: (options: unknown) => options,
+				mutationOptions: approveDraftMutationOptionsMock,
 			},
 		},
 	}),
@@ -43,7 +52,7 @@ const modulePromise = import("./clarification-composer-flow");
 function createSummary(
 	overrides: Partial<{
 		requestId: string;
-		status: "analyzing" | "awaiting_answer" | "draft_ready";
+		status: "analyzing" | "awaiting_answer" | "retry_required" | "draft_ready";
 		topicSummary: string;
 		question: string | null;
 		stepIndex: number;
@@ -74,6 +83,7 @@ function createRequest(
 		status:
 			| "analyzing"
 			| "awaiting_answer"
+			| "retry_required"
 			| "draft_ready"
 			| "deferred"
 			| "applied"
@@ -127,6 +137,41 @@ function createRequest(
 }
 
 describe("useClarificationComposerFlow", () => {
+	it("disables automatic retries for clarification mutations", async () => {
+		answerMutationOptionsMock.mockClear();
+		skipMutationOptionsMock.mockClear();
+		retryMutationOptionsMock.mockClear();
+		approveDraftMutationOptionsMock.mockClear();
+
+		const { useClarificationComposerFlow } = await modulePromise;
+
+		function FlowHarness() {
+			useClarificationComposerFlow({
+				onCancel: () => {},
+				request: createRequest(),
+				summary: createSummary(),
+				websiteSlug: "acme",
+			});
+
+			return null;
+		}
+
+		renderToStaticMarkup(<FlowHarness />);
+
+		expect(answerMutationOptionsMock.mock.calls[0]?.[0]).toMatchObject({
+			retry: false,
+		});
+		expect(skipMutationOptionsMock.mock.calls[0]?.[0]).toMatchObject({
+			retry: false,
+		});
+		expect(retryMutationOptionsMock.mock.calls[0]?.[0]).toMatchObject({
+			retry: false,
+		});
+		expect(approveDraftMutationOptionsMock.mock.calls[0]?.[0]).toMatchObject({
+			retry: false,
+		});
+	});
+
 	it("renders topic, question flow, and bottom actions for an engaged clarification", async () => {
 		const { useClarificationComposerFlow } = await modulePromise;
 
@@ -191,6 +236,7 @@ describe("useClarificationComposerFlow", () => {
 			'placeholder="Describe how this workflow or rule works today..."'
 		);
 		expect(html).toContain("Starter ideas");
+		expect(html).toContain("autofocus");
 		expect(html).not.toContain(">4.<");
 	});
 
@@ -220,6 +266,46 @@ describe("useClarificationComposerFlow", () => {
 		expect(html).toContain('data-clarification-slot="loading"');
 		expect(html).toContain("Preparing the next clarification step...");
 		expect(html).toContain(">Cancel<");
+	});
+
+	it("renders an inline retry state for retry-required clarification failures", async () => {
+		const { useClarificationComposerFlow } = await modulePromise;
+
+		function FlowHarness() {
+			const blocks = useClarificationComposerFlow({
+				onCancel: () => {},
+				request: createRequest({
+					status: "retry_required",
+					currentQuestion: null,
+					currentSuggestedAnswers: null,
+					currentQuestionInputMode: null,
+					currentQuestionScope: null,
+					lastError: "Provider returned error",
+				}),
+				summary: createSummary({
+					status: "retry_required",
+					question: null,
+				}),
+				websiteSlug: "acme",
+			});
+
+			return (
+				<>
+					{blocks?.aboveBlock}
+					{blocks?.centralBlock}
+					{blocks?.bottomBlock}
+				</>
+			);
+		}
+
+		const html = renderToStaticMarkup(<FlowHarness />);
+
+		expect(html).toContain('data-clarification-slot="retry"');
+		expect(html).toContain("This clarification needs a retry");
+		expect(html).toContain("Provider returned error");
+		expect(html).toContain(">Retry AI<");
+		expect(html).toContain(">Cancel<");
+		expect(html).not.toContain('data-clarification-slot="actions"');
 	});
 
 	it("renders a draft-ready banner above the composer once the faq draft exists", async () => {

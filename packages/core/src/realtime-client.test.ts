@@ -252,6 +252,56 @@ describe("RealtimeClient", () => {
 			client.destroy();
 		});
 
+		test("dispatches retry-required clarification updates to subscribers", () => {
+			const events: unknown[] = [];
+			const client = new RealtimeClient();
+			client.subscribe((event) => events.push(event));
+			client.connect(VISITOR_AUTH);
+			lastSocket().simulateOpen();
+
+			lastSocket().simulateMessage(
+				JSON.stringify({
+					type: "conversationUpdated",
+					payload: {
+						conversationId: "conv_1",
+						updates: {
+							activeClarification: {
+								requestId: "01JKCM0FJ8T8Q6W0M3Q2A1B9CD",
+								status: "retry_required",
+								topicSummary: "Clarify account deletion.",
+								question: null,
+								stepIndex: 1,
+								maxSteps: 3,
+								updatedAt: "2026-03-17T10:54:40.208Z",
+							},
+						},
+						organizationId: "org_1",
+						websiteId: "ws_456",
+						visitorId: "vis_123",
+						userId: "",
+						aiAgentId: null,
+					},
+				})
+			);
+
+			expect(events).toHaveLength(1);
+			expect(
+				(
+					events[0] as {
+						payload: {
+							updates: {
+								activeClarification?: {
+									status: string;
+								} | null;
+							};
+						};
+					}
+				).payload.updates.activeClarification?.status
+			).toBe("retry_required");
+
+			client.destroy();
+		});
+
 		test("calls onEvent callback", () => {
 			const eventCallback = mock(() => {});
 			const client = new RealtimeClient({ onEvent: eventCallback });

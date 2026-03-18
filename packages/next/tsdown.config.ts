@@ -22,9 +22,9 @@ export default defineConfig({
 		dts: ".d.ts",
 	}),
 	external: [
-		"@cossistant/react",
-		"@cossistant/core",
-		"@cossistant/types",
+		/^@cossistant\/react(?:\/.*)?$/,
+		/^@cossistant\/core(?:\/.*)?$/,
+		/^@cossistant\/types(?:\/.*)?$/,
 		"next",
 		"react",
 		"react-dom",

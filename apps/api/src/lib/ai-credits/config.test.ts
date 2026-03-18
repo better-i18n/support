@@ -12,6 +12,7 @@ import {
 	isKnownModel,
 	isModelAllowedForPlan,
 	isOutageAllowedModel,
+	resolveClarificationModelForExecution,
 	resolveModelForExecution,
 } from "./config";
 
@@ -88,6 +89,36 @@ describe("ai credit pricing config", () => {
 		expect(resolution.modelMigrationApplied).toBe(true);
 		expect(resolution.modelIdOriginal).toBe("anthropic/claude-sonnet-4");
 		expect(resolution.modelIdResolved).toBe(defaultModelId);
+	});
+
+	it("routes known clarification models to kimi k2.5", () => {
+		const resolution = resolveClarificationModelForExecution(
+			"moonshotai/kimi-k2-0905"
+		);
+
+		expect(resolution.modelMigrationApplied).toBe(true);
+		expect(resolution.modelIdOriginal).toBe("moonshotai/kimi-k2-0905");
+		expect(resolution.modelIdResolved).toBe("moonshotai/kimi-k2.5");
+	});
+
+	it("keeps kimi k2.5 unchanged for clarification runs", () => {
+		const resolution = resolveClarificationModelForExecution(
+			"moonshotai/kimi-k2.5"
+		);
+
+		expect(resolution.modelMigrationApplied).toBe(false);
+		expect(resolution.modelIdOriginal).toBe("moonshotai/kimi-k2.5");
+		expect(resolution.modelIdResolved).toBe("moonshotai/kimi-k2.5");
+	});
+
+	it("routes unknown clarification models to kimi k2.5", () => {
+		const resolution = resolveClarificationModelForExecution(
+			"anthropic/claude-sonnet-4"
+		);
+
+		expect(resolution.modelMigrationApplied).toBe(true);
+		expect(resolution.modelIdOriginal).toBe("anthropic/claude-sonnet-4");
+		expect(resolution.modelIdResolved).toBe("moonshotai/kimi-k2.5");
 	});
 
 	it("knows outage allowlist and plan entitlement from the same catalog", () => {

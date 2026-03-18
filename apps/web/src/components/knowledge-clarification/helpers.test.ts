@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import type { KnowledgeClarificationRequest } from "@cossistant/types";
-import { stepFromKnowledgeClarificationRequest } from "./helpers";
+import {
+	shouldPreferKnowledgeClarificationRequestState,
+	stepFromKnowledgeClarificationRequest,
+} from "./helpers";
 
 function createRequest(
 	overrides: Partial<KnowledgeClarificationRequest> = {}
@@ -55,5 +58,104 @@ describe("stepFromKnowledgeClarificationRequest", () => {
 			inputMode: "suggested_answers",
 			questionScope: "narrow_detail",
 		});
+	});
+
+	it("reconstructs retry-required requests as retry steps", () => {
+		const step = stepFromKnowledgeClarificationRequest(
+			createRequest({
+				status: "retry_required",
+				currentQuestion: null,
+				currentSuggestedAnswers: null,
+				currentQuestionInputMode: null,
+				currentQuestionScope: null,
+				lastError: "No output generated.",
+			})
+		);
+
+		expect(step).toEqual({
+			kind: "retry_required",
+			request: createRequest({
+				status: "retry_required",
+				currentQuestion: null,
+				currentSuggestedAnswers: null,
+				currentQuestionInputMode: null,
+				currentQuestionScope: null,
+				lastError: "No output generated.",
+			}),
+		});
+	});
+
+	it("does not reconstruct terminal requests as editable steps", () => {
+		expect(
+			stepFromKnowledgeClarificationRequest(
+				createRequest({
+					status: "applied",
+					draftFaqPayload: {
+						title: "Billing timing",
+						question: "When does billing change take effect?",
+						answer: "At the next billing cycle.",
+						categories: ["Billing"],
+						relatedQuestions: [],
+					},
+					currentQuestion: null,
+					currentSuggestedAnswers: null,
+					currentQuestionInputMode: null,
+					currentQuestionScope: null,
+				})
+			)
+		).toBeNull();
+
+		expect(
+			stepFromKnowledgeClarificationRequest(
+				createRequest({
+					status: "dismissed",
+					draftFaqPayload: {
+						title: "Billing timing",
+						question: "When does billing change take effect?",
+						answer: "At the next billing cycle.",
+						categories: ["Billing"],
+						relatedQuestions: [],
+					},
+					currentQuestion: null,
+					currentSuggestedAnswers: null,
+					currentQuestionInputMode: null,
+					currentQuestionScope: null,
+				})
+			)
+		).toBeNull();
+	});
+});
+
+describe("shouldPreferKnowledgeClarificationRequestState", () => {
+	it("prefers a newer retry-required request over a stale local question step", () => {
+		const staleStep = stepFromKnowledgeClarificationRequest(createRequest());
+		expect(staleStep?.kind).toBe("question");
+
+		expect(
+			shouldPreferKnowledgeClarificationRequestState({
+				request: createRequest({
+					status: "retry_required",
+					currentQuestion: null,
+					currentSuggestedAnswers: null,
+					currentQuestionInputMode: null,
+					currentQuestionScope: null,
+					lastError: "No output generated.",
+					updatedAt: "2026-03-16T09:05:00.000Z",
+				}),
+				step: staleStep,
+			})
+		).toBe(true);
+	});
+
+	it("keeps the local step when the request payload is not newer", () => {
+		const step = stepFromKnowledgeClarificationRequest(createRequest());
+		expect(step?.kind).toBe("question");
+
+		expect(
+			shouldPreferKnowledgeClarificationRequestState({
+				request: createRequest(),
+				step,
+			})
+		).toBe(false);
 	});
 });

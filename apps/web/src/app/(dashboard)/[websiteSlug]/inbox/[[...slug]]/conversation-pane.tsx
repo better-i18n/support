@@ -29,8 +29,6 @@ import { useClarificationComposerFlow } from "@/components/conversation/composer
 import { ClarificationPrompt } from "@/components/conversation/composer/clarification-teaser";
 import type { ConversationHeaderNavigationProps } from "@/components/conversation/header/navigation";
 import { resolveConversationClarificationDisplayState } from "@/components/knowledge-clarification/conversation-state";
-import { KnowledgeClarificationDialog } from "@/components/knowledge-clarification/dialog";
-import { stepFromKnowledgeClarificationRequest } from "@/components/knowledge-clarification/helpers";
 import { ButtonWithPaywall } from "@/components/plan/button-with-paywall";
 import { UpgradeModal } from "@/components/plan/upgrade-modal";
 import Icon from "@/components/ui/icons";
@@ -88,8 +86,6 @@ export function ConversationPane({
 		);
 	const [engagedClarificationRequestId, setEngagedClarificationRequestId] =
 		useState<string | null>(null);
-	const [isClarificationDialogOpen, setIsClarificationDialogOpen] =
-		useState(false);
 
 	// Build availableAIAgents array from fetched AI agent
 	const availableAIAgents = useMemo<AvailableAIAgent[]>(() => {
@@ -521,11 +517,6 @@ export function ConversationPane({
 		}
 
 		startTransition(() => {
-			if (hasEscalationAction) {
-				setIsClarificationDialogOpen(true);
-				return;
-			}
-
 			setEngagedClarificationRequestId(activeClarificationSummary.requestId);
 		});
 
@@ -581,14 +572,6 @@ export function ConversationPane({
 		clarificationDisplayState.engagedRequestId,
 		engagedClarificationRequestId,
 	]);
-
-	useEffect(() => {
-		if (hasEscalationAction && activeClarificationSummary) {
-			return;
-		}
-
-		setIsClarificationDialogOpen(false);
-	}, [activeClarificationSummary, hasEscalationAction]);
 
 	if (!visitor) {
 		return null;
@@ -661,12 +644,8 @@ export function ConversationPane({
 			onSubmit: submit,
 			placeholder: "Type your message...",
 			value: message,
-			centralBlock: hasEscalationAction
-				? undefined
-				: clarificationComposerBlocks?.centralBlock,
-			bottomBlock: hasEscalationAction
-				? undefined
-				: clarificationComposerBlocks?.bottomBlock,
+			centralBlock: clarificationComposerBlocks?.centralBlock,
+			bottomBlock: clarificationComposerBlocks?.bottomBlock,
 			visibility: messageVisibility,
 			onVisibilityChange: setMessageVisibility,
 			aiPausedUntil: selectedConversation.aiPausedUntil,
@@ -735,17 +714,6 @@ export function ConversationPane({
 				</div>
 			) : null} */}
 			<Conversation {...conversationProps} />
-			{hasEscalationAction && activeClarificationSummary ? (
-				<KnowledgeClarificationDialog
-					initialRequest={activeClarificationData?.request ?? null}
-					initialStep={stepFromKnowledgeClarificationRequest(
-						activeClarificationData?.request
-					)}
-					onOpenChange={setIsClarificationDialogOpen}
-					open={isClarificationDialogOpen}
-					websiteSlug={websiteSlug}
-				/>
-			) : null}
 			{planInfo ? (
 				<UpgradeModal
 					currentPlan={planInfo.plan}

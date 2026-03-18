@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 mock.module("@tanstack/react-query", () => ({
 	useMutation: () => ({
 		isPending: false,
+		mutate: () => null,
 		mutateAsync: async () => null,
 	}),
 }));

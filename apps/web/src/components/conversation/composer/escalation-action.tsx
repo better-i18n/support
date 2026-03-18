@@ -37,18 +37,16 @@ function EscalationActionCard({
 	return (
 		<div
 			className={cn(
-				"flex flex-col gap-3 rounded border border-cossistant-orange/50 border-dashed bg-cossistant-orange/5 p-4",
+				"flex flex-col gap-3 bg-cossistant-orange/5 p-3",
 				className
 			)}
 		>
 			<div className="flex items-center gap-2">
-				<div className="flex h-8 w-8 items-center justify-center rounded border border-cossistant-orange/5 bg-cossistant-orange/10">
-					<Logo className="h-4 w-4 text-cossistant-orange" />
-				</div>
+				<Logo className="h-4 w-4 text-primary" />
 				<div className="font-medium text-sm">Human help requested by AI</div>
 			</div>
 
-			<div className="text-muted-foreground text-sm">Reason: {reason}</div>
+			<div className="text-primary/80 text-sm">Reason: {reason}</div>
 
 			<div className="flex items-center justify-end">
 				<Button

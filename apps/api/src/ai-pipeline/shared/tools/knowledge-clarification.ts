@@ -3,6 +3,7 @@ import {
 	buildConversationClarificationContextSnapshot,
 	getKnowledgeClarificationSearchEvidenceFromToolExecutions,
 } from "@api/lib/knowledge-clarification-context";
+import type { KnowledgeClarificationStatus } from "@cossistant/types";
 import { tool } from "ai";
 import { z } from "zod";
 import { requestKnowledgeClarification as requestKnowledgeClarificationAction } from "../actions/request-knowledge-clarification";
@@ -37,7 +38,8 @@ export function createRequestKnowledgeClarificationTool(
 				requestId: string;
 				created: boolean;
 				changed: boolean;
-				status: "awaiting_answer" | "draft_ready";
+				resolution: "created" | "reused" | "suppressed_duplicate";
+				status: KnowledgeClarificationStatus;
 			}>
 		> => {
 			try {

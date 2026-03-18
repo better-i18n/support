@@ -113,6 +113,23 @@ describe("buildConversationClarificationSummary", () => {
 		});
 	});
 
+	it("keeps retry-required clarifications active for conversation surfaces", () => {
+		expect(
+			buildConversationClarificationSummary({
+				request: createRequest({ status: "retry_required" }),
+				turns: [createTurn()],
+			})
+		).toEqual({
+			requestId: "req_1",
+			status: "retry_required",
+			topicSummary: "Clarify billing timing",
+			question: null,
+			stepIndex: 2,
+			maxSteps: 5,
+			updatedAt: "2026-03-13T10:00:00.000Z",
+		});
+	});
+
 	it("returns null for non-active statuses or missing conversation ids", () => {
 		expect(
 			buildConversationClarificationSummary({

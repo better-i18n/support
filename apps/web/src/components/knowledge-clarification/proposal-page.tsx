@@ -1,13 +1,17 @@
 "use client";
 
 import type { KnowledgeClarificationRequest } from "@cossistant/types";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useWebsite } from "@/contexts/website";
+import {
+	removeProposalRequestFromCache,
+	setProposalResponseInCache,
+} from "@/data/knowledge-clarification-cache";
 import { useTRPC } from "@/lib/trpc/client";
 import { TrainingEntryDetailLayout } from "../training-entries";
 import { useKnowledgeClarificationDraftReviewState } from "./draft-review";
@@ -23,6 +27,22 @@ function getStatusLabel(request: KnowledgeClarificationRequest): string {
 		return "Ready for review";
 	}
 
+	if (request.status === "retry_required") {
+		return "Needs retry";
+	}
+
+	if (request.status === "deferred") {
+		return "Saved for later";
+	}
+
+	if (request.status === "applied") {
+		return "Applied";
+	}
+
+	if (request.status === "dismissed") {
+		return "Dismissed";
+	}
+
 	if (request.status === "analyzing") {
 		return "AI working";
 	}
@@ -36,13 +56,44 @@ export function KnowledgeClarificationProposalPage({
 	const website = useWebsite();
 	const trpc = useTRPC();
 	const router = useRouter();
+	const queryClient = useQueryClient();
 
-	const { data, isLoading } = useQuery(
-		trpc.knowledgeClarification.getProposal.queryOptions({
+	const { data, isLoading } = useQuery({
+		...trpc.knowledgeClarification.getProposal.queryOptions({
 			websiteSlug: website.slug,
 			requestId,
-		})
-	);
+		}),
+		staleTime: 0,
+		refetchOnMount: "always",
+	});
+
+	useEffect(() => {
+		if (isLoading || data?.request !== null) {
+			return;
+		}
+
+		const proposalsQueryKey =
+			trpc.knowledgeClarification.listProposals.queryKey({
+				websiteSlug: website.slug,
+			});
+		const proposalQueryKey = trpc.knowledgeClarification.getProposal.queryKey({
+			websiteSlug: website.slug,
+			requestId,
+		});
+
+		removeProposalRequestFromCache(queryClient, proposalsQueryKey, requestId);
+		setProposalResponseInCache(queryClient, proposalQueryKey, null);
+		router.replace(`/${website.slug}/agent/training/faq`);
+	}, [
+		data?.request,
+		isLoading,
+		queryClient,
+		requestId,
+		router,
+		trpc,
+		website.slug,
+	]);
+
 	const flow = useKnowledgeClarificationFlow({
 		websiteSlug: website.slug,
 		initialRequest: data?.request ?? null,
@@ -86,6 +137,10 @@ export function KnowledgeClarificationProposalPage({
 		return flow.currentRequest?.topicSummary ?? "AI suggestion";
 	}, [flow.currentRequest]);
 
+	if (!isLoading && data?.request === null) {
+		return null;
+	}
+
 	return (
 		<TrainingEntryDetailLayout
 			backHref={`/${website.slug}/agent/training/faq`}
@@ -105,7 +160,7 @@ export function KnowledgeClarificationProposalPage({
 								flow.approveMutation.isPending || !draftReviewState.canApprove
 							}
 							onClick={() => {
-								void flow.approveDraft(
+								flow.approveDraft(
 									activeDraftStep.request.id,
 									draftReviewState.parsedDraft
 								);

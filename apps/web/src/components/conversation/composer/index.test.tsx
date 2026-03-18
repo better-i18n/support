@@ -134,6 +134,43 @@ describe("Composer", () => {
 		expect(html).not.toContain("Type your message...");
 	});
 
+	it("prefers active clarification blocks over the embedded escalation block", async () => {
+		const { Composer } = await composerModulePromise;
+
+		const html = renderToStaticMarkup(
+			React.createElement(Composer, {
+				aboveBlock: React.createElement(
+					"div",
+					{ "data-clarification-topic": "true" },
+					"Clarification topic"
+				),
+				centralBlock: React.createElement(
+					"section",
+					{ "data-clarification-flow": "true" },
+					"Clarification flow"
+				),
+				bottomBlock: React.createElement(
+					"div",
+					{ "data-clarification-actions": "true" },
+					"Clarification actions"
+				),
+				escalationAction: {
+					reason: "Needs a human response",
+					onJoin: () => {},
+				},
+				onChange: () => {},
+				onSubmit: () => {},
+				value: "",
+			})
+		);
+
+		expect(html).toContain("Clarification topic");
+		expect(html).toContain("Clarification flow");
+		expect(html).toContain("Clarification actions");
+		expect(html).not.toContain("Join the conversation");
+		expect(html).not.toContain("Needs a human response");
+	});
+
 	it("composes the slot identity with keyed custom children", async () => {
 		const { getComposerAnimatedSlotKey } = await composerSlotKeyModulePromise;
 

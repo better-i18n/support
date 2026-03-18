@@ -130,7 +130,7 @@ describe("resolveConversationClarificationDisplayState", () => {
 		});
 	});
 
-	it("keeps the prompt visible during escalation while leaving the inline action hidden", () => {
+	it("keeps the teaser prompt visible during escalation before the clarification is engaged", () => {
 		expect(
 			resolveConversationClarificationDisplayState({
 				summary: createSummary(),
@@ -142,6 +142,79 @@ describe("resolveConversationClarificationDisplayState", () => {
 		).toMatchObject({
 			showPrompt: true,
 			showAction: false,
+		});
+	});
+
+	it("keeps retry-required clarifications visible before the retry flow is engaged", () => {
+		expect(
+			resolveConversationClarificationDisplayState({
+				summary: createSummary({
+					status: "retry_required",
+					question: null,
+				}),
+				request: createRequest({
+					status: "retry_required",
+					currentQuestion: null,
+					currentSuggestedAnswers: null,
+					currentQuestionInputMode: null,
+					currentQuestionScope: null,
+					lastError: "Provider returned error",
+				}),
+				engagedRequestId: null,
+				hasEscalation: false,
+				hasLimitAction: false,
+			})
+		).toMatchObject({
+			showPrompt: true,
+			showAction: false,
+		});
+	});
+
+	it("shows the inline clarification flow during escalation once the request is engaged", () => {
+		const request = createRequest();
+
+		expect(
+			resolveConversationClarificationDisplayState({
+				summary: createSummary(),
+				request,
+				engagedRequestId: "req_1",
+				hasEscalation: true,
+				hasLimitAction: false,
+			})
+		).toMatchObject({
+			engagedRequestId: "req_1",
+			showPrompt: false,
+			showAction: true,
+			actionRequest: request,
+		});
+	});
+
+	it("keeps an engaged retry-required clarification mounted for inline retry", () => {
+		const request = createRequest({
+			status: "retry_required",
+			currentQuestion: null,
+			currentSuggestedAnswers: null,
+			currentQuestionInputMode: null,
+			currentQuestionScope: null,
+			lastError: "Provider returned error",
+		});
+
+		expect(
+			resolveConversationClarificationDisplayState({
+				summary: createSummary({
+					status: "retry_required",
+					question: null,
+				}),
+				request,
+				engagedRequestId: "req_1",
+				hasEscalation: false,
+				hasLimitAction: false,
+			})
+		).toMatchObject({
+			engagedRequestId: "req_1",
+			showPrompt: false,
+			showAction: true,
+			actionRequest: request,
 		});
 	});
 
@@ -217,6 +290,42 @@ describe("resolveConversationClarificationDisplayState", () => {
 				request,
 				engagedRequestId: "req_1",
 				hasEscalation: false,
+				hasLimitAction: false,
+			})
+		).toMatchObject({
+			engagedRequestId: null,
+			showPrompt: false,
+			showAction: false,
+			showDraftBanner: true,
+			bannerRequest: request,
+		});
+	});
+
+	it("keeps draft-ready clarifications in the composer banner state during escalation", () => {
+		const request = createRequest({
+			status: "draft_ready",
+			currentQuestion: null,
+			currentSuggestedAnswers: null,
+			currentQuestionInputMode: null,
+			currentQuestionScope: null,
+			draftFaqPayload: {
+				title: "Billing timing",
+				question: "When does billing change take effect?",
+				answer: "It applies at the next billing cycle.",
+				categories: ["Billing"],
+				relatedQuestions: [],
+			},
+		});
+
+		expect(
+			resolveConversationClarificationDisplayState({
+				summary: createSummary({
+					status: "draft_ready",
+					question: null,
+				}),
+				request,
+				engagedRequestId: "req_1",
+				hasEscalation: true,
 				hasLimitAction: false,
 			})
 		).toMatchObject({

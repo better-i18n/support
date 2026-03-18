@@ -6,6 +6,7 @@ import {
 	emitConversationClarificationUpdate,
 	startConversationKnowledgeClarification,
 } from "@api/services/knowledge-clarification";
+import type { KnowledgeClarificationStatus } from "@cossistant/types";
 
 type RequestKnowledgeClarificationParams = {
 	db: Database;
@@ -22,7 +23,8 @@ export async function requestKnowledgeClarification(
 ): Promise<{
 	requestId: string;
 	created: boolean;
-	status: "awaiting_answer" | "draft_ready";
+	resolution: "created" | "reused" | "suppressed_duplicate";
+	status: KnowledgeClarificationStatus;
 }> {
 	const aiAgent = await getAiAgentById(params.db, {
 		aiAgentId: params.aiAgentId,
@@ -31,37 +33,31 @@ export async function requestKnowledgeClarification(
 		throw new Error("AI agent not found");
 	}
 
-	try {
-		const { created, step } = await startConversationKnowledgeClarification({
-			db: params.db,
-			organizationId: params.organizationId,
-			websiteId: params.websiteId,
-			aiAgent,
-			conversation: params.conversation,
-			topicSummary: params.topicSummary,
-			actor: { aiAgentId: params.aiAgentId },
-			contextSnapshot: params.contextSnapshot ?? null,
-		});
+	const result = await startConversationKnowledgeClarification({
+		db: params.db,
+		organizationId: params.organizationId,
+		websiteId: params.websiteId,
+		aiAgent,
+		conversation: params.conversation,
+		topicSummary: params.topicSummary,
+		actor: { aiAgentId: params.aiAgentId },
+		contextSnapshot: params.contextSnapshot ?? null,
+		creationMode: "automation",
+	});
 
+	if (result.step) {
 		await emitConversationClarificationUpdate({
 			db: params.db,
 			conversation: params.conversation,
-			request: step.request,
+			request: result.step.request,
 			aiAgentId: params.aiAgentId,
 		});
-
-		return {
-			requestId: step.request.id,
-			created,
-			status: step.kind === "draft_ready" ? "draft_ready" : "awaiting_answer",
-		};
-	} catch (error) {
-		await emitConversationClarificationUpdate({
-			db: params.db,
-			conversation: params.conversation,
-			request: null,
-			aiAgentId: params.aiAgentId,
-		});
-		throw error;
 	}
+
+	return {
+		requestId: result.request.id,
+		created: result.created,
+		resolution: result.resolution,
+		status: result.request.status,
+	};
 }
