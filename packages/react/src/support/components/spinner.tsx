@@ -82,8 +82,6 @@ export function Spinner({
 			{Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, index) => {
 				const row = Math.floor(index / GRID_SIZE);
 				const column = index % GRID_SIZE;
-				const driftX = (column - 1) * 18;
-				const driftY = (row - 1) * 18;
 				const cellStyle = {
 					"--co-spinner-delay": `${getCellDelayMs({
 						column,
@@ -91,16 +89,6 @@ export function Spinner({
 						row,
 						variant: resolvedVariant,
 					})}ms`,
-					"--co-spinner-orbit-start-x": `${driftX * -0.2}%`,
-					"--co-spinner-orbit-start-y": `${driftY * -0.2}%`,
-					"--co-spinner-orbit-peak-x": `${driftX * 0.22}%`,
-					"--co-spinner-orbit-peak-y": `${driftY * 0.22}%`,
-					"--co-spinner-wave-start-x": `${driftX * -0.38}%`,
-					"--co-spinner-wave-start-y": `${driftY * -0.38}%`,
-					"--co-spinner-wave-peak-x": `${driftX * 0.9}%`,
-					"--co-spinner-wave-peak-y": `${driftY * 0.9}%`,
-					"--co-spinner-pulse-peak-x": `${driftX * 0.55}%`,
-					"--co-spinner-pulse-peak-y": `${driftY * 0.55}%`,
 				} as React.CSSProperties;
 
 				return (

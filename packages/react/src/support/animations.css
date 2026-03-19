@@ -65,27 +65,14 @@
 		0%,
 		100% {
 			opacity: 0.2;
-			transform: translate3d(
-					var(--co-spinner-orbit-start-x, 0%),
-					var(--co-spinner-orbit-start-y, 0%),
-					0
-				)
-				scale(0.74);
 		}
 
 		45% {
 			opacity: 0.6;
-			transform: translate3d(0, 0, 0) scale(0.88);
 		}
 
 		55% {
 			opacity: 1;
-			transform: translate3d(
-					var(--co-spinner-orbit-peak-x, 0%),
-					var(--co-spinner-orbit-peak-y, 0%),
-					0
-				)
-				scale(1);
 		}
 	}
 
@@ -93,22 +80,10 @@
 		0%,
 		100% {
 			opacity: 0.18;
-			transform: translate3d(
-					var(--co-spinner-wave-start-x, 0%),
-					var(--co-spinner-wave-start-y, 0%),
-					0
-				)
-				scale(0.72);
 		}
 
 		50% {
 			opacity: 1;
-			transform: translate3d(
-					var(--co-spinner-wave-peak-x, 0%),
-					var(--co-spinner-wave-peak-y, 0%),
-					0
-				)
-				scale(1);
 		}
 	}
 
@@ -116,17 +91,10 @@
 		0%,
 		100% {
 			opacity: 0.22;
-			transform: translate3d(0, 0, 0) scale(0.7);
 		}
 
 		50% {
 			opacity: 1;
-			transform: translate3d(
-					var(--co-spinner-pulse-peak-x, 0%),
-					var(--co-spinner-pulse-peak-y, 0%),
-					0
-				)
-				scale(1.05);
 		}
 	}
 
@@ -151,8 +119,7 @@
 		animation-iteration-count: infinite;
 		animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 		animation-fill-mode: both;
-		transform-origin: center;
-		will-change: opacity, transform;
+		will-change: opacity;
 	}
 
 	.co-spinner[data-co-spinner-variant="orbit"] .co-spinner__cell {
