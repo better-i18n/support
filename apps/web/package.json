@@ -2,7 +2,6 @@
   "name": "@cossistant/web",
   "version": "0.1.0",
   "private": true,
-  "type": "commonjs",
   "dependencies": {
     "@ai-sdk/openai": "^3.0.18",
     "@ai-sdk/react": "^3.0.51",

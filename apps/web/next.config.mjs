@@ -29,10 +29,6 @@ const nextConfig = {
 		],
 		qualities: [70, 80, 85, 90],
 	},
-	// Ensure Vercel server traces include Next's generated CommonJS package boundary.
-	outputFileTracingIncludes: {
-		"/*": ["./.next/package.json"],
-	},
 	experimental: {
 		useCache: true,
 		turbopackFileSystemCacheForDev: true,
