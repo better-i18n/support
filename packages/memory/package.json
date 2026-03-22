@@ -1,0 +1,29 @@
+{
+  "name": "@cossistant/memory",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Internal scaffold and contract package for Cossistant memory.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "ai": "^6.0.49",
+    "drizzle-orm": "^0.44.7"
+  },
+  "devDependencies": {
+    "@cossistant/typescript-config": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "bun test src",
+    "lint": "biome check .",
+    "check-types": "tsc --noEmit --project tsconfig.json"
+  }
+}

@@ -347,6 +347,17 @@
         "typescript": "^5.9.2",
       },
     },
+    "packages/memory": {
+      "name": "@cossistant/memory",
+      "version": "0.0.1",
+      "dependencies": {
+        "ai": "^6.0.49",
+        "drizzle-orm": "^0.44.7",
+      },
+      "devDependencies": {
+        "@cossistant/typescript-config": "workspace:*",
+      },
+    },
     "packages/next": {
       "name": "@cossistant/next",
       "version": "0.1.2",
@@ -916,6 +927,8 @@
     "@cossistant/jobs": ["@cossistant/jobs@workspace:packages/jobs"],
 
     "@cossistant/location": ["@cossistant/location@workspace:packages/location"],
+
+    "@cossistant/memory": ["@cossistant/memory@workspace:packages/memory"],
 
     "@cossistant/next": ["@cossistant/next@workspace:packages/next"],
 
