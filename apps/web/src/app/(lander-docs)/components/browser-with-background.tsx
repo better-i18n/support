@@ -21,7 +21,7 @@ export function BrowserWithBackground({
 	return (
 		<div
 			className={cn(
-				"relative flex w-full items-center justify-center overflow-hidden bg-background-100 dark:bg-background-200",
+				"relative flex w-full items-center justify-center overflow-hidden bg-background dark:bg-background-200",
 				containerClassName
 			)}
 		>

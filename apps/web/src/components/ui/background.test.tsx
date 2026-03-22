@@ -117,7 +117,7 @@ describe("background helpers", () => {
 		expect(desktopConfig.pointerTrail).toBe(true);
 		expect(desktopConfig.pointerTrailIntensity).toBe(0.75);
 		expect(desktopConfig.pointerTrailLifetimeMs).toBe(1350);
-		expect(desktopConfig.pointerTrailRadius).toBe(0.16);
+		expect(desktopConfig.pointerTrailRadius).toBe(0.11);
 		expect(mobileConfig.asciiResolution).toBe(0.08);
 		expect(mobileConfig.targetFps).toBe(8);
 		expect(overrideConfig.asciiResolution).toBe(0.22);

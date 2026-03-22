@@ -172,7 +172,7 @@ export async function runGenerationRuntime(
 		toolSkills: runtimeToolSkills,
 	});
 
-	const messages = buildGenerationMessages(input.conversationHistory);
+	const messages = buildGenerationMessages(input.generationEntries);
 
 	await writeGenerationSystemPromptDebugDump({
 		input,

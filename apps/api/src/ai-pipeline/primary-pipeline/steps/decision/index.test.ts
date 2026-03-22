@@ -15,7 +15,7 @@ function createInput(
 			id: "conv-1",
 			aiPausedUntil: null,
 		} as never,
-		conversationHistory: [],
+		decisionMessages: [],
 		conversationState: {
 			hasHumanAssignee: false,
 			assigneeIds: [],
@@ -24,6 +24,8 @@ function createInput(
 			escalationReason: null,
 		},
 		triggerMessageText: "Can you help with this issue?",
+		hasLaterHumanMessage: false,
+		hasLaterAiMessage: false,
 		triggerMessage: {
 			messageId: "msg-1",
 			content: "Can you help with this issue?",
@@ -135,7 +137,7 @@ describe("runDeterministicDecision", () => {
 		});
 	});
 
-	it("routes public human replies into silent background follow-up", () => {
+	it("leaves untagged public human replies for smart decision evaluation", () => {
 		const result = runDeterministicDecision(
 			createInput({
 				triggerMessage: {
@@ -151,16 +153,9 @@ describe("runDeterministicDecision", () => {
 		);
 
 		expect(result).toEqual({
-			type: "final",
-			result: {
-				shouldAct: true,
-				reason:
-					"Public human teammate reply should only trigger silent follow-up work",
-				mode: "background_only",
-				humanCommand: null,
-				isEscalated: false,
-				escalationReason: null,
-			},
+			type: "continue",
+			cleanedTriggerText:
+				"When you hit your seat limit, each extra seat is $10/mo.",
 		});
 	});
 });

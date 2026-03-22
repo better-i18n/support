@@ -1,12 +1,9 @@
-import { buildConversationTranscript } from "@api/ai-pipeline/primary-pipeline/steps/intake/history";
-import {
-	buildConversationClarificationContextSnapshot,
-	getKnowledgeClarificationSearchEvidenceFromToolExecutions,
-} from "@api/lib/knowledge-clarification-context";
+import { getKnowledgeClarificationSearchEvidenceFromToolExecutions } from "@api/lib/knowledge-clarification-context";
 import type { KnowledgeClarificationStatus } from "@cossistant/types";
 import { tool } from "ai";
 import { z } from "zod";
 import { requestKnowledgeClarification as requestKnowledgeClarificationAction } from "../actions/request-knowledge-clarification";
+import { buildToolDrivenClarificationContext } from "../knowledge-gap/tool-clarification-context";
 import type {
 	PipelineToolContext,
 	PipelineToolResult,
@@ -43,23 +40,8 @@ export function createRequestKnowledgeClarificationTool(
 			}>
 		> => {
 			try {
-				const conversationHistory = await buildConversationTranscript(ctx.db, {
-					conversationId: ctx.conversationId,
-					organizationId: ctx.organizationId,
-					websiteId: ctx.websiteId,
-					maxCreatedAt: ctx.triggerMessageCreatedAt ?? null,
-				});
-				const triggerMessage =
-					conversationHistory.find(
-						(entry) =>
-							"messageId" in entry && entry.messageId === ctx.triggerMessageId
-					) ?? null;
-				const contextSnapshot = buildConversationClarificationContextSnapshot({
-					conversationHistory,
-					triggerMessage:
-						triggerMessage && "senderType" in triggerMessage
-							? triggerMessage
-							: null,
+				const { contextSnapshot } = await buildToolDrivenClarificationContext({
+					ctx,
 					searchEvidence:
 						getKnowledgeClarificationSearchEvidenceFromToolExecutions(
 							ctx.runtimeState.toolExecutions

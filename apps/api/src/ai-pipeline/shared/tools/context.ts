@@ -7,6 +7,7 @@ import { getCompleteVisitorWithContact } from "@api/db/queries/visitor";
 import { findSimilarKnowledge } from "@api/utils/vector-search";
 import { tool } from "ai";
 import { z } from "zod";
+import { maybeCreateImmediateClarificationFromSearchResult } from "../knowledge-gap/immediate-clarification";
 import type {
 	PipelineToolContext,
 	PipelineToolResult,
@@ -160,19 +161,35 @@ export function createSearchKnowledgeBaseTool(ctx: PipelineToolContext) {
 					"Results have low confidence. Use cautious language and offer escalation if uncertain.";
 			}
 
+			const searchResult = {
+				articles,
+				query,
+				questionContext: questionContext?.trim() || null,
+				totalFound,
+				maxSimilarity,
+				retrievalQuality,
+				clarificationSignal,
+				lowConfidence,
+				guidance,
+			};
+
+			if (retrievalQuality === "none" && clarificationSignal === "immediate") {
+				try {
+					await maybeCreateImmediateClarificationFromSearchResult({
+						ctx,
+						searchResult,
+					});
+				} catch (error) {
+					ctx.debugLogger?.warn?.(
+						"[ai-pipeline:tool] failed to open immediate knowledge clarification after zero-hit KB search",
+						error
+					);
+				}
+			}
+
 			return {
 				success: true,
-				data: {
-					articles,
-					query,
-					questionContext: questionContext?.trim() || null,
-					totalFound,
-					maxSimilarity,
-					retrievalQuality,
-					clarificationSignal,
-					lowConfidence,
-					guidance,
-				},
+				data: searchResult,
 			};
 		},
 	});

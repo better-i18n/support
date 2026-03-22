@@ -9,7 +9,7 @@ import {
 	type GenerationRuntimeInput,
 	runGenerationRuntime,
 } from "../shared/generation";
-import { maybeCreateImmediateClarificationFromSearchGap } from "../shared/knowledge-gap/immediate-clarification";
+import { maybeCreateImmediateClarificationFromSearchGap } from "../shared/knowledge-gap/post-generation-immediate-clarification";
 import type { ToolTracePayloadMode } from "../shared/tools/contracts";
 import type {
 	PrimaryPipelineContext,
@@ -47,16 +47,18 @@ function buildGenerationRuntimeInput(params: {
 		mode: decision.mode,
 		aiAgent: intake.aiAgent,
 		conversation: intake.conversation,
-		conversationHistory: intake.conversationHistory,
+		generationEntries: intake.generationEntries,
 		visitorContext: intake.visitorContext,
 		conversationState: intake.conversationState,
-		continuationContext: intake.continuationContext,
 		humanCommand: decision.humanCommand,
 		workflowRunId: ctx.input.workflowRunId,
 		triggerMessageId: ctx.input.messageId,
+		triggerMessageText: intake.triggerMessageText,
 		triggerMessageCreatedAt: ctx.input.messageCreatedAt,
 		triggerSenderType: trigger?.senderType,
 		triggerVisibility: trigger?.visibility,
+		hasLaterHumanMessage: intake.hasLaterHumanMessage,
+		hasLaterAiMessage: intake.hasLaterAiMessage,
 		allowPublicMessages: decision.mode !== "background_only",
 		stopTyping: typingControls.stopTyping,
 		debugLogger: params.debugLogger,
@@ -196,7 +198,16 @@ export async function runPrimaryPipeline(
 		const decisionResult = await measureStage(metrics, "decisionMs", () =>
 			runDecisionStep({
 				db: ctx.db,
-				input: intakeResult.data,
+				input: {
+					aiAgent: intakeResult.data.aiAgent,
+					conversation: intakeResult.data.conversation,
+					decisionMessages: intakeResult.data.decisionMessages,
+					conversationState: intakeResult.data.conversationState,
+					triggerMessage: intakeResult.data.triggerMessage,
+					triggerMessageText: intakeResult.data.triggerMessageText,
+					hasLaterHumanMessage: intakeResult.data.hasLaterHumanMessage,
+					hasLaterAiMessage: intakeResult.data.hasLaterAiMessage,
+				},
 			})
 		);
 

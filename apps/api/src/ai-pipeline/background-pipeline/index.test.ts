@@ -59,6 +59,8 @@ const loadConversationSeedMock = mock(async () => ({
 }));
 const loadIntakeContextMock = mock(async () => ({
 	conversationHistory: [],
+	decisionMessages: [],
+	generationEntries: [],
 	visitorContext: null,
 	conversationState: {
 		hasHumanAssignee: false,
@@ -76,6 +78,8 @@ const loadIntakeContextMock = mock(async () => ({
 		timestamp: "2026-03-04T10:00:00.000Z",
 		visibility: "public",
 	},
+	hasLaterHumanMessage: false,
+	hasLaterAiMessage: false,
 }));
 const emitPipelineProcessingCompletedMock = mock(async () => {});
 const emitPipelineSeenMock = mock(async () => {});
@@ -220,6 +224,8 @@ describe("runBackgroundPipeline", () => {
 		});
 		loadIntakeContextMock.mockResolvedValue({
 			conversationHistory: [],
+			decisionMessages: [],
+			generationEntries: [],
 			visitorContext: null,
 			conversationState: {
 				hasHumanAssignee: false,
@@ -237,6 +243,8 @@ describe("runBackgroundPipeline", () => {
 				timestamp: "2026-03-04T10:00:00.000Z",
 				visibility: "public",
 			},
+			hasLaterHumanMessage: false,
+			hasLaterAiMessage: false,
 		});
 		runGenerationRuntimeMock.mockResolvedValue({
 			status: "completed",
@@ -312,7 +320,10 @@ describe("runBackgroundPipeline", () => {
 				mode: "background_only",
 				triggerMessageId: "msg-42",
 				triggerMessageCreatedAt: "2026-03-04T10:05:00.000Z",
+				generationEntries: [],
 				allowPublicMessages: false,
+				hasLaterHumanMessage: false,
+				hasLaterAiMessage: false,
 				toolAllowlist: [
 					"requestKnowledgeClarification",
 					"updateConversationTitle",

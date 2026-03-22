@@ -72,7 +72,7 @@ function createInput(overrides: Partial<Record<string, unknown>> = {}) {
 		conversation: {
 			id: "conv-1",
 		} as never,
-		conversationHistory: [],
+		generationEntries: [],
 		visitorContext: null,
 		conversationState: {
 			isEscalated: false,
@@ -82,6 +82,11 @@ function createInput(overrides: Partial<Record<string, unknown>> = {}) {
 		humanCommand: "Reply to the visitor with next steps.",
 		workflowRunId: "wf-1",
 		triggerMessageId: "msg-1",
+		triggerMessageText: "Reply to the visitor with next steps.",
+		triggerSenderType: "human_agent" as const,
+		triggerVisibility: "private" as const,
+		hasLaterHumanMessage: false,
+		hasLaterAiMessage: false,
 		allowPublicMessages: true,
 		...overrides,
 	};
@@ -245,15 +250,14 @@ describe("buildGenerationSystemPrompt", () => {
 		}
 	});
 
-	it("includes continuation guidance when a previous AI reply exists after the last processed cursor", () => {
+	it("includes explicit current-trigger and later-context guidance", () => {
 		const prompt = buildGenerationSystemPrompt({
 			input: createInput({
 				triggerSenderType: "visitor",
-				continuationContext: {
-					previousProcessedMessageId: "msg-1",
-					previousProcessedMessageCreatedAt: "2026-03-04T10:00:00.000Z",
-					latestAiReply: "We already asked for the account email.",
-				},
+				triggerVisibility: "public",
+				triggerMessageText: "Any update?",
+				hasLaterHumanMessage: true,
+				hasLaterAiMessage: true,
 			}) as never,
 			promptBundle,
 			toolset: {
@@ -263,10 +267,13 @@ describe("buildGenerationSystemPrompt", () => {
 			toolNames: ["sendMessage", "respond"],
 		});
 
-		expect(prompt).toContain("## Continuation Context");
-		expect(prompt).toContain("We already asked for the account email.");
+		expect(prompt).toContain("## Current Trigger");
+		expect(prompt).toContain("text=Any update?");
+		expect(prompt).toContain("hasLaterHumanMessage=yes");
+		expect(prompt).toContain("hasLaterAiMessage=yes");
+		expect(prompt).toContain("## Timeline Semantics");
 		expect(prompt).toContain(
-			"Answer only the new inbound message and add only what is missing."
+			"[AFTER] contains newer context for awareness only."
 		);
 	});
 });

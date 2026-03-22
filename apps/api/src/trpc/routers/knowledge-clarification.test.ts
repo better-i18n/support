@@ -242,6 +242,11 @@ describe("knowledgeClarification router retry handling", () => {
 				selectedAnswer: "At the next billing cycle",
 			})
 		);
+		expect(runKnowledgeClarificationStepMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				progressReporter: expect.any(Function),
+			})
+		);
 		expect(emitConversationClarificationUpdateMock).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				request: expect.objectContaining({
@@ -264,6 +269,11 @@ describe("knowledgeClarification router retry handling", () => {
 			{} as never,
 			expect.objectContaining({
 				role: "human_skip",
+			})
+		);
+		expect(runKnowledgeClarificationStepMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				progressReporter: expect.any(Function),
 			})
 		);
 	});
@@ -289,6 +299,11 @@ describe("knowledgeClarification router retry handling", () => {
 		expect(result.step.kind).toBe("retry_required");
 		expect(createKnowledgeClarificationTurnMock).not.toHaveBeenCalled();
 		expect(runKnowledgeClarificationStepMock).toHaveBeenCalledTimes(1);
+		expect(runKnowledgeClarificationStepMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				progressReporter: expect.any(Function),
+			})
+		);
 	});
 
 	it("rejects retrying a clarification that is not retry-required", async () => {

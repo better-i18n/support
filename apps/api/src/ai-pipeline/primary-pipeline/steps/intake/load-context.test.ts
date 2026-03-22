@@ -1,33 +1,32 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-
-type MockHistoryMessage = {
-	messageId: string;
-	content: string;
-	senderType: "visitor" | "human_agent" | "ai_agent";
-	senderId: string | null;
-	senderName: string | null;
-	timestamp: string;
-	visibility: "public" | "private";
-};
-
-type MockPublicAiMessage = {
-	id: string;
-	text: string;
-	createdAt: string;
-};
+import type {
+	ConversationTranscriptEntry,
+	RoleAwareMessage,
+	SegmentedConversationEntry,
+	SegmentedConversationMessage,
+} from "../../contracts";
 
 const getConversationByIdMock = mock(async () => null);
 const getMessageMetadataMock = mock(async () => null);
-const getPublicAiMessagesAfterCursorMock = mock(
-	(async (): Promise<MockPublicAiMessage[]> => []) as (
-		...args: unknown[]
-	) => Promise<MockPublicAiMessage[]>
-);
 const getCompleteVisitorWithContactMock = mock(async () => null);
-const buildConversationTranscriptMock = mock(
-	(async (): Promise<MockHistoryMessage[]> => []) as (
-		...args: unknown[]
-	) => Promise<MockHistoryMessage[]>
+type MockTimelineContext = {
+	conversationHistory: ConversationTranscriptEntry[];
+	decisionMessages: SegmentedConversationMessage[];
+	generationEntries: SegmentedConversationEntry[];
+	triggerMessage: RoleAwareMessage | null;
+	hasLaterHumanMessage: boolean;
+	hasLaterAiMessage: boolean;
+};
+
+const buildTriggerCenteredTimelineContextMock = mock(
+	(async (): Promise<MockTimelineContext> => ({
+		conversationHistory: [],
+		decisionMessages: [],
+		generationEntries: [],
+		triggerMessage: null,
+		hasLaterHumanMessage: false,
+		hasLaterAiMessage: false,
+	})) as (...args: unknown[]) => Promise<MockTimelineContext>
 );
 
 const whereMock = mock(async () => []);
@@ -37,7 +36,6 @@ const selectMock = mock((_fields: unknown) => ({ from: fromMock }));
 mock.module("@api/db/queries/conversation", () => ({
 	getConversationById: getConversationByIdMock,
 	getMessageMetadata: getMessageMetadataMock,
-	getPublicAiMessagesAfterCursor: getPublicAiMessagesAfterCursorMock,
 }));
 
 mock.module("@api/db/queries/visitor", () => ({
@@ -45,34 +43,126 @@ mock.module("@api/db/queries/visitor", () => ({
 }));
 
 mock.module("./history", () => ({
-	buildConversationTranscript: buildConversationTranscriptMock,
+	buildTriggerCenteredTimelineContext: buildTriggerCenteredTimelineContextMock,
 }));
 
 const modulePromise = import("./load-context");
 
-describe("loadIntakeContext continuation context", () => {
+describe("loadIntakeContext", () => {
 	beforeEach(() => {
 		getConversationByIdMock.mockReset();
 		getMessageMetadataMock.mockReset();
-		getPublicAiMessagesAfterCursorMock.mockReset();
 		getCompleteVisitorWithContactMock.mockReset();
-		buildConversationTranscriptMock.mockReset();
+		buildTriggerCenteredTimelineContextMock.mockReset();
 		selectMock.mockReset();
 		fromMock.mockReset();
 		whereMock.mockReset();
 
-		getCompleteVisitorWithContactMock.mockResolvedValue(null);
-		buildConversationTranscriptMock.mockResolvedValue([
-			{
-				messageId: "msg-1",
-				content: "Initial question",
-				senderType: "visitor",
-				senderId: "visitor-1",
-				senderName: null,
-				timestamp: "2026-03-04T10:00:00.000Z",
-				visibility: "public",
-			},
-			{
+		buildTriggerCenteredTimelineContextMock.mockResolvedValue({
+			conversationHistory: [
+				{
+					messageId: "msg-1",
+					content: "Initial question",
+					senderType: "visitor",
+					senderId: "visitor-1",
+					senderName: null,
+					timestamp: "2026-03-04T10:00:00.000Z",
+					visibility: "public",
+				},
+				{
+					messageId: "msg-2",
+					content: "Following up",
+					senderType: "visitor",
+					senderId: "visitor-1",
+					senderName: null,
+					timestamp: "2026-03-04T10:00:01.000Z",
+					visibility: "public",
+				},
+				{
+					messageId: "msg-3",
+					content: "I already answered this publicly.",
+					senderType: "human_agent",
+					senderId: "user-1",
+					senderName: "Support Agent",
+					timestamp: "2026-03-04T10:00:02.000Z",
+					visibility: "public",
+				},
+			],
+			decisionMessages: [
+				{
+					messageId: "msg-1",
+					content: "Initial question",
+					senderType: "visitor",
+					senderId: "visitor-1",
+					senderName: null,
+					timestamp: "2026-03-04T10:00:00.000Z",
+					visibility: "public",
+					segment: "before_trigger",
+				},
+				{
+					messageId: "msg-2",
+					content: "Following up",
+					senderType: "visitor",
+					senderId: "visitor-1",
+					senderName: null,
+					timestamp: "2026-03-04T10:00:01.000Z",
+					visibility: "public",
+					segment: "trigger",
+				},
+				{
+					messageId: "msg-3",
+					content: "I already answered this publicly.",
+					senderType: "human_agent",
+					senderId: "user-1",
+					senderName: "Support Agent",
+					timestamp: "2026-03-04T10:00:02.000Z",
+					visibility: "public",
+					segment: "after_trigger",
+				},
+			],
+			generationEntries: [
+				{
+					messageId: "msg-1",
+					content: "Initial question",
+					senderType: "visitor",
+					senderId: "visitor-1",
+					senderName: null,
+					timestamp: "2026-03-04T10:00:00.000Z",
+					visibility: "public",
+					segment: "before_trigger",
+				},
+				{
+					messageId: "msg-2",
+					content: "Following up",
+					senderType: "visitor",
+					senderId: "visitor-1",
+					senderName: null,
+					timestamp: "2026-03-04T10:00:01.000Z",
+					visibility: "public",
+					segment: "trigger",
+				},
+				{
+					kind: "tool",
+					itemId: "tool-1",
+					toolName: "searchKnowledgeBase",
+					content:
+						'[PRIVATE][TOOL:searchKnowledgeBase] Found 1 relevant source query="follow up"',
+					timestamp: "2026-03-04T10:00:01.500Z",
+					visibility: "private",
+					segment: "after_trigger",
+				},
+				{
+					messageId: "msg-3",
+					content: "I already answered this publicly.",
+					senderType: "human_agent",
+					senderId: "user-1",
+					senderName: "Support Agent",
+					timestamp: "2026-03-04T10:00:02.000Z",
+					visibility: "public",
+					segment: "after_trigger",
+				},
+			],
+			triggerMessage: {
 				messageId: "msg-2",
 				content: "Following up",
 				senderType: "visitor",
@@ -81,20 +171,16 @@ describe("loadIntakeContext continuation context", () => {
 				timestamp: "2026-03-04T10:00:01.000Z",
 				visibility: "public",
 			},
-		]);
-		getPublicAiMessagesAfterCursorMock.mockResolvedValue([
-			{
-				id: "ai-msg-1",
-				text: "Here is the answer to your first question.",
-				createdAt: "2026-03-04T10:00:02.000Z",
-			},
-		]);
+			hasLaterHumanMessage: true,
+			hasLaterAiMessage: false,
+		});
+		getCompleteVisitorWithContactMock.mockResolvedValue(null);
 		whereMock.mockResolvedValue([]);
 		fromMock.mockImplementation((_table: unknown) => ({ where: whereMock }));
 		selectMock.mockImplementation((_fields: unknown) => ({ from: fromMock }));
 	});
 
-	it("loads the previous AI reply after the last processed inbound cursor even when it was created after the trigger timestamp", async () => {
+	it("loads trigger-centered context with later-message awareness", async () => {
 		const { loadIntakeContext } = await modulePromise;
 
 		const result = await loadIntakeContext(
@@ -111,8 +197,6 @@ describe("loadIntakeContext continuation context", () => {
 					organizationId: "org-1",
 					websiteId: "site-1",
 					visitorId: "visitor-1",
-					aiAgentLastProcessedMessageId: "msg-1",
-					aiAgentLastProcessedMessageCreatedAt: "2026-03-04T10:00:00.000Z",
 					escalatedAt: null,
 					escalationHandledAt: null,
 					escalationReason: null,
@@ -126,29 +210,21 @@ describe("loadIntakeContext continuation context", () => {
 			}
 		);
 
-		expect(buildConversationTranscriptMock).toHaveBeenCalledWith(
-			expect.anything(),
-			expect.objectContaining({
-				maxCreatedAt: "2026-03-04T10:00:01.000Z",
-				maxId: "msg-2",
-			})
-		);
-		expect(getPublicAiMessagesAfterCursorMock).toHaveBeenCalledWith(
+		expect(buildTriggerCenteredTimelineContextMock).toHaveBeenCalledWith(
 			expect.anything(),
 			{
 				conversationId: "conv-1",
 				organizationId: "org-1",
-				afterCreatedAt: "2026-03-04T10:00:00.000Z",
-				afterId: "msg-1",
-				limit: 10,
+				websiteId: "site-1",
+				triggerMessageId: "msg-2",
+				triggerMessageCreatedAt: "2026-03-04T10:00:01.000Z",
 			}
 		);
-		expect(result.continuationContext).toEqual({
-			previousProcessedMessageId: "msg-1",
-			previousProcessedMessageCreatedAt: "2026-03-04T10:00:00.000Z",
-			latestAiReply: "Here is the answer to your first question.",
-		});
 		expect(result.triggerMessage?.messageId).toBe("msg-2");
 		expect(result.triggerMessageText).toBe("Following up");
+		expect(result.decisionMessages).toHaveLength(3);
+		expect(result.generationEntries).toHaveLength(4);
+		expect(result.hasLaterHumanMessage).toBe(true);
+		expect(result.hasLaterAiMessage).toBe(false);
 	});
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { buildGenerationMessages } from "./format-history";
 
 describe("buildGenerationMessages", () => {
-	it("maps transcript entries to AI SDK-native roles and lightweight tags", () => {
+	it("maps segmented timeline entries to AI SDK-native roles with stable headers", () => {
 		const messages = buildGenerationMessages([
 			{
 				messageId: "msg-1",
@@ -12,6 +12,7 @@ describe("buildGenerationMessages", () => {
 				senderName: null,
 				timestamp: "2026-03-08T10:00:00.000Z",
 				visibility: "public",
+				segment: "before_trigger",
 			},
 			{
 				messageId: "msg-2",
@@ -21,6 +22,7 @@ describe("buildGenerationMessages", () => {
 				senderName: "Teammate",
 				timestamp: "2026-03-08T10:01:00.000Z",
 				visibility: "private",
+				segment: "trigger",
 			},
 			{
 				kind: "tool",
@@ -30,6 +32,7 @@ describe("buildGenerationMessages", () => {
 					'[PRIVATE][TOOL:searchKnowledgeBase] Found 2 relevant sources query="billing"',
 				timestamp: "2026-03-08T10:01:30.000Z",
 				visibility: "private",
+				segment: "after_trigger",
 			},
 			{
 				messageId: "msg-3",
@@ -39,6 +42,7 @@ describe("buildGenerationMessages", () => {
 				senderName: null,
 				timestamp: "2026-03-08T10:02:00.000Z",
 				visibility: "public",
+				segment: "after_trigger",
 			},
 			{
 				messageId: "msg-4",
@@ -48,22 +52,32 @@ describe("buildGenerationMessages", () => {
 				senderName: null,
 				timestamp: "2026-03-08T10:03:00.000Z",
 				visibility: "private",
+				segment: "after_trigger",
 			},
 		]);
 
 		expect(messages).toEqual([
-			{ role: "user", content: "[VISITOR] I need help" },
 			{
 				role: "user",
-				content: "[PRIVATE][TEAM] Can you check their billing issue?",
+				content: "[BEFORE][VISITOR][PUBLIC] I need help",
+			},
+			{
+				role: "user",
+				content: "[TRIGGER][TEAM][PRIVATE] Can you check their billing issue?",
 			},
 			{
 				role: "assistant",
 				content:
-					'[PRIVATE][TOOL:searchKnowledgeBase] Found 2 relevant sources query="billing"',
+					'[AFTER][TOOL:searchKnowledgeBase][PRIVATE] [PRIVATE][TOOL:searchKnowledgeBase] Found 2 relevant sources query="billing"',
 			},
-			{ role: "assistant", content: "I checked billing for you." },
-			{ role: "assistant", content: "[PRIVATE] Internal handoff note" },
+			{
+				role: "assistant",
+				content: "[AFTER][AI][PUBLIC] I checked billing for you.",
+			},
+			{
+				role: "assistant",
+				content: "[AFTER][AI][PRIVATE] Internal handoff note",
+			},
 		]);
 	});
 });

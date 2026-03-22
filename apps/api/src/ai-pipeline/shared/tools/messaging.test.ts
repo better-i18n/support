@@ -81,6 +81,7 @@ function createContext(): PipelineToolContext {
 		mode: "respond_to_visitor",
 		isEscalated: false,
 		canCategorize: false,
+		canRequestKnowledgeClarification: true,
 		availableViews: [],
 		runtimeState: {
 			finalAction: null,
@@ -91,6 +92,7 @@ function createContext(): PipelineToolContext {
 			chargeableToolCallCounts: {},
 			mutationToolCallCounts: {},
 			toolExecutions: [],
+			immediateKnowledgeGapClarificationHandled: false,
 			publicSendSequence: 0,
 			privateSendSequence: 0,
 			sentPublicMessageIds: new Set<string>(),

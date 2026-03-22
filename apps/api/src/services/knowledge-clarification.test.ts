@@ -30,6 +30,16 @@ const generateTextMock = mock((async () => ({
 	output: null,
 	usage: undefined,
 })) as (...args: unknown[]) => Promise<unknown>);
+const streamTextMock = mock((options: unknown) => {
+	const resultPromise = Promise.resolve(generateTextMock(options)).then(
+		(result) => result as { output?: unknown; usage?: unknown }
+	);
+
+	return {
+		output: resultPromise.then((result) => result.output ?? null),
+		totalUsage: resultPromise.then((result) => result.usage),
+	};
+});
 const outputObjectMock = mock((value: unknown) => value);
 class RetryableMockError extends Error {
 	static isInstance(error: unknown): error is RetryableMockError {
@@ -44,8 +54,8 @@ class NoOutputGeneratedErrorMock extends RetryableMockError {}
 class NoSuchModelErrorMock extends RetryableMockError {}
 const resolveClarificationModelForExecutionMock = mock((modelId: string) => ({
 	modelIdOriginal: modelId,
-	modelIdResolved: "moonshotai/kimi-k2.5",
-	modelMigrationApplied: modelId !== "moonshotai/kimi-k2.5",
+	modelIdResolved: "google/gemini-3-flash-preview",
+	modelMigrationApplied: modelId !== "google/gemini-3-flash-preview",
 }));
 const realtimeEmitMock = mock(async () => {});
 const trackGenerationUsageMock = mock(async () => ({
@@ -130,6 +140,7 @@ mock.module("@api/lib/ai", () => ({
 	Output: {
 		object: outputObjectMock,
 	},
+	streamText: streamTextMock,
 }));
 
 mock.module("@api/lib/ai-credits/config", () => ({
@@ -345,6 +356,7 @@ describe("knowledge clarification usage tracking", () => {
 		updateKnowledgeMock.mockReset();
 		createStructuredOutputModelMock.mockReset();
 		generateTextMock.mockReset();
+		streamTextMock.mockReset();
 		outputObjectMock.mockReset();
 		resolveClarificationModelForExecutionMock.mockReset();
 		realtimeEmitMock.mockReset();
@@ -363,12 +375,22 @@ describe("knowledge clarification usage tracking", () => {
 		createStructuredOutputModelMock.mockImplementation((modelId: string) => ({
 			modelId,
 		}));
+		streamTextMock.mockImplementation((options: unknown) => {
+			const resultPromise = Promise.resolve(generateTextMock(options)).then(
+				(result) => result as { output?: unknown; usage?: unknown }
+			);
+
+			return {
+				output: resultPromise.then((result) => result.output ?? null),
+				totalUsage: resultPromise.then((result) => result.usage),
+			};
+		});
 		outputObjectMock.mockImplementation((value: unknown) => value);
 		resolveClarificationModelForExecutionMock.mockImplementation(
 			(modelId: string) => ({
 				modelIdOriginal: modelId,
-				modelIdResolved: "moonshotai/kimi-k2.5",
-				modelMigrationApplied: modelId !== "moonshotai/kimi-k2.5",
+				modelIdResolved: "google/gemini-3-flash-preview",
+				modelMigrationApplied: modelId !== "google/gemini-3-flash-preview",
 			})
 		);
 		trackGenerationUsageMock.mockResolvedValue({
@@ -595,6 +617,7 @@ describe("knowledge clarification usage tracking", () => {
 						question: null,
 						stepIndex: 1,
 						maxSteps: 3,
+						progress: null,
 						updatedAt: "2026-03-13T10:00:00.000Z",
 					},
 				},
@@ -608,6 +631,11 @@ describe("knowledge clarification usage tracking", () => {
 			status: "analyzing",
 			stepIndex: 0,
 		});
+		const progressReporterMock = mock((async () => {}) as (
+			...args: unknown[]
+		) => Promise<void>);
+		const consoleInfoMock = mock(() => {});
+		const originalConsoleInfo = console.info;
 		const nextQuestionTurn = createTurn({
 			question: "How does billing timing work today?",
 			suggestedAnswers: [
@@ -649,40 +677,79 @@ describe("knowledge clarification usage tracking", () => {
 			})
 		);
 
-		const step = await runKnowledgeClarificationStep({
-			db: {} as never,
-			request,
-			aiAgent: createAiAgent(),
-			conversation: createConversation(),
-		});
+		console.info = consoleInfoMock as typeof console.info;
 
-		const usageCall = trackGenerationUsageMock.mock.calls[0] as unknown as
-			| [Record<string, unknown>]
-			| undefined;
+		try {
+			const step = await runKnowledgeClarificationStep({
+				db: {} as never,
+				request,
+				aiAgent: createAiAgent(),
+				conversation: createConversation(),
+				progressReporter: progressReporterMock,
+			});
 
-		expect(step.kind).toBe("question");
-		expect(step).toMatchObject({
-			inputMode: "textarea_first",
-			questionScope: "broad_discovery",
-		});
-		expect(trackGenerationUsageMock).toHaveBeenCalledTimes(1);
-		expect(usageCall?.[0]).toMatchObject({
-			conversationId: "conv_1",
-			visitorId: "visitor_1",
-			aiAgentId: "agent_1",
-			usageEventId: "usage_evt_1",
-			triggerMessageId: "clar_req_1",
-			source: "knowledge_clarification",
-			phase: "clarification_question",
-			knowledgeClarificationRequestId: "clar_req_1",
-			knowledgeClarificationStepIndex: 1,
-		});
-		expect(resolveClarificationModelForExecutionMock).toHaveBeenCalledWith(
-			"moonshotai/kimi-k2-0905"
-		);
-		expect(createStructuredOutputModelMock).toHaveBeenCalledWith(
-			"moonshotai/kimi-k2.5"
-		);
+			const usageCall = trackGenerationUsageMock.mock.calls[0] as unknown as
+				| [Record<string, unknown>]
+				| undefined;
+
+			expect(step.kind).toBe("question");
+			expect(step).toMatchObject({
+				inputMode: "textarea_first",
+				questionScope: "broad_discovery",
+			});
+			expect(trackGenerationUsageMock).toHaveBeenCalledTimes(1);
+			expect(usageCall?.[0]).toMatchObject({
+				conversationId: "conv_1",
+				visitorId: "visitor_1",
+				aiAgentId: "agent_1",
+				usageEventId: "usage_evt_1",
+				triggerMessageId: "clar_req_1",
+				source: "knowledge_clarification",
+				phase: "clarification_question",
+				knowledgeClarificationRequestId: "clar_req_1",
+				knowledgeClarificationStepIndex: 1,
+			});
+			expect(resolveClarificationModelForExecutionMock).toHaveBeenCalledWith(
+				"moonshotai/kimi-k2-0905"
+			);
+			expect(createStructuredOutputModelMock).toHaveBeenCalledWith(
+				"google/gemini-3-flash-preview"
+			);
+			expect(
+				progressReporterMock.mock.calls.map(
+					(call) =>
+						(
+							call[0] as {
+								phase?: string;
+							}
+						).phase
+				)
+			).toEqual([
+				"loading_context",
+				"reviewing_evidence",
+				"generating_question",
+				"finalizing_step",
+			]);
+			expect(progressReporterMock.mock.calls[3]?.[0]).toMatchObject({
+				phase: "finalizing_step",
+				label: "Finalizing...",
+			});
+			expect(consoleInfoMock).toHaveBeenCalledWith(
+				"[KnowledgeClarification] Step timing",
+				expect.objectContaining({
+					requestId: "clar_req_1",
+					contextMs: expect.any(Number),
+					modelMs: expect.any(Number),
+					fallbackMs: expect.any(Number),
+					totalMs: expect.any(Number),
+					attemptCount: 1,
+					endedKind: "question",
+					toolName: null,
+				})
+			);
+		} finally {
+			console.info = originalConsoleInfo;
+		}
 	});
 
 	it("uses a root object schema with required nullable branch fields", async () => {
@@ -777,6 +844,9 @@ describe("knowledge clarification usage tracking", () => {
 			status: "analyzing",
 			stepIndex: 0,
 		});
+		const progressReporterMock = mock((async () => {}) as (
+			...args: unknown[]
+		) => Promise<void>);
 		const nextQuestionTurn = createTurn({
 			question: "How does billing timing work today?",
 			suggestedAnswers: [
@@ -826,12 +896,18 @@ describe("knowledge clarification usage tracking", () => {
 			request,
 			aiAgent: createAiAgent(),
 			conversation: createConversation(),
+			progressReporter: progressReporterMock,
 		});
 
 		expect(step.kind).toBe("question");
 		expect(
 			createStructuredOutputModelMock.mock.calls.map((call) => call[0])
-		).toEqual(["moonshotai/kimi-k2.5", "google/gemini-3-flash-preview"]);
+		).toEqual(["google/gemini-3-flash-preview", "openai/gpt-5-mini"]);
+		expect(progressReporterMock.mock.calls[3]?.[0]).toMatchObject({
+			phase: "retrying_generation",
+			label: "Retrying generation...",
+			attempt: 2,
+		});
 	});
 
 	it("stores exhausted provider failures as retry-required requests instead of throwing", async () => {
@@ -1707,7 +1783,7 @@ describe("knowledge clarification usage tracking", () => {
 			"legacy/unknown-model"
 		);
 		expect(createStructuredOutputModelMock).toHaveBeenCalledWith(
-			"moonshotai/kimi-k2.5"
+			"google/gemini-3-flash-preview"
 		);
 	});
 
@@ -1718,6 +1794,9 @@ describe("knowledge clarification usage tracking", () => {
 			stepIndex: 3,
 			maxSteps: 3,
 		});
+		const progressReporterMock = mock((async () => {}) as (
+			...args: unknown[]
+		) => Promise<void>);
 
 		listKnowledgeClarificationTurnsMock.mockResolvedValue([
 			createTurn({ id: "turn_1", question: "Question 1?" }),
@@ -1779,6 +1858,7 @@ describe("knowledge clarification usage tracking", () => {
 			request,
 			aiAgent: createAiAgent(),
 			conversation: createConversation(),
+			progressReporter: progressReporterMock,
 		});
 
 		const promptCall = generateTextMock.mock.calls[0] as
@@ -1787,6 +1867,21 @@ describe("knowledge clarification usage tracking", () => {
 
 		expect(step.kind).toBe("draft_ready");
 		expect(promptCall?.[0]?.prompt).toContain("Return draft_ready now.");
+		expect(
+			progressReporterMock.mock.calls.map(
+				(call) =>
+					(
+						call[0] as {
+							phase?: string;
+						}
+					).phase
+			)
+		).toEqual([
+			"loading_context",
+			"reviewing_evidence",
+			"generating_draft",
+			"finalizing_step",
+		]);
 	});
 
 	it("stores linked FAQ context when deepening an existing FAQ", async () => {

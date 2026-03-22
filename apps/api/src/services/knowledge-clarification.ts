@@ -25,12 +25,12 @@ import {
 	APICallError,
 	createStructuredOutputModel,
 	EmptyResponseBodyError,
-	generateText,
 	NoContentGeneratedError,
 	NoObjectGeneratedError,
 	NoOutputGeneratedError,
 	NoSuchModelError,
 	Output,
+	streamText,
 } from "@api/lib/ai";
 import { resolveClarificationModelForExecution } from "@api/lib/ai-credits/config";
 import {
@@ -57,6 +57,8 @@ import {
 } from "@api/utils/knowledge-clarification-summary";
 import { createTimelineItem } from "@api/utils/timeline-item";
 import {
+	type ConversationClarificationProgress,
+	type ConversationClarificationProgressPhase,
 	ConversationTimelineType,
 	type KnowledgeClarificationDraftFaq,
 	type KnowledgeClarificationQuestionInputMode,
@@ -155,6 +157,7 @@ type RunKnowledgeClarificationStepParams = {
 	aiAgent: AiAgentSelect;
 	conversation?: ConversationSelect | null;
 	targetKnowledge?: KnowledgeSelect | null;
+	progressReporter?: ClarificationProgressReporter;
 };
 
 type ClarificationUsagePhase =
@@ -174,11 +177,26 @@ type ClarificationGenerationResult = {
 				totalTokens?: number;
 		  }
 		| undefined;
+	metrics: ClarificationGenerationMetrics;
 };
 
 type ClarificationRetryRequiredResult = {
 	kind: "retry_required";
 	lastError: string;
+	metrics: ClarificationGenerationMetrics;
+};
+
+type ClarificationProgressReporter = (
+	progress: ConversationClarificationProgress
+) => Promise<void>;
+
+type ClarificationGenerationMetrics = {
+	contextMs: number;
+	modelMs: number;
+	fallbackMs: number;
+	attemptCount: number;
+	endedKind: "question" | "draft_ready" | "retry_required";
+	toolName: string | null;
 };
 
 type ClarificationQuestionStrategy = {
@@ -199,10 +217,79 @@ type ConversationClarificationStartResult = {
 };
 
 const CLARIFICATION_FALLBACK_MODEL_IDS = [
-	"moonshotai/kimi-k2.5",
 	"google/gemini-3-flash-preview",
 	"openai/gpt-5-mini",
+	"moonshotai/kimi-k2.5",
 ] as const;
+
+function createClarificationGenerationMetrics(
+	overrides: Partial<ClarificationGenerationMetrics> = {}
+): ClarificationGenerationMetrics {
+	return {
+		contextMs: 0,
+		modelMs: 0,
+		fallbackMs: 0,
+		attemptCount: 0,
+		endedKind: "retry_required",
+		toolName: null,
+		...overrides,
+	};
+}
+
+function sanitizeClarificationProgressToolName(
+	toolName: string | null | undefined
+): string | null {
+	if (!toolName) {
+		return null;
+	}
+
+	const normalizedToolName = toolName
+		.trim()
+		.replace(/[^A-Za-z0-9:_-]/g, "")
+		.slice(0, 80);
+
+	return normalizedToolName.length > 0 ? normalizedToolName : null;
+}
+
+function createClarificationProgress(params: {
+	phase: ConversationClarificationProgressPhase;
+	label: string;
+	detail?: string | null;
+	attempt?: number | null;
+	toolName?: string | null;
+}): ConversationClarificationProgress {
+	return {
+		phase: params.phase,
+		label: params.label,
+		detail: params.detail ?? null,
+		attempt: params.attempt ?? null,
+		toolName: sanitizeClarificationProgressToolName(params.toolName),
+		startedAt: new Date().toISOString(),
+	};
+}
+
+async function reportClarificationProgress(
+	reporter: ClarificationProgressReporter | undefined,
+	progress: ConversationClarificationProgress
+): Promise<void> {
+	await reporter?.(progress);
+}
+
+function logClarificationGenerationTiming(params: {
+	requestId: string;
+	modelIdOriginal: string;
+	modelIdResolved: string;
+	modelMigrationApplied: boolean;
+	contextMs: number;
+	modelMs: number;
+	fallbackMs: number;
+	totalMs: number;
+	attemptCount: number;
+	endedKind: ClarificationGenerationMetrics["endedKind"];
+	toolName: string | null;
+}): void {
+	console.info("[KnowledgeClarification] Step timing", params);
+}
 
 function isTerminalClarificationStatus(
 	status: KnowledgeClarificationStatus
@@ -594,6 +681,7 @@ export async function emitConversationClarificationUpdate(params: {
 		| null;
 	aiAgentId: string | null;
 	turns?: KnowledgeClarificationTurnSelect[];
+	progress?: ConversationClarificationProgress | null;
 }): Promise<void> {
 	if (!params.conversation) {
 		return;
@@ -617,6 +705,7 @@ export async function emitConversationClarificationUpdate(params: {
 				? buildConversationClarificationSummary({
 						request: params.request,
 						turns,
+						progress: params.progress ?? null,
 					})
 				: null,
 		},
@@ -764,14 +853,16 @@ async function callClarificationModel(params: {
 				totalTokens?: number;
 		  }
 		| undefined;
+	toolName: string | null;
 }> {
 	const packet = buildClarificationRelevancePacket({
 		topicSummary: params.request.topicSummary,
 		contextSnapshot: params.contextSnapshot,
 		turns: params.turns,
 	});
+	let toolName: string | null = null;
 
-	const result = await generateText({
+	const result = streamText({
 		model: createStructuredOutputModel(params.modelId),
 		output: Output.object({
 			schema: clarificationModelOutputSchema,
@@ -880,15 +971,30 @@ Rules:
 		].join("\n\n"),
 		temperature: params.aiAgent.temperature ?? 0.4,
 		maxOutputTokens: Math.min(params.aiAgent.maxOutputTokens ?? 1200, 1200),
+		onChunk: async ({ chunk }) => {
+			if (
+				"toolName" in chunk &&
+				typeof chunk.toolName === "string" &&
+				toolName === null
+			) {
+				toolName = sanitizeClarificationProgressToolName(chunk.toolName);
+			}
+		},
 	});
 
-	if (!result.output) {
+	const [output, providerUsage] = await Promise.all([
+		result.output,
+		result.totalUsage,
+	]);
+
+	if (!output) {
 		throw new NoOutputGeneratedError();
 	}
 
 	return {
-		output: result.output,
-		providerUsage: result.usage,
+		output,
+		providerUsage,
+		toolName,
 	};
 }
 
@@ -974,6 +1080,7 @@ async function callClarificationModelWithFallback(params: {
 	expectedQuestionStrategy: ClarificationQuestionStrategy;
 	forceDraft: boolean;
 	forceDraftReason?: string | null;
+	progressReporter?: ClarificationProgressReporter;
 }): Promise<
 	| {
 			kind: "success";
@@ -986,15 +1093,26 @@ async function callClarificationModelWithFallback(params: {
 						totalTokens?: number;
 				  }
 				| undefined;
+			attemptCount: number;
+			toolName: string | null;
 	  }
-	| ClarificationRetryRequiredResult
+	| {
+			kind: "retry_required";
+			lastError: string;
+			attemptCount: number;
+			toolName: string | null;
+	  }
 > {
 	const candidateModelIds = buildClarificationFallbackModelSequence(
 		params.aiAgent.model
 	);
 	let lastRetryableError: unknown = null;
+	let attemptCount = 0;
+	const lastToolName: string | null = null;
 
 	for (const [index, modelId] of candidateModelIds.entries()) {
+		attemptCount = index + 1;
+
 		try {
 			const result = await callClarificationModel({
 				request: params.request,
@@ -1012,6 +1130,8 @@ async function callClarificationModelWithFallback(params: {
 				modelId,
 				output: result.output,
 				providerUsage: result.providerUsage,
+				attemptCount,
+				toolName: result.toolName,
 			};
 		} catch (error) {
 			if (!isRetryableClarificationGenerationError(error)) {
@@ -1025,12 +1145,26 @@ async function callClarificationModelWithFallback(params: {
 				attempt: index + 1,
 				error,
 			});
+
+			if (index < candidateModelIds.length - 1) {
+				await reportClarificationProgress(
+					params.progressReporter,
+					createClarificationProgress({
+						phase: "retrying_generation",
+						label: "Retrying generation...",
+						attempt: index + 2,
+						toolName: lastToolName,
+					})
+				);
+			}
 		}
 	}
 
 	return {
 		kind: "retry_required",
 		lastError: formatClarificationRetryErrorMessage(lastRetryableError),
+		attemptCount,
+		toolName: lastToolName,
 	};
 }
 
@@ -1041,6 +1175,7 @@ async function generateClarificationOutput(params: {
 	conversation?: ConversationSelect | null;
 	targetKnowledge?: KnowledgeSelect | null;
 	turns: KnowledgeClarificationTurnSelect[];
+	progressReporter?: ClarificationProgressReporter;
 }): Promise<ClarificationGenerationResult | ClarificationRetryRequiredResult> {
 	const aiQuestionCount = getAiQuestionCount(params.turns);
 	const forceDraft = aiQuestionCount >= params.request.maxSteps;
@@ -1048,13 +1183,41 @@ async function generateClarificationOutput(params: {
 		request: params.request,
 		turns: params.turns,
 	});
+	const metrics = createClarificationGenerationMetrics();
+
+	await reportClarificationProgress(
+		params.progressReporter,
+		createClarificationProgress({
+			phase: "loading_context",
+			label: "Loading context...",
+		})
+	);
+	const contextStartedAt = Date.now();
 	const contextSnapshot = await buildResolvedContextSnapshot({
 		db: params.db,
 		request: params.request,
 		conversation: params.conversation ?? null,
 		targetKnowledge: params.targetKnowledge ?? null,
 	});
+	metrics.contextMs = Date.now() - contextStartedAt;
 
+	await reportClarificationProgress(
+		params.progressReporter,
+		createClarificationProgress({
+			phase: "reviewing_evidence",
+			label: "Reviewing evidence...",
+		})
+	);
+
+	await reportClarificationProgress(
+		params.progressReporter,
+		createClarificationProgress({
+			phase: forceDraft ? "generating_draft" : "generating_question",
+			label: forceDraft ? "Generating draft..." : "Generating next question...",
+		})
+	);
+
+	const firstPassStartedAt = Date.now();
 	const firstPass = await callClarificationModelWithFallback({
 		request: params.request,
 		aiAgent: params.aiAgent,
@@ -1062,9 +1225,20 @@ async function generateClarificationOutput(params: {
 		turns: params.turns,
 		expectedQuestionStrategy,
 		forceDraft,
+		progressReporter: params.progressReporter,
 	});
+	metrics.modelMs = Date.now() - firstPassStartedAt;
+	metrics.attemptCount += firstPass.attemptCount;
+	metrics.toolName = firstPass.toolName;
 	if (firstPass.kind === "retry_required") {
-		return firstPass;
+		return {
+			kind: "retry_required",
+			lastError: firstPass.lastError,
+			metrics: {
+				...metrics,
+				endedKind: "retry_required",
+			},
+		};
 	}
 
 	const firstPassOutput = firstPass.output;
@@ -1124,6 +1298,15 @@ async function generateClarificationOutput(params: {
 		if (sanitizedQuestionOutput) {
 			output = sanitizedQuestionOutput;
 		} else {
+			await reportClarificationProgress(
+				params.progressReporter,
+				createClarificationProgress({
+					phase: "generating_draft",
+					label: "Generating draft...",
+					toolName: metrics.toolName,
+				})
+			);
+			const fallbackStartedAt = Date.now();
 			const fallbackDraft = await callClarificationModelWithFallback({
 				request: {
 					...params.request,
@@ -1143,9 +1326,20 @@ async function generateClarificationOutput(params: {
 				forceDraftReason:
 					fallbackDraftReason ??
 					"The clarification question could not be validated.",
+				progressReporter: params.progressReporter,
 			});
+			metrics.fallbackMs = Date.now() - fallbackStartedAt;
+			metrics.attemptCount += fallbackDraft.attemptCount;
+			metrics.toolName = fallbackDraft.toolName ?? metrics.toolName;
 			if (fallbackDraft.kind === "retry_required") {
-				return fallbackDraft;
+				return {
+					kind: "retry_required",
+					lastError: fallbackDraft.lastError,
+					metrics: {
+						...metrics,
+						endedKind: "retry_required",
+					},
+				};
 			}
 
 			output = normalizeClarificationDraftOutput(fallbackDraft.output);
@@ -1166,6 +1360,10 @@ async function generateClarificationOutput(params: {
 		modelIdOriginal: params.aiAgent.model,
 		modelMigrationApplied: params.aiAgent.model !== successfulModelId,
 		providerUsage,
+		metrics: {
+			...metrics,
+			endedKind: output.kind,
+		},
 	};
 }
 
@@ -1200,6 +1398,7 @@ async function trackKnowledgeClarificationUsage(params: {
 export async function runKnowledgeClarificationStep(
 	params: RunKnowledgeClarificationStepParams
 ): Promise<KnowledgeClarificationStepResponse> {
+	const totalStartedAt = Date.now();
 	const turns = await listKnowledgeClarificationTurns(params.db, {
 		requestId: params.request.id,
 	});
@@ -1211,9 +1410,21 @@ export async function runKnowledgeClarificationStep(
 		conversation: params.conversation ?? null,
 		targetKnowledge: params.targetKnowledge ?? null,
 		turns,
+		progressReporter: params.progressReporter,
 	});
+	const fallbackResolution = resolveClarificationModelForExecution(
+		params.aiAgent.model
+	);
 
 	if (generation.kind === "retry_required") {
+		await reportClarificationProgress(
+			params.progressReporter,
+			createClarificationProgress({
+				phase: "finalizing_step",
+				label: "Finalizing...",
+				toolName: generation.metrics.toolName,
+			})
+		);
 		const updatedRequest = await updateKnowledgeClarificationRequest(
 			params.db,
 			{
@@ -1234,6 +1445,19 @@ export async function runKnowledgeClarificationStep(
 		if (!step || step.kind !== "retry_required") {
 			throw new Error("Clarification retry step could not be created.");
 		}
+		logClarificationGenerationTiming({
+			requestId: params.request.id,
+			modelIdOriginal: params.aiAgent.model,
+			modelIdResolved: fallbackResolution.modelIdResolved,
+			modelMigrationApplied: fallbackResolution.modelMigrationApplied,
+			contextMs: generation.metrics.contextMs,
+			modelMs: generation.metrics.modelMs,
+			fallbackMs: generation.metrics.fallbackMs,
+			totalMs: Date.now() - totalStartedAt,
+			attemptCount: generation.metrics.attemptCount,
+			endedKind: generation.metrics.endedKind,
+			toolName: generation.metrics.toolName,
+		});
 		return step;
 	}
 
@@ -1255,6 +1479,14 @@ export async function runKnowledgeClarificationStep(
 			question: output.question.trim(),
 			suggestedAnswers: output.suggestedAnswers,
 		});
+		await reportClarificationProgress(
+			params.progressReporter,
+			createClarificationProgress({
+				phase: "finalizing_step",
+				label: "Finalizing...",
+				toolName: generation.metrics.toolName,
+			})
+		);
 
 		const updatedRequest = await updateKnowledgeClarificationRequest(
 			params.db,
@@ -1284,6 +1516,19 @@ export async function runKnowledgeClarificationStep(
 		if (!step) {
 			throw new Error("Clarification question step could not be created.");
 		}
+		logClarificationGenerationTiming({
+			requestId: params.request.id,
+			modelIdOriginal: generation.modelIdOriginal ?? params.aiAgent.model,
+			modelIdResolved: generation.modelId,
+			modelMigrationApplied: generation.modelMigrationApplied ?? false,
+			contextMs: generation.metrics.contextMs,
+			modelMs: generation.metrics.modelMs,
+			fallbackMs: generation.metrics.fallbackMs,
+			totalMs: Date.now() - totalStartedAt,
+			attemptCount: generation.metrics.attemptCount,
+			endedKind: generation.metrics.endedKind,
+			toolName: generation.metrics.toolName,
+		});
 		return step;
 	}
 
@@ -1296,6 +1541,14 @@ export async function runKnowledgeClarificationStep(
 		phase: "faq_draft_generation",
 		stepIndex: params.request.stepIndex,
 	});
+	await reportClarificationProgress(
+		params.progressReporter,
+		createClarificationProgress({
+			phase: "finalizing_step",
+			label: "Finalizing...",
+			toolName: generation.metrics.toolName,
+		})
+	);
 	const updatedRequest = await updateKnowledgeClarificationRequest(params.db, {
 		requestId: params.request.id,
 		updates: {
@@ -1317,6 +1570,19 @@ export async function runKnowledgeClarificationStep(
 	if (!step) {
 		throw new Error("Clarification draft step could not be created.");
 	}
+	logClarificationGenerationTiming({
+		requestId: params.request.id,
+		modelIdOriginal: generation.modelIdOriginal ?? params.aiAgent.model,
+		modelIdResolved: generation.modelId,
+		modelMigrationApplied: generation.modelMigrationApplied ?? false,
+		contextMs: generation.metrics.contextMs,
+		modelMs: generation.metrics.modelMs,
+		fallbackMs: generation.metrics.fallbackMs,
+		totalMs: Date.now() - totalStartedAt,
+		attemptCount: generation.metrics.attemptCount,
+		endedKind: generation.metrics.endedKind,
+		toolName: generation.metrics.toolName,
+	});
 	return step;
 }
 

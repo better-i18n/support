@@ -156,6 +156,7 @@ describe("buildFakeSmartOrderedList", () => {
 				question: "Do invoice credits carry over after a downgrade?",
 				stepIndex: 2,
 				maxSteps: 5,
+				progress: null,
 				updatedAt: new Date().toISOString(),
 			},
 			lastTimelineItem: {

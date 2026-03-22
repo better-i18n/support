@@ -3,10 +3,8 @@ import type { AiAgentSelect } from "@api/db/schema/ai-agent";
 import type { ConversationSelect } from "@api/db/schema/conversation";
 import type { AiAgentToolId } from "@cossistant/types";
 import type {
-	ContinuationContext,
 	ConversationState,
-	ConversationTranscriptEntry,
-	RoleAwareMessage,
+	SegmentedConversationEntry,
 	VisitorContext,
 } from "../../primary-pipeline/contracts";
 import type {
@@ -53,16 +51,18 @@ export type GenerationRuntimeInput = {
 	mode: GenerationMode;
 	aiAgent: AiAgentSelect;
 	conversation: ConversationSelect;
-	conversationHistory: ConversationTranscriptEntry[];
+	generationEntries: SegmentedConversationEntry[];
 	visitorContext: VisitorContext | null;
 	conversationState: ConversationState;
-	continuationContext?: ContinuationContext | null;
 	humanCommand: string | null;
 	workflowRunId: string;
 	triggerMessageId: string;
+	triggerMessageText?: string | null;
 	triggerMessageCreatedAt?: string;
 	triggerSenderType?: "visitor" | "human_agent" | "ai_agent";
 	triggerVisibility?: "public" | "private";
+	hasLaterHumanMessage?: boolean;
+	hasLaterAiMessage?: boolean;
 	allowPublicMessages: boolean;
 	availableViews?: PipelineAvailableView[];
 	stopTyping?: () => Promise<void>;

@@ -2,7 +2,6 @@ import type { Database } from "@api/db";
 import { getAiAgentById } from "@api/db/queries/ai-agent";
 import { logAiPipeline } from "../../../logger";
 import type { PrimaryPipelineInput } from "../../contracts";
-import { isConversationMessage } from "../../contracts";
 import { loadConversationSeed, loadIntakeContext } from "./load-context";
 import { resolveAndPersistModel } from "./model-resolution";
 import type { IntakeStepResult } from "./types";
@@ -85,11 +84,15 @@ export async function runIntakeStep(params: {
 		event: "ready",
 		conversationId: params.input.conversationId,
 		fields: {
-			messages: context.conversationHistory.filter(isConversationMessage)
-				.length,
-			transcriptEntries: context.conversationHistory.length,
+			messages: context.generationEntries.filter(
+				(entry) => !("kind" in entry && entry.kind === "tool")
+			).length,
+			transcriptEntries: context.generationEntries.length,
+			decisionMessages: context.decisionMessages.length,
 			hasVisitor: Boolean(context.visitorContext),
 			triggerSender: context.triggerMessage?.senderType ?? "unknown",
+			hasLaterHumanMessage: context.hasLaterHumanMessage,
+			hasLaterAiMessage: context.hasLaterAiMessage,
 			modelOriginal: modelResolution.modelIdOriginal,
 			model: modelResolution.modelIdResolved,
 			migration: modelResolution.modelMigrationApplied,
@@ -103,11 +106,14 @@ export async function runIntakeStep(params: {
 			modelResolution,
 			conversation,
 			conversationHistory: context.conversationHistory,
+			decisionMessages: context.decisionMessages,
+			generationEntries: context.generationEntries,
 			visitorContext: context.visitorContext,
 			conversationState: context.conversationState,
 			triggerMessage: context.triggerMessage,
 			triggerMessageText: context.triggerMessageText,
-			continuationContext: context.continuationContext,
+			hasLaterHumanMessage: context.hasLaterHumanMessage,
+			hasLaterAiMessage: context.hasLaterAiMessage,
 		},
 	};
 }

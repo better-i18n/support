@@ -1031,6 +1031,61 @@ export async function getConversationTimelineItems(
 	};
 }
 
+export async function getConversationTimelineItemsAfterCursor(
+	db: Database,
+	params: {
+		organizationId: string;
+		conversationId: string;
+		websiteId: string;
+		afterCreatedAt: string;
+		afterId: string;
+		limit?: number;
+		visibility?: TimelineItemVisibilityEnum[];
+	}
+) {
+	const limit = params.limit ?? DEFAULT_PAGE_LIMIT;
+
+	const whereConditions = [
+		eq(conversationTimelineItem.organizationId, params.organizationId),
+		eq(conversationTimelineItem.conversationId, params.conversationId),
+		isNull(conversationTimelineItem.deletedAt),
+		or(
+			gt(conversationTimelineItem.createdAt, params.afterCreatedAt),
+			and(
+				eq(conversationTimelineItem.createdAt, params.afterCreatedAt),
+				gt(conversationTimelineItem.id, params.afterId)
+			)
+		)!,
+	];
+
+	const visibilities = params.visibility;
+	if (visibilities?.length) {
+		if (visibilities.length === 1) {
+			whereConditions.push(
+				eq(conversationTimelineItem.visibility, visibilities[0]!)
+			);
+		} else {
+			whereConditions.push(
+				inArray(conversationTimelineItem.visibility, visibilities)
+			);
+		}
+	}
+
+	const rows = await db
+		.select()
+		.from(conversationTimelineItem)
+		.where(and(...whereConditions))
+		.orderBy(
+			asc(conversationTimelineItem.createdAt),
+			asc(conversationTimelineItem.id)
+		)
+		.limit(limit);
+
+	return rows
+		.map(mapTimelineRowToTimelineItem)
+		.filter((item): item is TimelineItem => item !== null);
+}
+
 /**
  * Get messages after a cursor (createdAt + id), ordered ascending.
  * Used to find the next human-authored message after the conversation cursor.

@@ -58,6 +58,7 @@ type TestContext = {
 			output?: unknown;
 			errorText?: string;
 		}>;
+		immediateKnowledgeGapClarificationHandled: boolean;
 		publicSendSequence: number;
 		privateSendSequence: number;
 		sentPublicMessageIds: Set<string>;
@@ -104,6 +105,7 @@ function createContext(overrides: Partial<TestContext> = {}): TestContext {
 			failedToolCallCounts: {},
 			chargeableToolCallCounts: {},
 			toolExecutions: [],
+			immediateKnowledgeGapClarificationHandled: false,
 			publicSendSequence: 0,
 			privateSendSequence: 0,
 			sentPublicMessageIds: new Set<string>(),

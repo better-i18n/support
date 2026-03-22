@@ -1,7 +1,7 @@
 "use client";
 
 import type { KnowledgeClarificationDraftFaq } from "@cossistant/types";
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,8 @@ type KnowledgeClarificationDraftReviewBodyProps = {
 	state: KnowledgeClarificationDraftReviewState;
 	title?: string;
 	description?: string;
+	disabled?: boolean;
+	notice?: ReactNode;
 };
 
 type KnowledgeClarificationDraftPreviewCardProps = {
@@ -114,17 +116,21 @@ export function KnowledgeClarificationDraftReviewBody({
 	state,
 	title = "Review FAQ draft",
 	description = "Tweak the proposed FAQ before adding it to the knowledge base.",
+	disabled = false,
+	notice,
 }: KnowledgeClarificationDraftReviewBodyProps) {
 	return (
-		<div className="space-y-4">
+		<div aria-busy={disabled || undefined} className="space-y-4">
 			<div className="space-y-1">
 				<div className="font-medium text-base">{title}</div>
 				<p className="text-muted-foreground text-sm">{description}</p>
 			</div>
+			{notice ? <div>{notice}</div> : null}
 			<div className="space-y-4">
 				<div className="space-y-2">
 					<Label htmlFor="clarification-draft-title">Proposal title</Label>
 					<Input
+						disabled={disabled}
 						id="clarification-draft-title"
 						onChange={(event) => state.setDraftTitle(event.target.value)}
 						placeholder="Optional internal title"
@@ -134,6 +140,7 @@ export function KnowledgeClarificationDraftReviewBody({
 				<div className="space-y-2">
 					<Label htmlFor="clarification-draft-question">FAQ question</Label>
 					<Input
+						disabled={disabled}
 						id="clarification-draft-question"
 						onChange={(event) => state.setQuestion(event.target.value)}
 						placeholder="How does this work?"
@@ -144,6 +151,7 @@ export function KnowledgeClarificationDraftReviewBody({
 					<Label htmlFor="clarification-draft-answer">FAQ answer</Label>
 					<Textarea
 						className="min-h-[320px] font-mono text-sm"
+						disabled={disabled}
 						id="clarification-draft-answer"
 						onChange={(event) => state.setAnswer(event.target.value)}
 						rows={14}
@@ -153,6 +161,7 @@ export function KnowledgeClarificationDraftReviewBody({
 				<div className="space-y-2">
 					<Label htmlFor="clarification-draft-categories">Categories</Label>
 					<Input
+						disabled={disabled}
 						id="clarification-draft-categories"
 						onChange={(event) => state.setCategories(event.target.value)}
 						placeholder="Billing, Plans, Limits"
@@ -162,6 +171,7 @@ export function KnowledgeClarificationDraftReviewBody({
 				<div className="space-y-2">
 					<Label htmlFor="clarification-draft-related">Related questions</Label>
 					<Input
+						disabled={disabled}
 						id="clarification-draft-related"
 						onChange={(event) => state.setRelatedQuestions(event.target.value)}
 						placeholder="Comma-separated related questions"

@@ -23,6 +23,7 @@ type KnowledgeClarificationFlowContentProps = {
 	currentRequest: KnowledgeClarificationRequest | null;
 	isSubmittingAnswer?: boolean;
 	isSubmittingApproval?: boolean;
+	showPageApprovalPendingState?: boolean;
 	isRetrying?: boolean;
 	onAnswer: (
 		requestId: string,
@@ -155,6 +156,41 @@ function RetryState({
 	);
 }
 
+function PageApprovalPendingState({
+	pageDraftReviewState,
+}: Pick<KnowledgeClarificationFlowContentProps, "pageDraftReviewState">) {
+	if (!pageDraftReviewState) {
+		return (
+			<PageMessageRow
+				description="Adding this FAQ to the knowledge base and opening it now."
+				title="Approving FAQ..."
+			>
+				<div className="flex items-center gap-3 text-muted-foreground text-sm">
+					<LoaderCircleIcon className="size-4 animate-spin" />
+					Saving your approved FAQ...
+				</div>
+			</PageMessageRow>
+		);
+	}
+
+	return (
+		<KnowledgeClarificationDraftReviewBody
+			description="Your edits are locked while we add this FAQ to the knowledge base."
+			disabled
+			notice={
+				<div className="flex items-center gap-3 rounded-xl border border-dashed px-4 py-3 text-muted-foreground text-sm">
+					<LoaderCircleIcon className="size-4 animate-spin" />
+					<div className="space-y-0.5">
+						<div className="font-medium text-foreground">Approving FAQ...</div>
+						<p>Adding this FAQ to the knowledge base and opening it now.</p>
+					</div>
+				</div>
+			}
+			state={pageDraftReviewState}
+		/>
+	);
+}
+
 function TerminalState({
 	currentRequest,
 	variant,
@@ -190,6 +226,7 @@ export function KnowledgeClarificationFlowContent({
 	currentRequest,
 	isSubmittingAnswer = false,
 	isSubmittingApproval = false,
+	showPageApprovalPendingState = false,
 	isRetrying = false,
 	onAnswer,
 	onDefer,
@@ -215,6 +252,12 @@ export function KnowledgeClarificationFlowContent({
 				<LoaderCircleIcon className="size-4 animate-spin" />
 				Preparing AI suggestion...
 			</div>
+		);
+	}
+
+	if (variant === "page" && showPageApprovalPendingState) {
+		return (
+			<PageApprovalPendingState pageDraftReviewState={pageDraftReviewState} />
 		);
 	}
 
@@ -250,7 +293,10 @@ export function KnowledgeClarificationFlowContent({
 	if (currentStep?.kind === "draft_ready") {
 		if (variant === "page" && pageDraftReviewState) {
 			return (
-				<KnowledgeClarificationDraftReviewBody state={pageDraftReviewState} />
+				<KnowledgeClarificationDraftReviewBody
+					disabled={isSubmittingApproval}
+					state={pageDraftReviewState}
+				/>
 			);
 		}
 
@@ -312,7 +358,10 @@ export function KnowledgeClarificationFlowContent({
 	if (fallbackStep?.kind === "draft_ready") {
 		if (variant === "page" && pageDraftReviewState) {
 			return (
-				<KnowledgeClarificationDraftReviewBody state={pageDraftReviewState} />
+				<KnowledgeClarificationDraftReviewBody
+					disabled={isSubmittingApproval}
+					state={pageDraftReviewState}
+				/>
 			);
 		}
 

@@ -565,6 +565,7 @@ describe("conversationUpdated handler", () => {
 						question: "Do credits survive downgrades?",
 						stepIndex: 2,
 						maxSteps: 5,
+						progress: null,
 						updatedAt: "2030-01-01T00:00:00.000Z",
 					},
 				},

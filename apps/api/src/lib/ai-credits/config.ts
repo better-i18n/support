@@ -131,7 +131,7 @@ const AI_AGENT_MODEL_MAP = new Map<string, AiAgentModelCatalogItem>(
 const DEFAULT_MODEL_ID =
 	AI_AGENT_MODEL_CATALOG.find((model) => model.isDefault === true)?.id ??
 	AI_AGENT_MODEL_CATALOG[0]?.id;
-const CLARIFICATION_MODEL_ID = "moonshotai/kimi-k2.5";
+const CLARIFICATION_MODEL_ID = "google/gemini-3-flash-preview";
 
 const EXCLUDED_TOOL_SET = new Set<string>(
 	AI_CREDIT_PRICING_CONFIG.excludedToolNames

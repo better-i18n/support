@@ -123,7 +123,7 @@ export function KnowledgeClarificationQuestionContent({
 	isOtherSelected,
 	isSubmitting = false,
 	isAnalyzing = false,
-	analyzingMessage = "Answer saved. AI is preparing the next step...",
+	analyzingMessage = "Saving your answer...",
 	className,
 	textareaOverlay,
 	getSuggestedAnswerButtonRef,
@@ -155,12 +155,6 @@ export function KnowledgeClarificationQuestionContent({
 					<Logo className="mr-1 mb-1 inline size-3.5 text-primary" />:{" "}
 					{question}
 				</h3>
-				{isAnalyzing ? (
-					<div className="flex items-center gap-2 rounded-xl border border-dashed bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
-						<Spinner size={16} />
-						{analyzingMessage}
-					</div>
-				) : null}
 			</div>
 			{inputMode === "textarea_first" ? (
 				<div className="space-y-3">

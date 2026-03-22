@@ -56,7 +56,12 @@ export function handleConversationUpdated({
 
 	const headerUpdater = createHeaderUpdaterFromUpdates(updates);
 
-	if (updates.activeClarification !== undefined) {
+	if (
+		shouldInvalidateActiveClarification({
+			current: existingHeader.activeClarification,
+			next: updates.activeClarification,
+		})
+	) {
 		invalidateActiveConversationClarificationQuery(queryClient, {
 			websiteSlug: website.slug,
 			conversationId,
@@ -76,6 +81,29 @@ export function handleConversationUpdated({
 		headerUpdater(existingHeader) as Parameters<
 			typeof context.queryNormalizer.setNormalizedData
 		>[0]
+	);
+}
+
+function shouldInvalidateActiveClarification(params: {
+	current: ConversationHeader["activeClarification"] | undefined;
+	next: ConversationUpdatedEvent["payload"]["updates"]["activeClarification"];
+}): boolean {
+	if (params.next === undefined) {
+		return false;
+	}
+
+	if (params.current == null || params.next == null) {
+		return params.current !== params.next;
+	}
+
+	return (
+		params.current.requestId !== params.next.requestId ||
+		params.current.status !== params.next.status ||
+		params.current.topicSummary !== params.next.topicSummary ||
+		params.current.question !== params.next.question ||
+		params.current.stepIndex !== params.next.stepIndex ||
+		params.current.maxSteps !== params.next.maxSteps ||
+		params.current.updatedAt !== params.next.updatedAt
 	);
 }
 

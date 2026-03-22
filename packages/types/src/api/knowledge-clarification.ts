@@ -85,6 +85,30 @@ export const knowledgeClarificationDraftFaqSchema = faqKnowledgePayloadSchema
 		description: "Draft FAQ proposal generated from the clarification flow.",
 	});
 
+export const conversationClarificationProgressPhaseSchema = z
+	.enum([
+		"loading_context",
+		"reviewing_evidence",
+		"generating_question",
+		"generating_draft",
+		"retrying_generation",
+		"finalizing_step",
+	])
+	.openapi({
+		description:
+			"Current transient progress phase while a clarification step is being prepared.",
+		example: "generating_question",
+	});
+
+export const conversationClarificationProgressSchema = z.object({
+	phase: conversationClarificationProgressPhaseSchema,
+	label: z.string(),
+	detail: z.string().nullable(),
+	attempt: z.number().int().min(1).nullable(),
+	toolName: z.string().nullable(),
+	startedAt: z.string(),
+});
+
 export const conversationClarificationSummarySchema = z.object({
 	requestId: z.ulid(),
 	status: activeConversationKnowledgeClarificationStatusSchema,
@@ -93,6 +117,7 @@ export const conversationClarificationSummarySchema = z.object({
 	stepIndex: z.number().int().min(0),
 	maxSteps: z.number().int().min(1),
 	updatedAt: z.string(),
+	progress: conversationClarificationProgressSchema.nullable(),
 });
 
 export const knowledgeClarificationRequestSchema = z.object({
@@ -242,6 +267,12 @@ export type KnowledgeClarificationSource = z.infer<
 >;
 export type ActiveConversationKnowledgeClarificationStatus = z.infer<
 	typeof activeConversationKnowledgeClarificationStatusSchema
+>;
+export type ConversationClarificationProgressPhase = z.infer<
+	typeof conversationClarificationProgressPhaseSchema
+>;
+export type ConversationClarificationProgress = z.infer<
+	typeof conversationClarificationProgressSchema
 >;
 export type KnowledgeClarificationStatus = z.infer<
 	typeof knowledgeClarificationStatusSchema

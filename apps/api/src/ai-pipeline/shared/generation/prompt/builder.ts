@@ -1,7 +1,6 @@
 import type { ToolSet } from "@api/lib/ai";
 import type { CorePromptDocumentName } from "../../prompt/documents";
 import type { ResolvedPromptBundle } from "../../prompt/resolver";
-import { PROMPT_TEMPLATES } from "../../prompt/templates";
 import type { GenerationRuntimeInput } from "../contracts";
 import {
 	buildModeInstructions,
@@ -65,9 +64,29 @@ triggerVisibility=${input.triggerVisibility ?? "unknown"}
 conversationEscalated=${input.conversationState.isEscalated ? "yes" : "no"}
 escalationReason=${input.conversationState.escalationReason ?? "none"}
 hasHumanAssignee=${input.conversationState.hasHumanAssignee ? "yes" : "no"}
+hasLaterHumanMessage=${input.hasLaterHumanMessage ? "yes" : "no"}
+hasLaterAiMessage=${input.hasLaterAiMessage ? "yes" : "no"}
 mode=${input.mode}
 visitor=${buildVisitorSummary(input)}
 humanCommand=${input.humanCommand?.trim() || "none"}`;
+}
+
+function buildCurrentTriggerStage(input: GenerationRuntimeInput): string {
+	return `## Current Trigger
+id=${input.triggerMessageId}
+sender=${input.triggerSenderType ?? "unknown"}
+visibility=${input.triggerVisibility ?? "unknown"}
+text=${input.triggerMessageText?.trim() || "(empty)"}`;
+}
+
+function buildTimelineSemanticsStage(): string {
+	return `## Timeline Semantics
+Messages are labeled with [BEFORE], [TRIGGER], or [AFTER].
+
+- [TRIGGER] is the queued message currently being processed in FIFO order.
+- [AFTER] contains newer context for awareness only.
+- Use [AFTER] context to avoid redundant replies, duplicate tool calls, or contradictions.
+- Do not pretend [AFTER] context does not exist.`;
 }
 
 function buildAvailableViewsStage(input: GenerationRuntimeInput): string {
@@ -89,36 +108,6 @@ Use only these saved views when categorizing. Match by intent, not by exact word
 If none fit clearly, skip categorization.
 
 ${entries}`;
-}
-
-function interpolateTemplate(
-	template: string,
-	values: Record<string, string>
-): string {
-	return Object.entries(values).reduce(
-		(rendered, [key, value]) => rendered.replaceAll(`{${key}}`, value),
-		template
-	);
-}
-
-function buildContinuationStage(input: GenerationRuntimeInput): string {
-	const continuation = input.continuationContext;
-	if (!continuation?.latestAiReply.trim()) {
-		return "";
-	}
-
-	const deltaHint =
-		input.triggerSenderType === "human_agent"
-			? "Respond only to the new teammate request or instruction."
-			: "Answer only the new inbound message and add only what is missing.";
-
-	return interpolateTemplate(PROMPT_TEMPLATES.CONTINUATION_CONTEXT, {
-		latestAiMessage: continuation.latestAiReply.trim(),
-		continuationReason:
-			"The previous processed inbound message already has an AI reply in the timeline.",
-		continuationConfidence: "1.0",
-		deltaHint,
-	});
 }
 
 function buildToolInventorySection(params: {
@@ -180,8 +169,9 @@ export function buildGenerationSystemPrompt(params: {
 	const sections = [
 		...buildCorePromptStages(params.promptBundle),
 		buildContextFactsStage(params.input),
+		buildCurrentTriggerStage(params.input),
+		buildTimelineSemanticsStage(),
 		buildAvailableViewsStage(params.input),
-		buildContinuationStage(params.input),
 		buildToolStage({
 			toolset: params.toolset,
 			toolNames: params.toolNames,

@@ -42,7 +42,7 @@ export async function runDecisionStep(params: {
 	const smartDecision = await runSmartDecision({
 		aiAgent: params.input.aiAgent,
 		conversation: params.input.conversation,
-		conversationHistory: params.input.conversationHistory,
+		decisionMessages: params.input.decisionMessages,
 		conversationState: params.input.conversationState,
 		triggerMessage: params.input.triggerMessage,
 		decisionPolicy: decisionPolicyResolution.policy,

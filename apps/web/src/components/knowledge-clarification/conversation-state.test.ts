@@ -18,6 +18,7 @@ function createSummary(
 		question: "Does the billing change immediately?",
 		stepIndex: 2,
 		maxSteps: 5,
+		progress: null,
 		updatedAt: "2026-03-13T10:00:00.000Z",
 		...overrides,
 	};

@@ -15,9 +15,38 @@ const findSimilarKnowledgeMock = mock(
 		}>
 	>
 );
+const getActiveKnowledgeClarificationForConversationMock = mock(
+	(async () => null) as (...args: unknown[]) => Promise<{ id: string } | null>
+);
+const buildConversationTranscriptMock = mock((async () => [
+	{
+		messageId: "msg-1",
+		content: "How do I permanently delete my account?",
+		senderType: "visitor",
+		senderId: "visitor-1",
+		senderName: null,
+		timestamp: "2026-03-16T09:00:00.000Z",
+		visibility: "public",
+	},
+]) as (...args: unknown[]) => Promise<unknown[]>);
+const requestKnowledgeClarificationMock = mock((async () => ({
+	requestId: "req_1",
+	created: true,
+	status: "awaiting_answer" as const,
+})) as (...args: unknown[]) => Promise<unknown>);
 
 mock.module("@api/utils/vector-search", () => ({
 	findSimilarKnowledge: findSimilarKnowledgeMock,
+}));
+mock.module("@api/db/queries/knowledge-clarification", () => ({
+	getActiveKnowledgeClarificationForConversation:
+		getActiveKnowledgeClarificationForConversationMock,
+}));
+mock.module("@api/ai-pipeline/primary-pipeline/steps/intake/history", () => ({
+	buildConversationTranscript: buildConversationTranscriptMock,
+}));
+mock.module("../actions/request-knowledge-clarification", () => ({
+	requestKnowledgeClarification: requestKnowledgeClarificationMock,
 }));
 
 const modulePromise = import("./context");
@@ -40,11 +69,13 @@ function createContext(): PipelineToolContext {
 		visitorName: "Visitor",
 		workflowRunId: "wf-1",
 		triggerMessageId: "msg-1",
+		triggerMessageText: "How do I permanently delete my account?",
 		allowPublicMessages: true,
 		pipelineKind: "primary",
 		mode: "respond_to_visitor",
 		isEscalated: false,
 		canCategorize: false,
+		canRequestKnowledgeClarification: true,
 		availableViews: [],
 		runtimeState: {
 			finalAction: null,
@@ -55,6 +86,7 @@ function createContext(): PipelineToolContext {
 			failedToolCallCounts: {},
 			chargeableToolCallCounts: {},
 			toolExecutions: [],
+			immediateKnowledgeGapClarificationHandled: false,
 			publicSendSequence: 0,
 			privateSendSequence: 0,
 			sentPublicMessageIds: new Set<string>(),
@@ -66,6 +98,26 @@ function createContext(): PipelineToolContext {
 describe("createSearchKnowledgeBaseTool", () => {
 	beforeEach(() => {
 		findSimilarKnowledgeMock.mockReset();
+		getActiveKnowledgeClarificationForConversationMock.mockReset();
+		buildConversationTranscriptMock.mockReset();
+		requestKnowledgeClarificationMock.mockReset();
+		getActiveKnowledgeClarificationForConversationMock.mockResolvedValue(null);
+		buildConversationTranscriptMock.mockResolvedValue([
+			{
+				messageId: "msg-1",
+				content: "How do I permanently delete my account?",
+				senderType: "visitor",
+				senderId: "visitor-1",
+				senderName: null,
+				timestamp: "2026-03-16T09:00:00.000Z",
+				visibility: "public",
+			},
+		]);
+		requestKnowledgeClarificationMock.mockResolvedValue({
+			requestId: "req_1",
+			created: true,
+			status: "awaiting_answer",
+		});
 	});
 
 	it("marks zero relevant matches as an immediate clarification signal", async () => {
@@ -90,6 +142,19 @@ describe("createSearchKnowledgeBaseTool", () => {
 				clarificationSignal: "immediate",
 				questionContext: "How do I permanently delete my account?",
 			},
+		});
+		expect(requestKnowledgeClarificationMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				topicSummary:
+					"Missing exact answer for: How do I permanently delete my account?",
+			})
+		);
+		expect(requestKnowledgeClarificationMock).toHaveBeenCalledTimes(1);
+		expect(
+			getActiveKnowledgeClarificationForConversationMock
+		).toHaveBeenCalledWith(expect.anything(), {
+			conversationId: "conv-1",
+			websiteId: "site-1",
 		});
 	});
 
@@ -124,6 +189,11 @@ describe("createSearchKnowledgeBaseTool", () => {
 				clarificationSignal: "background_review",
 			},
 		});
+		expect(requestKnowledgeClarificationMock).not.toHaveBeenCalled();
+		expect(buildConversationTranscriptMock).not.toHaveBeenCalled();
+		expect(
+			getActiveKnowledgeClarificationForConversationMock
+		).not.toHaveBeenCalled();
 	});
 
 	it("treats strong matches as sufficiently grounded", async () => {
@@ -157,5 +227,10 @@ describe("createSearchKnowledgeBaseTool", () => {
 				clarificationSignal: "none",
 			},
 		});
+		expect(requestKnowledgeClarificationMock).not.toHaveBeenCalled();
+		expect(buildConversationTranscriptMock).not.toHaveBeenCalled();
+		expect(
+			getActiveKnowledgeClarificationForConversationMock
+		).not.toHaveBeenCalled();
 	});
 });

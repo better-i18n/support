@@ -12,6 +12,8 @@ const runIntakeStepMock = mock((async () => ({
 		},
 		conversation: { id: "conv-1" },
 		conversationHistory: [],
+		decisionMessages: [],
+		generationEntries: [],
 		visitorContext: null,
 		conversationState: {
 			hasHumanAssignee: false,
@@ -20,8 +22,9 @@ const runIntakeStepMock = mock((async () => ({
 			isEscalated: false,
 			escalationReason: null,
 		},
-		continuationContext: null,
 		triggerMessageText: "Need help",
+		hasLaterHumanMessage: false,
+		hasLaterAiMessage: false,
 		triggerMessage: {
 			messageId: "msg-1",
 			senderType: "visitor",
@@ -102,10 +105,13 @@ mock.module("../shared/generation", () => ({
 	runGenerationRuntime: runGenerationRuntimeMock,
 }));
 
-mock.module("../shared/knowledge-gap/immediate-clarification", () => ({
-	maybeCreateImmediateClarificationFromSearchGap:
-		maybeCreateImmediateClarificationFromSearchGapMock,
-}));
+mock.module(
+	"../shared/knowledge-gap/post-generation-immediate-clarification",
+	() => ({
+		maybeCreateImmediateClarificationFromSearchGap:
+			maybeCreateImmediateClarificationFromSearchGapMock,
+	})
+);
 
 mock.module("../shared/usage", () => ({
 	trackGenerationUsage: trackGenerationUsageMock,
@@ -164,6 +170,8 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 				},
 				conversation: { id: "conv-1" },
 				conversationHistory: [],
+				decisionMessages: [],
+				generationEntries: [],
 				visitorContext: null,
 				conversationState: {
 					hasHumanAssignee: false,
@@ -172,8 +180,9 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 					isEscalated: false,
 					escalationReason: null,
 				},
-				continuationContext: null,
 				triggerMessageText: "Need help",
+				hasLaterHumanMessage: false,
+				hasLaterAiMessage: false,
 				triggerMessage: {
 					messageId: "msg-1",
 					senderType: "visitor",
@@ -450,7 +459,7 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 		);
 	});
 
-	it("passes continuation context into generation runtime", async () => {
+	it("passes split context fields into decision and generation runtime", async () => {
 		runIntakeStepMock.mockResolvedValueOnce({
 			status: "ready",
 			data: {
@@ -462,6 +471,80 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 				},
 				conversation: { id: "conv-1" },
 				conversationHistory: [],
+				decisionMessages: [
+					{
+						messageId: "msg-0",
+						content: "Original issue",
+						senderType: "visitor",
+						senderId: "visitor-1",
+						senderName: null,
+						timestamp: "2026-03-04T23:59:00.000Z",
+						visibility: "public",
+						segment: "before_trigger",
+					},
+					{
+						messageId: "msg-1",
+						content: "Any update?",
+						senderType: "visitor",
+						senderId: "visitor-1",
+						senderName: null,
+						timestamp: "2026-03-05T00:00:00.000Z",
+						visibility: "public",
+						segment: "trigger",
+					},
+					{
+						messageId: "msg-2",
+						content: "I already asked for the visitor's order number.",
+						senderType: "human_agent",
+						senderId: "user-1",
+						senderName: "Support Agent",
+						timestamp: "2026-03-05T00:00:30.000Z",
+						visibility: "public",
+						segment: "after_trigger",
+					},
+				],
+				generationEntries: [
+					{
+						messageId: "msg-0",
+						content: "Original issue",
+						senderType: "visitor",
+						senderId: "visitor-1",
+						senderName: null,
+						timestamp: "2026-03-04T23:59:00.000Z",
+						visibility: "public",
+						segment: "before_trigger",
+					},
+					{
+						messageId: "msg-1",
+						content: "Any update?",
+						senderType: "visitor",
+						senderId: "visitor-1",
+						senderName: null,
+						timestamp: "2026-03-05T00:00:00.000Z",
+						visibility: "public",
+						segment: "trigger",
+					},
+					{
+						kind: "tool",
+						itemId: "tool-1",
+						toolName: "searchKnowledgeBase",
+						content:
+							'[PRIVATE][TOOL:searchKnowledgeBase] Found 1 source query="order number"',
+						timestamp: "2026-03-05T00:00:20.000Z",
+						visibility: "private",
+						segment: "after_trigger",
+					},
+					{
+						messageId: "msg-2",
+						content: "I already asked for the visitor's order number.",
+						senderType: "human_agent",
+						senderId: "user-1",
+						senderName: "Support Agent",
+						timestamp: "2026-03-05T00:00:30.000Z",
+						visibility: "public",
+						segment: "after_trigger",
+					},
+				],
 				visitorContext: null,
 				conversationState: {
 					hasHumanAssignee: false,
@@ -470,12 +553,9 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 					isEscalated: false,
 					escalationReason: null,
 				},
-				continuationContext: {
-					previousProcessedMessageId: "msg-0",
-					previousProcessedMessageCreatedAt: "2026-03-04T23:59:00.000Z",
-					latestAiReply: "I already asked for the visitor's order number.",
-				},
 				triggerMessageText: "Any update?",
+				hasLaterHumanMessage: true,
+				hasLaterAiMessage: false,
 				triggerMessage: {
 					messageId: "msg-1",
 					senderType: "visitor",
@@ -491,13 +571,30 @@ describe("runPrimaryPipeline generation error/skip behavior", () => {
 		});
 
 		expect(result.status).toBe("completed");
+		expect(runDecisionStepMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: expect.objectContaining({
+					decisionMessages: expect.arrayContaining([
+						expect.objectContaining({
+							messageId: "msg-2",
+							segment: "after_trigger",
+						}),
+					]),
+					hasLaterHumanMessage: true,
+					hasLaterAiMessage: false,
+				}),
+			})
+		);
 		expect(runGenerationRuntimeMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				continuationContext: {
-					previousProcessedMessageId: "msg-0",
-					previousProcessedMessageCreatedAt: "2026-03-04T23:59:00.000Z",
-					latestAiReply: "I already asked for the visitor's order number.",
-				},
+				generationEntries: expect.arrayContaining([
+					expect.objectContaining({
+						toolName: "searchKnowledgeBase",
+						segment: "after_trigger",
+					}),
+				]),
+				hasLaterHumanMessage: true,
+				hasLaterAiMessage: false,
 			})
 		);
 	});

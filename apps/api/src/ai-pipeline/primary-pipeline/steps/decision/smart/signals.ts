@@ -1,8 +1,4 @@
-import {
-	type ConversationTranscriptEntry,
-	isConversationMessage,
-	type RoleAwareMessage,
-} from "../../../contracts";
+import type { SegmentedConversationMessage } from "../../../contracts";
 import type { DecisionSignals, SmartDecisionInput } from "./types";
 
 const HUMAN_ACTIVE_WINDOW_MS = 120_000;
@@ -62,7 +58,7 @@ function looksLikeHumanCommand(text: string): boolean {
 }
 
 function mapSenderToTurnCode(
-	senderType: RoleAwareMessage["senderType"]
+	senderType: SegmentedConversationMessage["senderType"]
 ): string {
 	switch (senderType) {
 		case "human_agent":
@@ -76,13 +72,9 @@ function mapSenderToTurnCode(
 	}
 }
 
-function getTranscriptMessages(
-	history: ConversationTranscriptEntry[]
-): RoleAwareMessage[] {
-	return history.filter(isConversationMessage);
-}
-
-function findLastPublicHumanMessageIndex(history: RoleAwareMessage[]): number {
+function findLastPublicHumanMessageIndex(
+	history: SegmentedConversationMessage[]
+): number {
 	for (let index = history.length - 1; index >= 0; index--) {
 		const message = history[index];
 		if (!message) {
@@ -98,10 +90,22 @@ function findLastPublicHumanMessageIndex(history: RoleAwareMessage[]): number {
 	return -1;
 }
 
+function resolveReferenceTime(history: SegmentedConversationMessage[]): number {
+	for (let index = history.length - 1; index >= 0; index--) {
+		const timestamp = history[index]?.timestamp;
+		const parsed = timestamp ? Date.parse(timestamp) : Number.NaN;
+		if (!Number.isNaN(parsed)) {
+			return parsed;
+		}
+	}
+
+	return Date.now();
+}
+
 export function extractDecisionSignals(
 	input: SmartDecisionInput
 ): DecisionSignals {
-	const conversationHistory = getTranscriptMessages(input.conversationHistory);
+	const conversationHistory = input.decisionMessages;
 	const { triggerMessage } = input;
 
 	const lastHumanIndex = findLastPublicHumanMessageIndex(conversationHistory);
@@ -119,12 +123,7 @@ export function extractDecisionSignals(
 		}
 	}
 
-	const triggerTimestamp = triggerMessage.timestamp
-		? Date.parse(triggerMessage.timestamp)
-		: Number.NaN;
-	const referenceTime = Number.isNaN(triggerTimestamp)
-		? Date.now()
-		: triggerTimestamp;
+	const referenceTime = resolveReferenceTime(conversationHistory);
 	const humanActive =
 		lastHumanPublicAtMs !== null
 			? referenceTime - lastHumanPublicAtMs <= HUMAN_ACTIVE_WINDOW_MS
@@ -168,5 +167,14 @@ export function extractDecisionSignals(
 		triggerLooksLikeHumanCommand:
 			triggerMessage.senderType === "human_agent" &&
 			looksLikeHumanCommand(triggerText),
+		hasLaterHumanMessage: conversationHistory.some(
+			(message) =>
+				message.segment === "after_trigger" &&
+				message.senderType === "human_agent"
+		),
+		hasLaterAiMessage: conversationHistory.some(
+			(message) =>
+				message.segment === "after_trigger" && message.senderType === "ai_agent"
+		),
 	};
 }

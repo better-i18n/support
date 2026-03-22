@@ -23,6 +23,7 @@ import { useTRPC } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { Spinner } from "../../../../../../packages/react/src/support/components/spinner";
 import Icon from "../../ui/icons";
+import { resolveClarificationProgressView } from "./clarification-progress";
 import { ComposerBottomBlock } from "./composer-bottom-block";
 import { ComposerCentralBlock } from "./composer-central-block";
 
@@ -88,6 +89,27 @@ export type ClarificationQuestionBlockProps = {
 	onFreeAnswerChange: (value: string) => void;
 };
 
+function useClarificationProgressClock(enabled: boolean) {
+	const [nowMs, setNowMs] = useState(() => Date.now());
+
+	useEffect(() => {
+		if (!enabled) {
+			return;
+		}
+
+		setNowMs(Date.now());
+		const intervalId = window.setInterval(() => {
+			setNowMs(Date.now());
+		}, 1000);
+
+		return () => {
+			window.clearInterval(intervalId);
+		};
+	}, [enabled]);
+
+	return nowMs;
+}
+
 export function ClarificationTopicBlock({
 	topicSummary,
 	stepIndex,
@@ -112,7 +134,7 @@ export function ClarificationTopicBlock({
 	);
 }
 
-export function ClarificationLoadingBlock() {
+export function ClarificationLoadingBlock({ label }: { label: string }) {
 	return (
 		<ComposerCentralBlock>
 			<div
@@ -120,7 +142,7 @@ export function ClarificationLoadingBlock() {
 				data-clarification-slot="loading"
 			>
 				<Spinner size={16} />
-				Preparing the next clarification step...
+				<span>{label}</span>
 			</div>
 		</ComposerCentralBlock>
 	);
@@ -402,6 +424,8 @@ export function useClarificationComposerFlow({
 		step?.kind === "question" ? step.question : null,
 		step?.kind === "question" ? step.inputMode : "suggested_answers"
 	);
+	const [optimisticProgressStartedAt, setOptimisticProgressStartedAt] =
+		useState<string | null>(null);
 
 	const handleMutationSuccess = async (result: {
 		step: NonNullable<typeof step>;
@@ -477,6 +501,40 @@ export function useClarificationComposerFlow({
 	const currentRequest = shouldPreferRequestState
 		? request
 		: (step?.request ?? request);
+	const isSubmitting = answerMutation.isPending;
+	const isSkipping = skipMutation.isPending;
+	const isRetrying = retryMutation.isPending;
+	const isAnalyzing = Boolean(
+		summary &&
+			(isSubmitting ||
+				isSkipping ||
+				isRetrying ||
+				currentRequest?.status === "analyzing" ||
+				summary.status === "analyzing")
+	);
+	const nowMs = useClarificationProgressClock(isAnalyzing);
+	const activeProgress = useMemo(
+		() =>
+			resolveClarificationProgressView({
+				nowMs,
+				serverProgress: summary?.progress,
+				localStartedAt: optimisticProgressStartedAt,
+			}),
+		[nowMs, optimisticProgressStartedAt, summary?.progress]
+	);
+
+	useEffect(() => {
+		if (isAnalyzing) {
+			return;
+		}
+
+		setOptimisticProgressStartedAt(null);
+	}, [isAnalyzing]);
+
+	useEffect(() => {
+		setOptimisticProgressStartedAt(null);
+	}, [summary?.requestId]);
+
 	if (!summary) {
 		return null;
 	}
@@ -548,10 +606,6 @@ export function useClarificationComposerFlow({
 	const topicSummary = currentRequest?.topicSummary ?? summary.topicSummary;
 	const stepIndex = currentRequest?.stepIndex ?? summary.stepIndex;
 	const maxSteps = currentRequest?.maxSteps ?? summary.maxSteps;
-	const isSubmitting = answerMutation.isPending;
-	const isSkipping = skipMutation.isPending;
-	const isRetrying = retryMutation.isPending;
-	const isPending = isSubmitting || isSkipping || isRetrying;
 	const canSkip = Boolean(step?.kind === "question");
 	const retryRequest =
 		step?.kind === "retry_required"
@@ -559,12 +613,17 @@ export function useClarificationComposerFlow({
 			: currentRequest?.status === "retry_required"
 				? currentRequest
 				: null;
+	const loadingLabel =
+		activeProgress?.label ??
+		summary.progress?.label ??
+		"Preparing next step...";
 
 	const handleSubmit = () => {
 		if (!(step?.kind === "question" && answerDraft.submitPayload)) {
 			return;
 		}
 
+		setOptimisticProgressStartedAt(new Date().toISOString());
 		answerMutation.mutate({
 			websiteSlug,
 			requestId: step.request.id,
@@ -577,6 +636,7 @@ export function useClarificationComposerFlow({
 			return;
 		}
 
+		setOptimisticProgressStartedAt(new Date().toISOString());
 		skipMutation.mutate({
 			websiteSlug,
 			requestId: step.request.id,
@@ -588,6 +648,7 @@ export function useClarificationComposerFlow({
 			return;
 		}
 
+		setOptimisticProgressStartedAt(new Date().toISOString());
 		retryMutation.mutate({
 			websiteSlug,
 			requestId: currentRequest.id,
@@ -602,7 +663,9 @@ export function useClarificationComposerFlow({
 				topicSummary={topicSummary}
 			/>
 		),
-		centralBlock: retryRequest ? (
+		centralBlock: isAnalyzing ? (
+			<ClarificationLoadingBlock key="loading" label={loadingLabel} />
+		) : retryRequest ? (
 			<ClarificationRetryBlock
 				isRetrying={isRetrying}
 				onCancel={onCancel}
@@ -614,7 +677,7 @@ export function useClarificationComposerFlow({
 				freeAnswer={answerDraft.freeAnswer}
 				inputMode={step.inputMode}
 				isOtherSelected={answerDraft.isOtherSelected}
-				isPending={isPending}
+				isPending={false}
 				onFreeAnswerChange={answerDraft.setFreeAnswer}
 				onSelectAnswer={answerDraft.selectAnswer}
 				question={step.question}
@@ -622,19 +685,20 @@ export function useClarificationComposerFlow({
 				suggestedAnswers={step.suggestedAnswers}
 			/>
 		) : (
-			<ClarificationLoadingBlock key="loading" />
+			<ClarificationLoadingBlock key="loading" label={loadingLabel} />
 		),
-		bottomBlock: retryRequest ? null : (
-			<ClarificationActionsBlock
-				canSkip={canSkip}
-				canSubmit={answerDraft.canSubmit}
-				isPending={isPending}
-				isSkipping={isSkipping}
-				isSubmitting={isSubmitting}
-				onCancel={onCancel}
-				onSkip={handleSkip}
-				onSubmit={handleSubmit}
-			/>
-		),
+		bottomBlock:
+			isAnalyzing || retryRequest ? null : (
+				<ClarificationActionsBlock
+					canSkip={canSkip}
+					canSubmit={answerDraft.canSubmit}
+					isPending={false}
+					isSkipping={isSkipping}
+					isSubmitting={isSubmitting}
+					onCancel={onCancel}
+					onSkip={handleSkip}
+					onSubmit={handleSubmit}
+				/>
+			),
 	};
 }

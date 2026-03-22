@@ -97,6 +97,7 @@ describe("buildConversationClarificationSummary", () => {
 			question: "Latest question",
 			stepIndex: 2,
 			maxSteps: 5,
+			progress: null,
 			updatedAt: "2026-03-13T10:00:00.000Z",
 		});
 	});
@@ -126,6 +127,7 @@ describe("buildConversationClarificationSummary", () => {
 			question: null,
 			stepIndex: 2,
 			maxSteps: 5,
+			progress: null,
 			updatedAt: "2026-03-13T10:00:00.000Z",
 		});
 	});
@@ -143,6 +145,7 @@ describe("buildConversationClarificationSummary", () => {
 			question: null,
 			stepIndex: 2,
 			maxSteps: 5,
+			progress: null,
 			updatedAt: "2026-03-13T10:00:00.000Z",
 		});
 

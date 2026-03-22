@@ -72,6 +72,23 @@ export type ConversationTranscriptEntry =
 	| RoleAwareMessage
 	| ConversationToolAction;
 
+export type ConversationContextSegment =
+	| "before_trigger"
+	| "trigger"
+	| "after_trigger";
+
+export type SegmentedConversationMessage = RoleAwareMessage & {
+	segment: ConversationContextSegment;
+};
+
+export type SegmentedConversationToolAction = ConversationToolAction & {
+	segment: ConversationContextSegment;
+};
+
+export type SegmentedConversationEntry =
+	| SegmentedConversationMessage
+	| SegmentedConversationToolAction;
+
 export function isConversationToolAction(
 	entry: ConversationTranscriptEntry
 ): entry is ConversationToolAction {
@@ -103,12 +120,6 @@ export type ConversationState = {
 	participantIds: string[];
 	isEscalated: boolean;
 	escalationReason: string | null;
-};
-
-export type ContinuationContext = {
-	previousProcessedMessageId: string;
-	previousProcessedMessageCreatedAt: string;
-	latestAiReply: string;
 };
 
 export type ModelResolution = {

@@ -1,8 +1,21 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
+import type { IntakeReadyContext } from "../../primary-pipeline/steps/intake/types";
+import type { PipelineToolContext } from "../tools/contracts";
 
 const getActiveKnowledgeClarificationForConversationMock = mock(
 	(async () => null) as (...args: unknown[]) => Promise<{ id: string } | null>
 );
+const buildConversationTranscriptMock = mock((async () => [
+	{
+		messageId: "msg-1",
+		content: "How do I permanently delete my account?",
+		senderType: "visitor",
+		senderId: "visitor-1",
+		senderName: null,
+		timestamp: "2026-03-16T09:00:00.000Z",
+		visibility: "public",
+	},
+]) as (...args: unknown[]) => Promise<unknown[]>);
 const requestKnowledgeClarificationMock = mock(async () => ({
 	requestId: "req_1",
 	created: true,
@@ -14,25 +27,37 @@ mock.module("@api/db/queries/knowledge-clarification", () => ({
 		getActiveKnowledgeClarificationForConversationMock,
 }));
 
+mock.module("@api/ai-pipeline/primary-pipeline/steps/intake/history", () => ({
+	buildConversationTranscript: buildConversationTranscriptMock,
+}));
+
 mock.module("../actions/request-knowledge-clarification", () => ({
 	requestKnowledgeClarification: requestKnowledgeClarificationMock,
 }));
 
 const modulePromise = import("./immediate-clarification");
 
-function createIntake() {
+function createIntake(): IntakeReadyContext {
 	return {
 		aiAgent: {
 			id: "ai-1",
+			name: "Agent",
+			model: "moonshotai/kimi-k2.5",
 			behaviorSettings: {
 				canRequestKnowledgeClarification: true,
 			},
+		} as never,
+		modelResolution: {
+			modelIdResolved: "moonshotai/kimi-k2.5",
+			modelIdOriginal: "moonshotai/kimi-k2.5",
+			modelMigrationApplied: false,
 		},
 		conversation: {
 			id: "conv-1",
 			organizationId: "org-1",
 			websiteId: "site-1",
-		},
+			visitorId: "visitor-1",
+		} as never,
 		conversationHistory: [
 			{
 				messageId: "msg-1",
@@ -44,6 +69,38 @@ function createIntake() {
 				visibility: "public",
 			},
 		],
+		decisionMessages: [
+			{
+				messageId: "msg-1",
+				content: "How do I permanently delete my account?",
+				senderType: "visitor",
+				senderId: "visitor-1",
+				senderName: null,
+				timestamp: "2026-03-16T09:00:00.000Z",
+				visibility: "public",
+				segment: "trigger",
+			},
+		],
+		generationEntries: [
+			{
+				messageId: "msg-1",
+				content: "How do I permanently delete my account?",
+				senderType: "visitor",
+				senderId: "visitor-1",
+				senderName: null,
+				timestamp: "2026-03-16T09:00:00.000Z",
+				visibility: "public",
+				segment: "trigger",
+			},
+		],
+		visitorContext: null,
+		conversationState: {
+			hasHumanAssignee: false,
+			assigneeIds: [],
+			participantIds: [],
+			isEscalated: false,
+			escalationReason: null,
+		},
 		triggerMessage: {
 			messageId: "msg-1",
 			content: "How do I permanently delete my account?",
@@ -54,7 +111,57 @@ function createIntake() {
 			visibility: "public",
 		},
 		triggerMessageText: "How do I permanently delete my account?",
-	} as never;
+		hasLaterHumanMessage: false,
+		hasLaterAiMessage: false,
+	};
+}
+
+function createToolContext(
+	overrides: Partial<PipelineToolContext> = {}
+): PipelineToolContext {
+	return {
+		db: {} as never,
+		conversation: {
+			id: "conv-1",
+			organizationId: "org-1",
+			websiteId: "site-1",
+			visitorId: "visitor-1",
+		} as never,
+		conversationId: "conv-1",
+		organizationId: "org-1",
+		websiteId: "site-1",
+		visitorId: "visitor-1",
+		aiAgentId: "ai-1",
+		aiAgentName: "Agent",
+		visitorName: "Visitor",
+		workflowRunId: "wf-1",
+		triggerMessageId: "msg-1",
+		triggerMessageText: "How do I permanently delete my account?",
+		triggerMessageCreatedAt: "2026-03-16T09:00:00.000Z",
+		allowPublicMessages: true,
+		pipelineKind: "primary",
+		mode: "respond_to_visitor",
+		isEscalated: false,
+		canCategorize: false,
+		canRequestKnowledgeClarification: true,
+		availableViews: [],
+		runtimeState: {
+			finalAction: null,
+			publicMessagesSent: 0,
+			toolCallCounts: {},
+			mutationToolCallCounts: {},
+			successfulToolCallCounts: {},
+			failedToolCallCounts: {},
+			chargeableToolCallCounts: {},
+			toolExecutions: [],
+			immediateKnowledgeGapClarificationHandled: false,
+			publicSendSequence: 0,
+			privateSendSequence: 0,
+			sentPublicMessageIds: new Set<string>(),
+			lastToolError: null,
+		},
+		...overrides,
+	};
 }
 
 function createSearchExecution(params: {
@@ -108,8 +215,20 @@ function createGenerationResult(toolExecutions: unknown[]) {
 describe("maybeCreateImmediateClarificationFromSearchGap", () => {
 	beforeEach(() => {
 		getActiveKnowledgeClarificationForConversationMock.mockReset();
+		buildConversationTranscriptMock.mockReset();
 		requestKnowledgeClarificationMock.mockReset();
 		getActiveKnowledgeClarificationForConversationMock.mockResolvedValue(null);
+		buildConversationTranscriptMock.mockResolvedValue([
+			{
+				messageId: "msg-1",
+				content: "How do I permanently delete my account?",
+				senderType: "visitor",
+				senderId: "visitor-1",
+				senderName: null,
+				timestamp: "2026-03-16T09:00:00.000Z",
+				visibility: "public",
+			},
+		]);
 		requestKnowledgeClarificationMock.mockResolvedValue({
 			requestId: "req_1",
 			created: true,
@@ -154,7 +273,7 @@ describe("maybeCreateImmediateClarificationFromSearchGap", () => {
 		);
 	});
 
-	it("skips the immediate clarification when a later search finds a weak or strong match", async () => {
+	it("keeps the first eligible zero-hit clarification even if a later search finds a weak match", async () => {
 		const { maybeCreateImmediateClarificationFromSearchGap } =
 			await modulePromise;
 
@@ -179,11 +298,12 @@ describe("maybeCreateImmediateClarificationFromSearchGap", () => {
 			]),
 		});
 
-		expect(result).toEqual({
-			status: "skipped",
-			reason: "search_not_obvious_gap",
+		expect(result).toMatchObject({
+			status: "created",
+			requestId: "req_1",
+			created: true,
 		});
-		expect(requestKnowledgeClarificationMock).not.toHaveBeenCalled();
+		expect(requestKnowledgeClarificationMock).toHaveBeenCalledTimes(1);
 	});
 
 	it("skips when the conversation already has an active clarification", async () => {
@@ -213,5 +333,240 @@ describe("maybeCreateImmediateClarificationFromSearchGap", () => {
 			reason: "active_clarification_exists",
 		});
 		expect(requestKnowledgeClarificationMock).not.toHaveBeenCalled();
+	});
+
+	it("skips vague zero-hit searches when the visitor intent is not specific enough", async () => {
+		const { maybeCreateImmediateClarificationFromSearchGap } =
+			await modulePromise;
+
+		const intake = createIntake();
+		intake.triggerMessageText = "Any update?";
+		intake.triggerMessage = {
+			messageId: "msg-1",
+			content: "Any update?",
+			senderType: "visitor",
+			senderId: "visitor-1",
+			senderName: null,
+			timestamp: "2026-03-16T09:00:00.000Z",
+			visibility: "public",
+		};
+		intake.conversationHistory = [
+			{
+				messageId: "msg-1",
+				content: "Any update?",
+				senderType: "visitor",
+				senderId: "visitor-1",
+				senderName: null,
+				timestamp: "2026-03-16T09:00:00.000Z",
+				visibility: "public",
+			},
+		];
+
+		const result = await maybeCreateImmediateClarificationFromSearchGap({
+			db: {} as never,
+			intake,
+			generationResult: createGenerationResult([
+				createSearchExecution({
+					query: "status update",
+					totalFound: 0,
+					maxSimilarity: null,
+					retrievalQuality: "none",
+					clarificationSignal: "immediate",
+				}),
+			]),
+		});
+
+		expect(result).toEqual({
+			status: "skipped",
+			reason: "insufficient_intent",
+		});
+		expect(requestKnowledgeClarificationMock).not.toHaveBeenCalled();
+	});
+
+	it("keeps weak-search cases on the background-review path", async () => {
+		const { maybeCreateImmediateClarificationFromSearchGap } =
+			await modulePromise;
+
+		const result = await maybeCreateImmediateClarificationFromSearchGap({
+			db: {} as never,
+			intake: createIntake(),
+			generationResult: createGenerationResult([
+				createSearchExecution({
+					query: "billing timing",
+					questionContext: "When does the billing change apply?",
+					totalFound: 1,
+					maxSimilarity: 0.61,
+					retrievalQuality: "weak",
+					clarificationSignal: "background_review",
+				}),
+			]),
+		});
+
+		expect(result).toEqual({
+			status: "skipped",
+			reason: "search_not_obvious_gap",
+		});
+		expect(requestKnowledgeClarificationMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("maybeCreateImmediateClarificationFromSearchResult", () => {
+	beforeEach(() => {
+		getActiveKnowledgeClarificationForConversationMock.mockReset();
+		buildConversationTranscriptMock.mockReset();
+		requestKnowledgeClarificationMock.mockReset();
+		getActiveKnowledgeClarificationForConversationMock.mockResolvedValue(null);
+		buildConversationTranscriptMock.mockResolvedValue([
+			{
+				messageId: "msg-1",
+				content: "How do I permanently delete my account?",
+				senderType: "visitor",
+				senderId: "visitor-1",
+				senderName: null,
+				timestamp: "2026-03-16T09:00:00.000Z",
+				visibility: "public",
+			},
+		]);
+		requestKnowledgeClarificationMock.mockResolvedValue({
+			requestId: "req_1",
+			created: true,
+			status: "awaiting_answer",
+		});
+	});
+
+	it("creates a clarification immediately when a zero-hit search has strong question context", async () => {
+		const { maybeCreateImmediateClarificationFromSearchResult } =
+			await modulePromise;
+		const ctx = createToolContext();
+
+		const result = await maybeCreateImmediateClarificationFromSearchResult({
+			ctx,
+			searchResult: {
+				articles: [],
+				query: "account deletion",
+				questionContext: "How do I permanently delete my account?",
+				totalFound: 0,
+				maxSimilarity: null,
+				retrievalQuality: "none",
+				clarificationSignal: "immediate",
+			},
+		});
+
+		expect(result).toMatchObject({
+			status: "created",
+			requestId: "req_1",
+			created: true,
+		});
+		expect(ctx.runtimeState.immediateKnowledgeGapClarificationHandled).toBe(
+			true
+		);
+	});
+
+	it("skips the immediate clarification when only a vague trigger is available", async () => {
+		const { maybeCreateImmediateClarificationFromSearchResult } =
+			await modulePromise;
+		const ctx = createToolContext({
+			triggerMessageText: "Any update?",
+		});
+
+		const result = await maybeCreateImmediateClarificationFromSearchResult({
+			ctx,
+			searchResult: {
+				articles: [],
+				query: "status update",
+				questionContext: null,
+				totalFound: 0,
+				maxSimilarity: null,
+				retrievalQuality: "none",
+				clarificationSignal: "immediate",
+			},
+		});
+
+		expect(result).toEqual({
+			status: "skipped",
+			reason: "insufficient_intent",
+		});
+		expect(requestKnowledgeClarificationMock).not.toHaveBeenCalled();
+		expect(buildConversationTranscriptMock).not.toHaveBeenCalled();
+	});
+
+	it("creates a clarification from a specific trigger when questionContext is missing", async () => {
+		const { maybeCreateImmediateClarificationFromSearchResult } =
+			await modulePromise;
+		const ctx = createToolContext({
+			triggerMessageText: "Can I permanently delete my account?",
+		});
+		buildConversationTranscriptMock.mockResolvedValueOnce([
+			{
+				messageId: "msg-1",
+				content: "Can I permanently delete my account?",
+				senderType: "visitor",
+				senderId: "visitor-1",
+				senderName: null,
+				timestamp: "2026-03-16T09:00:00.000Z",
+				visibility: "public",
+			},
+		]);
+
+		const result = await maybeCreateImmediateClarificationFromSearchResult({
+			ctx,
+			searchResult: {
+				articles: [],
+				query: "account deletion",
+				questionContext: null,
+				totalFound: 0,
+				maxSimilarity: null,
+				retrievalQuality: "none",
+				clarificationSignal: "immediate",
+			},
+		});
+
+		expect(result).toMatchObject({
+			status: "created",
+			requestId: "req_1",
+			created: true,
+		});
+		expect(requestKnowledgeClarificationMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				topicSummary:
+					"Missing exact answer for: Can I permanently delete my account?",
+			})
+		);
+	});
+
+	it("does not create duplicate clarifications across repeated zero-hit searches in the same run", async () => {
+		const { maybeCreateImmediateClarificationFromSearchResult } =
+			await modulePromise;
+		const ctx = createToolContext();
+		const searchResult = {
+			articles: [],
+			query: "account deletion",
+			questionContext: "How do I permanently delete my account?",
+			totalFound: 0,
+			maxSimilarity: null,
+			retrievalQuality: "none" as const,
+			clarificationSignal: "immediate" as const,
+		};
+
+		const firstResult = await maybeCreateImmediateClarificationFromSearchResult(
+			{
+				ctx,
+				searchResult,
+			}
+		);
+		const secondResult =
+			await maybeCreateImmediateClarificationFromSearchResult({
+				ctx,
+				searchResult,
+			});
+
+		expect(firstResult).toMatchObject({
+			status: "created",
+		});
+		expect(secondResult).toEqual({
+			status: "skipped",
+			reason: "already_requested",
+		});
+		expect(requestKnowledgeClarificationMock).toHaveBeenCalledTimes(1);
 	});
 });

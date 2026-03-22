@@ -1,11 +1,12 @@
 import type { AiAgentSelect } from "@api/db/schema/ai-agent";
 import type { ConversationSelect } from "@api/db/schema/conversation";
 import type {
-	ContinuationContext,
 	ConversationState,
 	ConversationTranscriptEntry,
 	ModelResolution,
 	RoleAwareMessage,
+	SegmentedConversationEntry,
+	SegmentedConversationMessage,
 	VisitorContext,
 } from "../../contracts";
 
@@ -14,11 +15,14 @@ export type IntakeReadyContext = {
 	modelResolution: ModelResolution;
 	conversation: ConversationSelect;
 	conversationHistory: ConversationTranscriptEntry[];
+	decisionMessages: SegmentedConversationMessage[];
+	generationEntries: SegmentedConversationEntry[];
 	visitorContext: VisitorContext | null;
 	conversationState: ConversationState;
 	triggerMessage: RoleAwareMessage | null;
 	triggerMessageText: string | null;
-	continuationContext: ContinuationContext | null;
+	hasLaterHumanMessage: boolean;
+	hasLaterAiMessage: boolean;
 };
 
 export type IntakeStepResult =

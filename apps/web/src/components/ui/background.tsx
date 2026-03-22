@@ -57,8 +57,7 @@ type RgbaColor = {
 
 type RenderPalette = {
 	accent: RgbaColor;
-	asciiAccentColor: string;
-	asciiColor: string;
+	asciiBase: RgbaColor;
 	background: RgbaColor;
 	neutral: RgbaColor;
 };
@@ -333,8 +332,7 @@ export function Background({
 		const pointerTrailPool = createPointerTrailPool();
 		let palette: RenderPalette = {
 			accent: createFallbackColor(FALLBACK_ACCENT),
-			asciiAccentColor: FALLBACK_ACCENT,
-			asciiColor: FALLBACK_LIGHT_FOREGROUND,
+			asciiBase: createFallbackColor(FALLBACK_LIGHT_FOREGROUND),
 			background: createFallbackColor(FALLBACK_LIGHT_BACKGROUND),
 			neutral: createFallbackColor("#d8d8d8"),
 		};
@@ -432,11 +430,10 @@ export function Background({
 
 			palette = {
 				accent: accentColor,
-				asciiAccentColor: rgbaToCss(
-					mixColors(accentColor, foregroundColor, isDarkTheme ? 0.16 : 0.34)
-				),
-				asciiColor: rgbaToCss(
-					mixColors(foregroundColor, accentColor, isDarkTheme ? 0.08 : 0.04)
+				asciiBase: mixColors(
+					foregroundColor,
+					accentColor,
+					isDarkTheme ? 0.14 : 0.1
 				),
 				background: backgroundColor,
 				neutral: neutralColor,
@@ -691,7 +688,8 @@ export function Background({
 			asciiContext.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
 			asciiContext.clearRect(0, 0, width, height);
 			asciiContext.globalAlpha = clampUnit(asciiOpacity);
-			asciiContext.fillStyle = palette.asciiColor;
+			const baseAsciiCssColor = rgbaToCss(palette.asciiBase);
+			asciiContext.fillStyle = baseAsciiCssColor;
 			asciiContext.textAlign = "center";
 			asciiContext.textBaseline = "middle";
 			asciiContext.font = `${Math.max(
@@ -759,25 +757,24 @@ export function Background({
 							density * 0.58 +
 							trailInfluence * resolvedConfig.pointerTrailIntensity * 0.55
 					);
+					const glyphAccentMix = clampUnit(
+						density * 0.12 +
+							trailInfluence *
+								(0.92 + resolvedConfig.pointerTrailIntensity * 0.18)
+					);
+					const glyphColor = mixColors(
+						palette.asciiBase,
+						palette.accent,
+						glyphAccentMix
+					);
 					asciiContext.globalAlpha = clampUnit(asciiOpacity * glyphAlpha);
-					asciiContext.fillStyle = palette.asciiColor;
+					asciiContext.fillStyle = rgbaToCss(glyphColor);
 					asciiContext.fillText(character, positionX, positionY);
-
-					if (trailInfluence > 0.08) {
-						asciiContext.globalAlpha = clampUnit(
-							asciiOpacity *
-								trailInfluence *
-								resolvedConfig.pointerTrailIntensity *
-								0.55
-						);
-						asciiContext.fillStyle = palette.asciiAccentColor;
-						asciiContext.fillText(character, positionX, positionY);
-					}
 				}
 			}
 
 			asciiContext.globalAlpha = 1;
-			asciiContext.fillStyle = palette.asciiColor;
+			asciiContext.fillStyle = baseAsciiCssColor;
 		};
 
 		const stopLoop = () => {
@@ -977,7 +974,7 @@ export function Background({
 					intensity:
 						resolvedConfig.pointerTrailIntensity * (0.78 + speedFactor * 0.22),
 					radius:
-						resolvedConfig.pointerTrailRadius * (1.04 + speedFactor * 0.28),
+						resolvedConfig.pointerTrailRadius * (0.92 + speedFactor * 0.16),
 					spawnedAtMs: now,
 					velocityX: normalizedVelocityX,
 					velocityY: normalizedVelocityY,

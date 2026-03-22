@@ -110,6 +110,7 @@ describe("handleConversationUpdated", () => {
 							question: "Does the billing change immediately?",
 							stepIndex: 2,
 							maxSteps: 5,
+							progress: null,
 							updatedAt: "2025-01-05T00:00:00.000Z",
 						},
 					},
@@ -159,6 +160,7 @@ describe("handleConversationUpdated", () => {
 				question: "Does the billing change immediately?",
 				stepIndex: 2,
 				maxSteps: 5,
+				progress: null,
 				updatedAt: "2025-01-05T00:00:00.000Z",
 			},
 		});
@@ -180,6 +182,7 @@ describe("handleConversationUpdated", () => {
 				question: "Does the billing change immediately?",
 				stepIndex: 2,
 				maxSteps: 5,
+				progress: null,
 				updatedAt: "2025-01-05T00:00:00.000Z",
 			},
 		});
@@ -219,6 +222,7 @@ describe("handleConversationUpdated", () => {
 				question: null,
 				stepIndex: 1,
 				maxSteps: 3,
+				progress: null,
 				updatedAt: "2025-01-04T00:00:00.000Z",
 			},
 		};
@@ -251,6 +255,7 @@ describe("handleConversationUpdated", () => {
 							question: null,
 							stepIndex: 1,
 							maxSteps: 3,
+							progress: null,
 							updatedAt: "2025-01-05T00:00:00.000Z",
 						},
 					},
@@ -283,6 +288,7 @@ describe("handleConversationUpdated", () => {
 			question: null,
 			stepIndex: 1,
 			maxSteps: 3,
+			progress: null,
 			updatedAt: "2025-01-05T00:00:00.000Z",
 		});
 		expect(
@@ -294,6 +300,112 @@ describe("handleConversationUpdated", () => {
 			websiteSlug: "acme",
 			conversationId: "conv-1",
 		});
+		expect(invalidateQueriesMock).toHaveBeenCalledTimes(0);
+	});
+
+	it("keeps progress-only clarification updates in cache without invalidating the detail query", async () => {
+		const normalizedHeader = {
+			id: "conv-1",
+			title: "Old title",
+			status: "open",
+			deletedAt: null,
+			priority: "normal",
+			viewIds: [],
+			sentiment: "neutral",
+			sentimentConfidence: 0.4,
+			escalatedAt: null,
+			escalationReason: null,
+			resolvedAt: null,
+			resolvedByUserId: null,
+			resolvedByAiAgentId: null,
+			resolutionTime: null,
+			aiPausedUntil: null,
+			activeClarification: {
+				requestId: "01JKCLARIFICATION0000000001",
+				status: "analyzing",
+				topicSummary: "Clarify account deletion.",
+				question: null,
+				stepIndex: 1,
+				maxSteps: 3,
+				progress: null,
+				updatedAt: "2025-01-05T00:00:00.000Z",
+			},
+		};
+
+		const setNormalizedDataMock = mock((() => {}) as (value: unknown) => void);
+		const getObjectByIdMock = mock(
+			(() => normalizedHeader) as (id: string) => unknown
+		);
+		const invalidateQueriesMock = mock((async () => {}) as (
+			input: unknown
+		) => Promise<void>);
+
+		const { handleConversationUpdated } =
+			await conversationUpdatedModulePromise;
+
+		handleConversationUpdated({
+			event: {
+				type: "conversationUpdated",
+				payload: {
+					websiteId: "site-1",
+					organizationId: "org-1",
+					visitorId: "visitor-1",
+					userId: null,
+					conversationId: "conv-1",
+					updates: {
+						activeClarification: {
+							requestId: "01JKCLARIFICATION0000000001",
+							status: "analyzing",
+							topicSummary: "Clarify account deletion.",
+							question: null,
+							stepIndex: 1,
+							maxSteps: 3,
+							progress: {
+								phase: "reviewing_evidence",
+								label: "Reviewing what we know",
+								detail: "Cross-checking conversation context.",
+								attempt: 1,
+								toolName: "kb_search",
+								startedAt: "2025-01-05T00:00:01.000Z",
+							},
+							updatedAt: "2025-01-05T00:00:00.000Z",
+						},
+					},
+					aiAgentId: null,
+				},
+			} as never,
+			context: {
+				queryClient: {
+					invalidateQueries: invalidateQueriesMock,
+				} as never,
+				queryNormalizer: {
+					getObjectById: getObjectByIdMock,
+					setNormalizedData: setNormalizedDataMock,
+				} as never,
+				website: {
+					id: "site-1",
+					slug: "acme",
+				},
+				userId: "user-1",
+			} as never,
+		});
+
+		const updater = updateConversationHeaderInCacheMock.mock.calls[0]?.[3] as (
+			header: typeof normalizedHeader
+		) => typeof normalizedHeader;
+		expect(
+			updater(normalizedHeader).activeClarification?.progress
+		).toMatchObject({
+			phase: "reviewing_evidence",
+			label: "Reviewing what we know",
+			detail: "Cross-checking conversation context.",
+			attempt: 1,
+			toolName: "kb_search",
+			startedAt: "2025-01-05T00:00:01.000Z",
+		});
+		expect(
+			invalidateActiveConversationClarificationQueryMock
+		).toHaveBeenCalledTimes(0);
 		expect(invalidateQueriesMock).toHaveBeenCalledTimes(0);
 	});
 

@@ -1,55 +1,67 @@
 import type { ModelMessage } from "@api/lib/ai";
-import {
-	type ConversationTranscriptEntry,
-	isConversationToolAction,
-	type RoleAwareMessage,
-} from "../../../primary-pipeline/contracts";
+import type { SegmentedConversationEntry } from "../../../primary-pipeline/contracts";
+import { isConversationToolAction } from "../../../primary-pipeline/contracts";
 
 function normalizeText(value: string): string {
 	return value.replace(/\s+/g, " ").trim();
 }
 
-function buildMessagePrefix(message: RoleAwareMessage): string {
-	const privatePrefix = message.visibility === "private" ? "[PRIVATE]" : "";
-
-	switch (message.senderType) {
-		case "visitor":
-			return `${privatePrefix}[VISITOR]`;
-		case "human_agent":
-			return `${privatePrefix}[TEAM]`;
-		case "ai_agent":
-			return privatePrefix;
+function toSegmentLabel(
+	segment: SegmentedConversationEntry["segment"]
+): string {
+	switch (segment) {
+		case "before_trigger":
+			return "BEFORE";
+		case "trigger":
+			return "TRIGGER";
+		case "after_trigger":
+			return "AFTER";
 		default:
-			return privatePrefix;
+			return "BEFORE";
 	}
 }
 
+function toVisibilityLabel(
+	visibility: "public" | "private"
+): "PUBLIC" | "PRIVATE" {
+	return visibility === "private" ? "PRIVATE" : "PUBLIC";
+}
+
+function buildHeader(entry: SegmentedConversationEntry): string {
+	const segmentLabel = `[${toSegmentLabel(entry.segment)}]`;
+	const visibilityLabel = `[${toVisibilityLabel(entry.visibility)}]`;
+
+	if (isConversationToolAction(entry)) {
+		return `${segmentLabel}[TOOL:${entry.toolName}]${visibilityLabel}`;
+	}
+
+	const actorLabel =
+		entry.senderType === "visitor"
+			? "[VISITOR]"
+			: entry.senderType === "human_agent"
+				? "[TEAM]"
+				: "[AI]";
+
+	return `${segmentLabel}${actorLabel}${visibilityLabel}`;
+}
+
 export function buildGenerationMessages(
-	history: ConversationTranscriptEntry[]
+	entries: SegmentedConversationEntry[]
 ): ModelMessage[] {
 	const formatted: ModelMessage[] = [];
 
-	for (const entry of history) {
+	for (const entry of entries) {
 		const normalizedContent = normalizeText(entry.content);
 		if (!normalizedContent) {
 			continue;
 		}
 
-		if (isConversationToolAction(entry)) {
-			formatted.push({
-				role: "assistant",
-				content: normalizedContent,
-			});
-			continue;
-		}
-
-		const prefix = buildMessagePrefix(entry);
-		const content = [prefix, normalizedContent].filter(Boolean).join(" ");
-		const role = entry.senderType === "ai_agent" ? "assistant" : "user";
-
 		formatted.push({
-			role,
-			content,
+			role:
+				!isConversationToolAction(entry) && entry.senderType !== "ai_agent"
+					? "user"
+					: "assistant",
+			content: `${buildHeader(entry)} ${normalizedContent}`,
 		});
 	}
 

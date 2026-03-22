@@ -120,6 +120,12 @@ async function runBackgroundIntake(ctx: BackgroundPipelineContext): Promise<
 			conversation: NonNullable<
 				Awaited<ReturnType<typeof loadConversationSeed>>["conversation"]
 			>;
+			decisionMessages: Awaited<
+				ReturnType<typeof loadIntakeContext>
+			>["decisionMessages"];
+			generationEntries: Awaited<
+				ReturnType<typeof loadIntakeContext>
+			>["generationEntries"];
 			conversationHistory: Awaited<
 				ReturnType<typeof loadIntakeContext>
 			>["conversationHistory"];
@@ -132,6 +138,12 @@ async function runBackgroundIntake(ctx: BackgroundPipelineContext): Promise<
 			triggerMessage: Awaited<
 				ReturnType<typeof loadIntakeContext>
 			>["triggerMessage"];
+			hasLaterHumanMessage: Awaited<
+				ReturnType<typeof loadIntakeContext>
+			>["hasLaterHumanMessage"];
+			hasLaterAiMessage: Awaited<
+				ReturnType<typeof loadIntakeContext>
+			>["hasLaterAiMessage"];
 			availableViews: Awaited<ReturnType<typeof listActiveWebsiteViews>>;
 	  }
 	| {
@@ -212,10 +224,14 @@ async function runBackgroundIntake(ctx: BackgroundPipelineContext): Promise<
 		toolAllowlist,
 		modelResolution,
 		conversation,
+		decisionMessages: intakeContext.decisionMessages,
+		generationEntries: intakeContext.generationEntries,
 		conversationHistory: intakeContext.conversationHistory,
 		visitorContext: intakeContext.visitorContext,
 		conversationState: intakeContext.conversationState,
 		triggerMessage: intakeContext.triggerMessage,
+		hasLaterHumanMessage: intakeContext.hasLaterHumanMessage,
+		hasLaterAiMessage: intakeContext.hasLaterAiMessage,
 		availableViews,
 	};
 }
@@ -307,15 +323,18 @@ export async function runBackgroundPipeline(
 			mode: "background_only",
 			aiAgent: intakeResult.aiAgent,
 			conversation: intakeResult.conversation,
-			conversationHistory: intakeResult.conversationHistory,
+			generationEntries: intakeResult.generationEntries,
 			visitorContext: intakeResult.visitorContext,
 			conversationState: intakeResult.conversationState,
 			humanCommand: null,
 			workflowRunId,
 			triggerMessageId: ctx.input.sourceMessageId,
+			triggerMessageText: intakeResult.triggerMessage?.content ?? null,
 			triggerMessageCreatedAt: ctx.input.sourceMessageCreatedAt,
 			triggerSenderType: intakeResult.triggerMessage?.senderType,
 			triggerVisibility: intakeResult.triggerMessage?.visibility,
+			hasLaterHumanMessage: intakeResult.hasLaterHumanMessage,
+			hasLaterAiMessage: intakeResult.hasLaterAiMessage,
 			allowPublicMessages: false,
 			availableViews: intakeResult.availableViews.map((view) => ({
 				id: view.id,

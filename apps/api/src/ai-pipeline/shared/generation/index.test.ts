@@ -300,7 +300,7 @@ function createInput(overrides: Partial<Record<string, unknown>> = {}) {
 			websiteId: "site-1",
 			visitorId: "visitor-1",
 		} as never,
-		conversationHistory: [],
+		generationEntries: [],
 		visitorContext: null,
 		conversationState: {
 			hasHumanAssignee: false,
@@ -312,6 +312,8 @@ function createInput(overrides: Partial<Record<string, unknown>> = {}) {
 		humanCommand: null,
 		workflowRunId: "wf-1",
 		triggerMessageId: "msg-trigger-1",
+		hasLaterHumanMessage: false,
+		hasLaterAiMessage: false,
 		allowPublicMessages: true,
 		...overrides,
 	};

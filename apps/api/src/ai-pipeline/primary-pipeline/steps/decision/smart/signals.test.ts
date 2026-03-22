@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import type { RoleAwareMessage } from "../../../contracts";
+import type { SegmentedConversationMessage } from "../../../contracts";
 import { extractDecisionSignals } from "./signals";
 
-function createMessage(overrides: Partial<RoleAwareMessage>): RoleAwareMessage {
+function createMessage(
+	overrides: Partial<SegmentedConversationMessage>
+): SegmentedConversationMessage {
 	return {
 		messageId: "msg-1",
 		content: "Hello",
@@ -11,6 +13,7 @@ function createMessage(overrides: Partial<RoleAwareMessage>): RoleAwareMessage {
 		senderName: null,
 		timestamp: "2026-03-04T10:00:00.000Z",
 		visibility: "public",
+		segment: "before_trigger",
 		...overrides,
 	};
 }
@@ -22,7 +25,7 @@ afterEach(() => {
 });
 
 describe("extractDecisionSignals", () => {
-	it("uses the trigger timestamp instead of wall-clock time for human-active detection", () => {
+	it("uses the latest visible context timestamp instead of wall-clock time for human-active detection", () => {
 		Date.now = () => Date.parse("2026-03-04T10:10:00.000Z");
 
 		const humanMessage = createMessage({
@@ -35,12 +38,13 @@ describe("extractDecisionSignals", () => {
 			messageId: "msg-trigger",
 			content: "Thanks",
 			timestamp: "2026-03-04T10:01:50.000Z",
+			segment: "trigger",
 		});
 
 		const signals = extractDecisionSignals({
 			aiAgent: {} as never,
 			conversation: {} as never,
-			conversationHistory: [humanMessage, triggerMessage],
+			decisionMessages: [humanMessage, triggerMessage],
 			conversationState: {
 				hasHumanAssignee: false,
 				assigneeIds: [],

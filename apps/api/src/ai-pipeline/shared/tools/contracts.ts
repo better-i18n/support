@@ -43,6 +43,7 @@ export type ToolRuntimeState = {
 	/** Successful calls used for credit accounting. */
 	chargeableToolCallCounts: Record<string, number>;
 	toolExecutions: ToolExecutionSnapshot[];
+	immediateKnowledgeGapClarificationHandled: boolean;
 	publicSendSequence: number;
 	privateSendSequence: number;
 	sentPublicMessageIds: Set<string>;
@@ -106,6 +107,7 @@ export type PipelineToolContext = {
 	visitorName: string;
 	workflowRunId: string;
 	triggerMessageId: string;
+	triggerMessageText?: string | null;
 	triggerMessageCreatedAt?: string;
 	triggerSenderType?: "visitor" | "human_agent" | "ai_agent";
 	triggerVisibility?: "public" | "private";
@@ -114,6 +116,7 @@ export type PipelineToolContext = {
 	mode: GenerationMode;
 	isEscalated: boolean;
 	canCategorize: boolean;
+	canRequestKnowledgeClarification: boolean;
 	availableViews: PipelineAvailableView[];
 	stopTyping?: () => Promise<void>;
 	runtimeState: ToolRuntimeState;

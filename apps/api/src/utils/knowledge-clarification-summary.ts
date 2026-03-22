@@ -4,6 +4,7 @@ import type {
 } from "@api/db/schema/knowledge-clarification";
 import type {
 	ActiveConversationKnowledgeClarificationStatus,
+	ConversationClarificationProgress,
 	ConversationClarificationSummary,
 	KnowledgeClarificationTurnRole,
 } from "@cossistant/types";
@@ -99,6 +100,7 @@ export function getDisplayClarificationQuestionTurn<
 export function buildConversationClarificationSummary(params: {
 	request: ActiveConversationClarificationRequest;
 	turns: ClarificationTurnLike[];
+	progress?: ConversationClarificationProgress | null;
 }): ConversationClarificationSummary | null {
 	if (!params.request.conversationId) {
 		return null;
@@ -121,5 +123,6 @@ export function buildConversationClarificationSummary(params: {
 		stepIndex: params.request.stepIndex,
 		maxSteps: params.request.maxSteps,
 		updatedAt: params.request.updatedAt,
+		progress: params.progress ?? null,
 	};
 }

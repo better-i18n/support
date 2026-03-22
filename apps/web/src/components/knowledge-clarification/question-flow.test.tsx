@@ -189,4 +189,27 @@ describe("KnowledgeClarificationQuestionContent", () => {
 
 		expect(html).toContain('data-clarification-answer-target="true"');
 	});
+
+	it("renders a minimal loading row while analyzing", () => {
+		const html = renderToStaticMarkup(
+			<KnowledgeClarificationQuestionContent
+				freeAnswer=""
+				isAnalyzing={true}
+				isOtherSelected={false}
+				onFreeAnswerChange={() => {}}
+				onSelectAnswer={() => {}}
+				question="How does account deletion work today?"
+				selectedAnswer={null}
+				suggestedAnswers={[
+					"Users delete it in settings",
+					"Support handles it manually",
+					"It depends on the account type",
+				]}
+			/>
+		);
+
+		expect(html).toContain("Saving your answer...");
+		expect(html).not.toContain("How does account deletion work today?");
+		expect(html).not.toContain("rounded-xl");
+	});
 });

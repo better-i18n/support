@@ -3,32 +3,56 @@
 import type { RefObject } from "react";
 import { useLayoutEffect, useRef } from "react";
 
+const CONVERSATION_TIMELINE_ID = "conversation-timeline";
+// Keep this aligned with the shared conversation timeline primitive.
+const CONVERSATION_TIMELINE_BOTTOM_THRESHOLD_PX = 12;
+
 type UseComposerHeightSyncOptions = {
 	containerRef: RefObject<HTMLDivElement | null>;
 	onHeightChange?: (height: number) => void;
 };
 
-function syncTimelineScroll(heightDelta: number) {
-	if (heightDelta <= 0 || typeof document === "undefined") {
-		return;
-	}
+type TimelineViewportMetrics = Pick<
+	HTMLDivElement,
+	"clientHeight" | "scrollHeight" | "scrollTop"
+>;
 
-	const timeline = document.getElementById("conversation-timeline");
-	if (!timeline) {
-		return;
-	}
+type ConversationTimelineDocument = Pick<Document, "getElementById">;
 
-	const timelineScrollTop = timeline.scrollTop;
-	const timelineScrollHeight = timeline.scrollHeight;
-	const timelineClientHeight = timeline.clientHeight;
+export function isTimelinePinnedToBottom(
+	timeline: TimelineViewportMetrics
+): boolean {
 	const distanceFromBottom =
-		timelineScrollHeight - timelineScrollTop - timelineClientHeight;
+		timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight;
 
-	if (distanceFromBottom <= 50) {
-		timeline.scrollTo({
-			top: timelineScrollTop + heightDelta,
-		});
+	return distanceFromBottom <= CONVERSATION_TIMELINE_BOTTOM_THRESHOLD_PX;
+}
+
+function getConversationTimeline(
+	timelineDocument: ConversationTimelineDocument | undefined
+): HTMLDivElement | null {
+	if (!timelineDocument) {
+		return null;
 	}
+
+	return timelineDocument.getElementById(
+		CONVERSATION_TIMELINE_ID
+	) as HTMLDivElement | null;
+}
+
+export function scrollConversationTimelineToBottom(
+	timelineDocument: ConversationTimelineDocument | undefined
+): boolean {
+	const timeline = getConversationTimeline(timelineDocument);
+	if (!timeline) {
+		return false;
+	}
+
+	timeline.scrollTo({
+		top: timeline.scrollHeight,
+	});
+
+	return true;
 }
 
 export function useComposerHeightSync({
@@ -36,6 +60,7 @@ export function useComposerHeightSync({
 	onHeightChange,
 }: UseComposerHeightSyncOptions) {
 	const previousHeightRef = useRef(0);
+	const pendingFollowBottomFrameRef = useRef<number | null>(null);
 
 	useLayoutEffect(() => {
 		const container = containerRef.current;
@@ -43,21 +68,59 @@ export function useComposerHeightSync({
 			return;
 		}
 
+		const cancelPendingFollowBottom = () => {
+			if (
+				pendingFollowBottomFrameRef.current !== null &&
+				typeof cancelAnimationFrame === "function"
+			) {
+				cancelAnimationFrame(pendingFollowBottomFrameRef.current);
+			}
+
+			pendingFollowBottomFrameRef.current = null;
+		};
+
 		const reportHeight = () => {
 			const currentHeight = container.getBoundingClientRect().height;
-			const heightDelta = currentHeight - previousHeightRef.current;
-
-			if (heightDelta !== 0) {
-				onHeightChange?.(currentHeight);
-				syncTimelineScroll(heightDelta);
-				previousHeightRef.current = currentHeight;
+			if (currentHeight === previousHeightRef.current) {
+				return;
 			}
+
+			const timeline =
+				typeof document === "undefined"
+					? null
+					: getConversationTimeline(document);
+			const shouldFollowBottom = timeline
+				? isTimelinePinnedToBottom(timeline)
+				: false;
+
+			if (!shouldFollowBottom) {
+				cancelPendingFollowBottom();
+			}
+
+			onHeightChange?.(currentHeight);
+			previousHeightRef.current = currentHeight;
+
+			if (
+				!(
+					shouldFollowBottom &&
+					typeof document !== "undefined" &&
+					typeof requestAnimationFrame === "function"
+				)
+			) {
+				return;
+			}
+
+			cancelPendingFollowBottom();
+			pendingFollowBottomFrameRef.current = requestAnimationFrame(() => {
+				pendingFollowBottomFrameRef.current = null;
+				scrollConversationTimelineToBottom(document);
+			});
 		};
 
 		reportHeight();
 
 		if (typeof ResizeObserver === "undefined") {
-			return;
+			return cancelPendingFollowBottom;
 		}
 
 		const resizeObserver = new ResizeObserver(() => {
@@ -68,6 +131,7 @@ export function useComposerHeightSync({
 
 		return () => {
 			resizeObserver.disconnect();
+			cancelPendingFollowBottom();
 		};
 	}, [containerRef, onHeightChange]);
 }

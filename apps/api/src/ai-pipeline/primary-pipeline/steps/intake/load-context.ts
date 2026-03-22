@@ -2,7 +2,6 @@ import type { Database } from "@api/db";
 import {
 	getConversationById,
 	getMessageMetadata,
-	getPublicAiMessagesAfterCursor,
 } from "@api/db/queries/conversation";
 import { getCompleteVisitorWithContact } from "@api/db/queries/visitor";
 import type { ConversationSelect } from "@api/db/schema/conversation";
@@ -12,14 +11,14 @@ import {
 } from "@api/db/schema/conversation";
 import { and, eq, isNull } from "drizzle-orm";
 import type {
-	ContinuationContext,
 	ConversationState,
 	ConversationTranscriptEntry,
 	RoleAwareMessage,
+	SegmentedConversationEntry,
+	SegmentedConversationMessage,
 	VisitorContext,
 } from "../../contracts";
-import { isConversationMessage } from "../../contracts";
-import { buildConversationTranscript } from "./history";
+import { buildTriggerCenteredTimelineContext } from "./history";
 import type { TriggerMessageMetadata } from "./types";
 
 type LoadConversationSeedInput = {
@@ -140,45 +139,6 @@ async function loadConversationState(
 	};
 }
 
-async function loadContinuationContext(
-	db: Database,
-	params: {
-		conversation: ConversationSelect;
-	}
-): Promise<ContinuationContext | null> {
-	const previousProcessedMessageCreatedAt =
-		params.conversation.aiAgentLastProcessedMessageCreatedAt;
-	const previousProcessedMessageId =
-		params.conversation.aiAgentLastProcessedMessageId;
-
-	if (!(previousProcessedMessageCreatedAt && previousProcessedMessageId)) {
-		return null;
-	}
-
-	const aiReplies = await getPublicAiMessagesAfterCursor(db, {
-		conversationId: params.conversation.id,
-		organizationId: params.conversation.organizationId,
-		afterCreatedAt: previousProcessedMessageCreatedAt,
-		afterId: previousProcessedMessageId,
-		limit: 10,
-	});
-
-	const latestAiReply = aiReplies
-		.map((message) => message.text?.trim() ?? "")
-		.filter((text) => text.length > 0)
-		.join("\n\n");
-
-	if (!latestAiReply) {
-		return null;
-	}
-
-	return {
-		previousProcessedMessageId,
-		previousProcessedMessageCreatedAt,
-		latestAiReply,
-	};
-}
-
 export async function loadIntakeContext(
 	db: Database,
 	params: {
@@ -191,51 +151,43 @@ export async function loadIntakeContext(
 	}
 ): Promise<{
 	conversationHistory: ConversationTranscriptEntry[];
+	decisionMessages: SegmentedConversationMessage[];
+	generationEntries: SegmentedConversationEntry[];
 	visitorContext: VisitorContext | null;
 	conversationState: ConversationState;
 	triggerMessage: RoleAwareMessage | null;
 	triggerMessageText: string | null;
-	continuationContext: ContinuationContext | null;
+	hasLaterHumanMessage: boolean;
+	hasLaterAiMessage: boolean;
 }> {
-	const [
-		conversationHistory,
-		visitorContext,
-		conversationState,
-		continuationContext,
-	] = await Promise.all([
-		buildConversationTranscript(db, {
-			conversationId: params.conversationId,
-			organizationId: params.organizationId,
-			websiteId: params.websiteId,
-			maxCreatedAt: params.triggerMetadata.createdAt,
-			maxId: params.triggerMetadata.id,
-		}),
-		loadVisitorContext(db, {
-			visitorId: params.visitorId,
-		}),
-		loadConversationState(db, {
-			conversationId: params.conversationId,
-			organizationId: params.organizationId,
-			conversation: params.conversation,
-		}),
-		loadContinuationContext(db, {
-			conversation: params.conversation,
-		}),
-	]);
-
-	const triggerMessage =
-		conversationHistory.find(
-			(entry): entry is RoleAwareMessage =>
-				isConversationMessage(entry) &&
-				entry.messageId === params.triggerMetadata.id
-		) ?? null;
+	const [timelineContext, visitorContext, conversationState] =
+		await Promise.all([
+			buildTriggerCenteredTimelineContext(db, {
+				conversationId: params.conversationId,
+				organizationId: params.organizationId,
+				websiteId: params.websiteId,
+				triggerMessageId: params.triggerMetadata.id,
+				triggerMessageCreatedAt: params.triggerMetadata.createdAt,
+			}),
+			loadVisitorContext(db, {
+				visitorId: params.visitorId,
+			}),
+			loadConversationState(db, {
+				conversationId: params.conversationId,
+				organizationId: params.organizationId,
+				conversation: params.conversation,
+			}),
+		]);
 
 	return {
-		conversationHistory,
+		conversationHistory: timelineContext.conversationHistory,
+		decisionMessages: timelineContext.decisionMessages,
+		generationEntries: timelineContext.generationEntries,
 		visitorContext,
 		conversationState,
-		triggerMessage,
+		triggerMessage: timelineContext.triggerMessage,
 		triggerMessageText: params.triggerMetadata.text ?? null,
-		continuationContext,
+		hasLaterHumanMessage: timelineContext.hasLaterHumanMessage,
+		hasLaterAiMessage: timelineContext.hasLaterAiMessage,
 	};
 }

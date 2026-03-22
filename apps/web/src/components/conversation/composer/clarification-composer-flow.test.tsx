@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
+import type { ConversationClarificationProgress } from "@cossistant/types";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -57,6 +58,7 @@ function createSummary(
 		question: string | null;
 		stepIndex: number;
 		maxSteps: number;
+		progress: ConversationClarificationProgress | null;
 		updatedAt: string;
 	}> = {}
 ) {
@@ -67,6 +69,7 @@ function createSummary(
 		question: "Does the billing change immediately?",
 		stepIndex: 2,
 		maxSteps: 5,
+		progress: null,
 		updatedAt: "2026-03-14T10:00:00.000Z",
 		...overrides,
 	};
@@ -263,8 +266,90 @@ describe("useClarificationComposerFlow", () => {
 
 		expect(html).toContain("Clarify billing timing");
 		expect(html).toContain('data-clarification-slot="loading"');
-		expect(html).toContain("Preparing the next clarification step...");
-		expect(html).toContain(">Cancel<");
+		expect(html).toContain("Preparing next step...");
+		expect(html).not.toContain('data-clarification-slot="actions"');
+	});
+
+	it("renders only the minimal loading row while clarification progress is active", async () => {
+		const { useClarificationComposerFlow } = await modulePromise;
+
+		function FlowHarness() {
+			const blocks = useClarificationComposerFlow({
+				onCancel: () => {},
+				request: createRequest({
+					status: "analyzing",
+				}),
+				summary: createSummary({
+					status: "analyzing",
+					question: null,
+					progress: {
+						phase: "reviewing_evidence",
+						label: "Reviewing evidence...",
+						detail: null,
+						attempt: 1,
+						toolName: "kb_search",
+						startedAt: "2026-03-14T10:00:00.000Z",
+					},
+				}),
+				websiteSlug: "acme",
+			});
+
+			return (
+				<>
+					{blocks?.aboveBlock}
+					{blocks?.centralBlock}
+					{blocks?.bottomBlock}
+				</>
+			);
+		}
+
+		const html = renderToStaticMarkup(<FlowHarness />);
+
+		expect(html).toContain("Reviewing evidence...");
+		expect(html).not.toContain("Does the billing change immediately?");
+		expect(html).not.toContain('data-clarification-slot="question-flow"');
+		expect(html).not.toContain('data-clarification-slot="actions"');
+		expect(html).not.toContain('data-clarification-progress-card="true"');
+		expect(html).not.toContain("Running kb_search");
+	});
+
+	it("shows retrying generation as the active loading status when a fallback attempt starts", async () => {
+		const { useClarificationComposerFlow } = await modulePromise;
+
+		function FlowHarness() {
+			const blocks = useClarificationComposerFlow({
+				onCancel: () => {},
+				request: createRequest({
+					status: "analyzing",
+				}),
+				summary: createSummary({
+					status: "analyzing",
+					question: null,
+					progress: {
+						phase: "retrying_generation",
+						label: "Retrying generation...",
+						detail: null,
+						attempt: 2,
+						toolName: null,
+						startedAt: "2026-03-14T10:00:00.000Z",
+					},
+				}),
+				websiteSlug: "acme",
+			});
+
+			return (
+				<>
+					{blocks?.aboveBlock}
+					{blocks?.centralBlock}
+					{blocks?.bottomBlock}
+				</>
+			);
+		}
+
+		const html = renderToStaticMarkup(<FlowHarness />);
+
+		expect(html).toContain("Retrying generation...");
+		expect(html).not.toContain("This is taking longer than usual");
 	});
 
 	it("renders an inline retry state for retry-required clarification failures", async () => {

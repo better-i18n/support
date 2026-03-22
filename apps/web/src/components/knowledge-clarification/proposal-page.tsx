@@ -1,9 +1,12 @@
 "use client";
 
-import type { KnowledgeClarificationRequest } from "@cossistant/types";
+import type {
+	KnowledgeClarificationDraftFaq,
+	KnowledgeClarificationRequest,
+} from "@cossistant/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,6 +60,9 @@ export function KnowledgeClarificationProposalPage({
 	const trpc = useTRPC();
 	const router = useRouter();
 	const queryClient = useQueryClient();
+	const [isApprovalRedirecting, setIsApprovalRedirecting] = useState(false);
+	const [pendingApprovalDraft, setPendingApprovalDraft] =
+		useState<KnowledgeClarificationDraftFaq | null>(null);
 
 	const { data, isLoading } = useQuery({
 		...trpc.knowledgeClarification.getProposal.queryOptions({
@@ -109,6 +115,14 @@ export function KnowledgeClarificationProposalPage({
 		},
 	});
 
+	useEffect(() => {
+		if (!flow.approveMutation.isError) {
+			return;
+		}
+
+		setIsApprovalRedirecting(false);
+	}, [flow.approveMutation.isError]);
+
 	const activeDraftStep = useMemo(() => {
 		if (flow.currentStep?.kind === "draft_ready") {
 			return flow.currentStep;
@@ -121,21 +135,31 @@ export function KnowledgeClarificationProposalPage({
 		return null;
 	}, [flow.currentStep, flow.fallbackStep]);
 
-	const draftReviewState = useKnowledgeClarificationDraftReviewState(
-		activeDraftStep?.draftFaqPayload ?? null
+	const draftReviewPayload = useMemo(
+		() => pendingApprovalDraft ?? activeDraftStep?.draftFaqPayload ?? null,
+		[activeDraftStep?.draftFaqPayload, pendingApprovalDraft]
 	);
+
+	const draftReviewState =
+		useKnowledgeClarificationDraftReviewState(draftReviewPayload);
+	const isApprovalPendingUi =
+		flow.approveMutation.isPending || isApprovalRedirecting;
 
 	const closeProposal = () => {
 		router.push(`/${website.slug}/agent/training/faq`);
 	};
 
 	const headerTitle = useMemo(() => {
+		if (pendingApprovalDraft?.question) {
+			return pendingApprovalDraft.question;
+		}
+
 		if (flow.currentRequest?.draftFaqPayload?.question) {
 			return flow.currentRequest.draftFaqPayload.question;
 		}
 
 		return flow.currentRequest?.topicSummary ?? "AI suggestion";
-	}, [flow.currentRequest]);
+	}, [flow.currentRequest, pendingApprovalDraft?.question]);
 
 	if (!isLoading && data?.request === null) {
 		return null;
@@ -145,10 +169,10 @@ export function KnowledgeClarificationProposalPage({
 		<TrainingEntryDetailLayout
 			backHref={`/${website.slug}/agent/training/faq`}
 			headerActions={
-				activeDraftStep ? (
+				draftReviewPayload ? (
 					<>
 						<Button
-							disabled={flow.approveMutation.isPending}
+							disabled={isApprovalPendingUi}
 							onClick={closeProposal}
 							type="button"
 							variant="ghost"
@@ -156,18 +180,15 @@ export function KnowledgeClarificationProposalPage({
 							Cancel
 						</Button>
 						<Button
-							disabled={
-								flow.approveMutation.isPending || !draftReviewState.canApprove
-							}
+							disabled={isApprovalPendingUi || !draftReviewState.canApprove}
 							onClick={() => {
-								flow.approveDraft(
-									activeDraftStep.request.id,
-									draftReviewState.parsedDraft
-								);
+								setPendingApprovalDraft(draftReviewState.parsedDraft);
+								setIsApprovalRedirecting(true);
+								flow.approveDraft(requestId, draftReviewState.parsedDraft);
 							}}
 							type="button"
 						>
-							{flow.approveMutation.isPending ? "Approving..." : "Approve"}
+							{isApprovalPendingUi ? "Approving..." : "Approve"}
 						</Button>
 					</>
 				) : null
@@ -195,14 +216,15 @@ export function KnowledgeClarificationProposalPage({
 				isLoading={isLoading}
 				isRetrying={flow.retryMutation.isPending}
 				isSubmittingAnswer={flow.answerMutation.isPending}
-				isSubmittingApproval={flow.approveMutation.isPending}
+				isSubmittingApproval={isApprovalPendingUi}
 				onAnswer={flow.submitAnswer}
 				onApprove={flow.approveDraft}
 				onClose={closeProposal}
 				onDefer={flow.deferRequest}
 				onDismiss={flow.dismissRequest}
 				onRetry={flow.retryRequest}
-				pageDraftReviewState={activeDraftStep ? draftReviewState : null}
+				pageDraftReviewState={draftReviewPayload ? draftReviewState : null}
+				showPageApprovalPendingState={isApprovalPendingUi}
 				variant="page"
 			/>
 		</TrainingEntryDetailLayout>

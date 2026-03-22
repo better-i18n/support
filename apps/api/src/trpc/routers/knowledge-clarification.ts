@@ -31,6 +31,7 @@ import {
 	answerKnowledgeClarificationRequestSchema,
 	approveKnowledgeClarificationDraftRequestSchema,
 	approveKnowledgeClarificationDraftResponseSchema,
+	type ConversationClarificationProgress,
 	type FaqKnowledgePayload,
 	getActiveKnowledgeClarificationRequestSchema,
 	getActiveKnowledgeClarificationResponseSchema,
@@ -216,6 +217,24 @@ async function emitRetryableConversationClarificationFailure(params: {
 		request: failedRequest,
 		aiAgentId: null,
 	});
+}
+
+function createConversationClarificationProgressReporter(params: {
+	db: Database;
+	conversation: Awaited<
+		ReturnType<typeof loadKnowledgeClarificationRuntime>
+	>["conversation"];
+	request: Awaited<ReturnType<typeof getKnowledgeClarificationRequestById>>;
+}) {
+	return async (progress: ConversationClarificationProgress) => {
+		await emitConversationClarificationUpdate({
+			db: params.db,
+			conversation: params.conversation,
+			request: params.request,
+			aiAgentId: null,
+			progress,
+		});
+	};
 }
 
 async function ensureFaqApprovalWithinLimits(params: {
@@ -517,6 +536,11 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 				websiteId: website.id,
 				request: analyzingRequest,
 			});
+			const progressReporter = createConversationClarificationProgressReporter({
+				db,
+				conversation: runtime.conversation,
+				request: analyzingRequest,
+			});
 
 			await emitConversationClarificationUpdate({
 				db,
@@ -540,6 +564,7 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 					aiAgent: runtime.aiAgent,
 					conversation: runtime.conversation,
 					targetKnowledge: runtime.targetKnowledge,
+					progressReporter,
 				});
 
 				await emitConversationClarificationUpdate({
@@ -616,6 +641,11 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 				websiteId: website.id,
 				request: analyzingRequest,
 			});
+			const progressReporter = createConversationClarificationProgressReporter({
+				db,
+				conversation: runtime.conversation,
+				request: analyzingRequest,
+			});
 
 			await emitConversationClarificationUpdate({
 				db,
@@ -639,6 +669,7 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 					aiAgent: runtime.aiAgent,
 					conversation: runtime.conversation,
 					targetKnowledge: runtime.targetKnowledge,
+					progressReporter,
 				});
 
 				await emitConversationClarificationUpdate({
@@ -704,6 +735,11 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 				websiteId: website.id,
 				request: analyzingRequest,
 			});
+			const progressReporter = createConversationClarificationProgressReporter({
+				db,
+				conversation: runtime.conversation,
+				request: analyzingRequest,
+			});
 
 			await emitConversationClarificationUpdate({
 				db,
@@ -719,6 +755,7 @@ export const knowledgeClarificationRouter = createTRPCRouter({
 					aiAgent: runtime.aiAgent,
 					conversation: runtime.conversation,
 					targetKnowledge: runtime.targetKnowledge,
+					progressReporter,
 				});
 
 				await emitConversationClarificationUpdate({

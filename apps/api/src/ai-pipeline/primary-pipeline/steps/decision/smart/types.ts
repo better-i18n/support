@@ -2,8 +2,8 @@ import type { AiAgentSelect } from "@api/db/schema/ai-agent";
 import type { ConversationSelect } from "@api/db/schema/conversation";
 import type {
 	ConversationState,
-	ConversationTranscriptEntry,
 	RoleAwareMessage,
+	SegmentedConversationMessage,
 } from "../../../contracts";
 
 export type DecisionIntent = "respond" | "observe" | "assist_team";
@@ -23,7 +23,7 @@ export type SmartDecisionResult = {
 export type SmartDecisionInput = {
 	aiAgent: AiAgentSelect;
 	conversation: ConversationSelect;
-	conversationHistory: ConversationTranscriptEntry[];
+	decisionMessages: SegmentedConversationMessage[];
 	conversationState: ConversationState;
 	triggerMessage: RoleAwareMessage;
 	decisionPolicy: string;
@@ -39,6 +39,8 @@ export type DecisionSignals = {
 	triggerIsQuestionOrRequest: boolean;
 	triggerIsSingleNonQuestion: boolean;
 	triggerLooksLikeHumanCommand: boolean;
+	hasLaterHumanMessage: boolean;
+	hasLaterAiMessage: boolean;
 };
 
 export type SmartDecisionModelConfig = {
