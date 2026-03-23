@@ -19,8 +19,6 @@ import { FullWidthBorder } from "./components/full-width-border";
 import { Install } from "./components/install";
 import { PrecisionFlowSection } from "./components/precision-flow-section";
 
-export const dynamic = "force-dynamic";
-
 export const metadata = marketing({
 	title: "AI agent customer support for your SaaS in under 10 lines of code",
 	description:
@@ -35,7 +33,7 @@ export const metadata = marketing({
 	],
 });
 
-export default async function Landing() {
+export default function Landing() {
 	return (
 		<>
 			<JsonLdScripts

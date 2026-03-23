@@ -1,9 +1,7 @@
-"use client";
-
 import type { ReactNode } from "react";
 import { BrowserShell } from "@/components/showcase/browser-shell";
-import { Background } from "@/components/ui/background";
 import { cn } from "@/lib/utils";
+import { BrowserWithBackgroundLayer } from "./browser-with-background-layer";
 
 type BrowserWithBackgroundProps = {
 	children?: ReactNode;
@@ -25,7 +23,7 @@ export function BrowserWithBackground({
 				containerClassName
 			)}
 		>
-			<Background asciiOpacity={0.5} fieldOpacity={0.14} resolution={0.05} />
+			<BrowserWithBackgroundLayer />
 			<div
 				className={cn(
 					"pointer-events-none relative z-10 flex flex-1 items-center justify-center overflow-hidden",

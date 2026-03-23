@@ -250,10 +250,10 @@ describe("PrecisionFlowSection", () => {
 			'data-knowledge-clarification-draft-preview-variant="minimal"'
 		);
 		expect(html).toContain(
-			'data-knowledge-clarification-draft-preview-pill="generated"'
+			'data-knowledge-clarification-draft-preview-pill="FAQ generated"'
 		);
 		expect(html).toContain(
-			'data-knowledge-clarification-draft-preview-pill="AI"'
+			'data-knowledge-clarification-draft-preview-pill="Account"'
 		);
 		expect(html).toContain("w-[84%]");
 		expect(html).toContain("w-[86%]");

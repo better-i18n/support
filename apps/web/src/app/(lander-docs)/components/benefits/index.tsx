@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
 import { FullWidthBorder } from "../full-width-border";
-import { AiAgentsGraphic } from "./ai-agents";
 import { PromptToneGraphic } from "./prompt-tone";
 import { SelfLearningGraphic } from "./self-learning";
 import { CustomToolsGraphic } from "./tools";
