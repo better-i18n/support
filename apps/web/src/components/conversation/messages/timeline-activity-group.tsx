@@ -126,6 +126,7 @@ export function TimelineActivityGroup({
 	const hasToolRows = activityRows.some((row) => row.type === "tool");
 	const hasSingleVisibleToolRow =
 		activityRows.length === 1 && activityRows[0]?.type === "tool";
+	const hasMultipleVisibleRows = activityRows.length > 1;
 	const showSenderLabel = hasToolRows;
 
 	return (
@@ -179,6 +180,7 @@ export function TimelineActivityGroup({
 											createdAt={row.item.createdAt}
 											event={row.event}
 											showIcon={false}
+											showTerminalIndicator={hasMultipleVisibleRows}
 											visitor={visitor}
 										/>
 									) : (

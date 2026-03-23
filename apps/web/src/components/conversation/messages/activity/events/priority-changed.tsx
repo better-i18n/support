@@ -32,6 +32,7 @@ export function PriorityChangedActivity({
 	event,
 	timestamp,
 	showIcon = true,
+	showTerminalIndicator = false,
 }: EventActivityProps) {
 	const priority = extractPriorityFromMessage(event.message);
 	const colorClass = priority
@@ -54,6 +55,7 @@ export function PriorityChangedActivity({
 		<ActivityWrapper
 			icon={resolveEventIcon(event)}
 			showIcon={showIcon}
+			showTerminalIndicator={showTerminalIndicator}
 			state="result"
 			text={text}
 			timestamp={timestamp}

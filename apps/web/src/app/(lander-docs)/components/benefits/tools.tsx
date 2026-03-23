@@ -13,7 +13,7 @@ const Circle = forwardRef<
 >(({ className, children }, ref) => (
 	<div
 		className={cn(
-			"relative z-10 flex size-12 items-center justify-center rounded border border-dashed bg-background-200 p-2 dark:bg-background-400",
+			"relative z-10 flex size-12 items-center justify-center rounded border border-dashed bg-background-200 p-0.5 dark:bg-background-300",
 			className
 		)}
 		ref={ref}
@@ -86,10 +86,10 @@ export function CustomToolsGraphic() {
 					<Circle ref={div2Ref}>
 						<p className="font-mono text-[10px]">CAL</p>
 					</Circle>
-					<Circle className="ml-6 size-16 md:ml-16" ref={div4Ref}>
+					<Circle className="ml-6 size-16 md:ml-8" ref={div4Ref}>
 						<Logo className="size-8 text-primary/90" />
 					</Circle>
-					<Circle className="mr-6 md:mr-16" ref={div6Ref}>
+					<Circle className="mr-6 md:mr-8" ref={div6Ref}>
 						<Avatar
 							fallbackName="yin.yang"
 							url="https://cdn.cossistant.com/yin-yang.png"

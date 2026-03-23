@@ -97,6 +97,7 @@ export function ActivityWrapper({
 	const leading = showIcon ? (
 		<ActivityIconRenderer icon={resolvedIcon} />
 	) : null;
+	const shouldShowIndicator = showStateIndicator || showTerminalIndicator;
 
 	return (
 		<motion.div
@@ -109,7 +110,7 @@ export function ActivityWrapper({
 				className="group/activity"
 				details={children}
 				leading={leading}
-				showIndicator={showStateIndicator}
+				showIndicator={shouldShowIndicator}
 				showTerminalIndicator={showTerminalIndicator}
 				spinnerClassName="text-primary/70"
 				state={state}

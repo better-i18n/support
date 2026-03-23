@@ -18,6 +18,7 @@ export function ResolvedActivity({
 	event,
 	timestamp,
 	showIcon = true,
+	showTerminalIndicator = false,
 }: EventActivityProps) {
 	const text = (
 		<span className="flex items-center gap-1">
@@ -30,6 +31,7 @@ export function ResolvedActivity({
 		<ActivityWrapper
 			icon={resolveEventIcon(event)}
 			showIcon={showIcon}
+			showTerminalIndicator={showTerminalIndicator}
 			state="result"
 			text={text}
 			timestamp={timestamp}

@@ -86,7 +86,7 @@ export const EscalationAction: React.FC<EscalationActionProps> = ({
 
 	if (!isStandalone) {
 		return (
-			<ComposerCentralBlock className="border-cossistant-orange/50 border-dashed bg-cossistant-orange/5 dark:border-cossistant-orange/40 dark:bg-cossistant-orange/10">
+			<ComposerCentralBlock className="border-cossistant-orange/50 border-dashed bg-cossistant-orange/5 dark:border-cossistant-orange/40 dark:bg-cossistant-orange/5">
 				<EscalationActionCard
 					className="rounded-[2px] border-0 bg-transparent p-4"
 					isJoining={isJoining}

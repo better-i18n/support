@@ -6,6 +6,7 @@ export function VisitorIdentifiedActivity({
 	event,
 	timestamp,
 	showIcon = true,
+	showTerminalIndicator = false,
 }: EventActivityProps) {
 	const icon: ActivityIcon = {
 		type: "avatar",
@@ -24,6 +25,7 @@ export function VisitorIdentifiedActivity({
 		<ActivityWrapper
 			icon={icon}
 			showIcon={showIcon}
+			showTerminalIndicator={showTerminalIndicator}
 			state="result"
 			text={text}
 			timestamp={timestamp}

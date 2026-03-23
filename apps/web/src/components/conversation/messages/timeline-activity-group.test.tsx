@@ -37,7 +37,7 @@ function createEventItem({
 }: {
 	id: string;
 	createdAt: string;
-	eventType?: "participant_joined" | "status_changed";
+	eventType?: "participant_joined" | "participant_requested" | "status_changed";
 	userId?: string | null;
 	actorUserId?: string | null;
 }): TimelineItem {
@@ -169,6 +169,7 @@ describe("TimelineActivityGroup", () => {
 
 		expect(html).toContain("Anthony Riera");
 		expect(html).toContain('data-slot="avatar"');
+		expect(html).not.toContain('data-tool-execution-indicator="arrow"');
 		expect(html).not.toContain("flex-row-reverse");
 		expect(html).not.toContain("mb-2 px-1 text-muted-foreground text-xs");
 	});
@@ -213,6 +214,9 @@ describe("TimelineActivityGroup", () => {
 		const html = renderActivityGroup(group);
 
 		expect(html).toContain("Anthony Riera");
+		expect(
+			countOccurrences(html, 'data-tool-execution-indicator="arrow"')
+		).toBe(2);
 		expect(html).not.toContain("data-activity-tree-prefix=");
 		expect(html).not.toContain("data-activity-bullet=");
 	});
@@ -276,7 +280,9 @@ describe("TimelineActivityGroup", () => {
 		expect(html).toContain("Anthony Riera");
 		expect(html).toContain('data-source-pill="true"');
 		expect(html).toContain('data-source-overflow="2"');
-		expect(html).toContain('data-tool-execution-indicator="arrow"');
+		expect(
+			countOccurrences(html, 'data-tool-execution-indicator="arrow"')
+		).toBe(2);
 		expect(html).toContain("Searched for &quot;pricing&quot;");
 		expect(html).not.toContain("data-activity-tree-prefix=");
 	});
@@ -356,7 +362,7 @@ describe("TimelineActivityGroup", () => {
 			createEventItem({
 				id: "event-1",
 				createdAt: "2026-01-01T10:00:00.000Z",
-				eventType: "participant_joined",
+				eventType: "participant_requested",
 			}),
 			createToolItem({
 				id: "tool-1",
@@ -368,8 +374,11 @@ describe("TimelineActivityGroup", () => {
 
 		const html = renderActivityGroup(group);
 
+		expect(html).toContain("requested a team member to join");
 		expect(html).toContain("Searched for &quot;billing&quot;");
-		expect(html).toContain('data-tool-execution-indicator="arrow"');
+		expect(
+			countOccurrences(html, 'data-tool-execution-indicator="arrow"')
+		).toBe(2);
 		expect(html).not.toContain("data-activity-tree-prefix=");
 		expect(html).not.toContain("data-activity-bullet=");
 	});

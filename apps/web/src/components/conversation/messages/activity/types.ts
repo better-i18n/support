@@ -41,4 +41,5 @@ export type EventActivityProps = {
 	event: NormalizedEvent;
 	timestamp: string;
 	showIcon?: boolean;
+	showTerminalIndicator?: boolean;
 };

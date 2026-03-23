@@ -17,6 +17,7 @@ export function FallbackEventActivity({
 	event,
 	timestamp,
 	showIcon = true,
+	showTerminalIndicator = false,
 }: EventActivityProps) {
 	const text = (
 		<>
@@ -29,6 +30,7 @@ export function FallbackEventActivity({
 		<ActivityWrapper
 			icon={resolveEventIcon(event)}
 			showIcon={showIcon}
+			showTerminalIndicator={showTerminalIndicator}
 			state="result"
 			text={text}
 			timestamp={timestamp}

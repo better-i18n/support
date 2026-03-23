@@ -38,7 +38,7 @@ export const SelfLearningGraphic = () => (
 		{defaultCards.map((card) => (
 			<div
 				className={cn(
-					"-skew-y-[8deg] relative flex h-36 w-[22rem] select-none flex-col justify-between rounded border border-dashed p-4 font-mono backdrop-blur-sm transition-all duration-700",
+					"-skew-y-[8deg] relative flex h-36 w-[22rem] select-none flex-col justify-between rounded border border-dashed p-3 font-mono backdrop-blur-sm transition-all duration-200",
 					"after:-right-1 after:absolute after:top-[-5%] after:h-[110%] after:w-[20rem] after:bg-gradient-to-l after:from-background after:to-transparent after:content-['']",
 					"hover:border-foreground/20 hover:bg-muted",
 					"[&>*]:flex [&>*]:items-center [&>*]:gap-2",
@@ -48,9 +48,9 @@ export const SelfLearningGraphic = () => (
 			>
 				<div className="text-cossistant-orange">
 					{card.icon}
-					<p className="font-medium text-sm">{card.title}</p>
+					<p className="font-medium text-[13px]">{card.title}</p>
 				</div>
-				<p className="line-clamp-2 text-balance font-normal text-primary/60 text-sm">
+				<p className="line-clamp-2 text-balance font-normal text-[13px] text-primary/60">
 					{card.description}
 				</p>
 				<p className="text-primary/40 text-xs">{card.date}</p>
