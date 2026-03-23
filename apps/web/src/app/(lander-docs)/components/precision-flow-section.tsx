@@ -297,7 +297,7 @@ function PrecisionFlowFaqCreatedCard({
 					<KnowledgeClarificationDraftPreviewCard
 						className="w-full"
 						draft={draft}
-						minimalPills={["generated", "AI"]}
+						minimalPills={["FAQ generated", "Account", "Deletion"]}
 						variant="minimal"
 					/>
 				</motion.div>

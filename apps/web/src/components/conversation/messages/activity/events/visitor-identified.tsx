@@ -6,6 +6,7 @@ export function VisitorIdentifiedActivity({
 	event,
 	timestamp,
 	showIcon = true,
+	showActorName = true,
 	showTerminalIndicator = false,
 }: EventActivityProps) {
 	const icon: ActivityIcon = {
@@ -14,11 +15,13 @@ export function VisitorIdentifiedActivity({
 		image: event.actorImage,
 	};
 
-	const text = (
+	const text = showActorName ? (
 		<>
 			<span className="font-semibold">{event.actorName}</span> identified, new
 			contact created
 		</>
+	) : (
+		"identified, new contact created"
 	);
 
 	return (

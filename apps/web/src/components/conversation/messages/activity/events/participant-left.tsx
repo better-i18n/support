@@ -17,13 +17,16 @@ export function ParticipantLeftActivity({
 	event,
 	timestamp,
 	showIcon = true,
+	showActorName = true,
 	showTerminalIndicator = false,
 }: EventActivityProps) {
-	const text = (
+	const text = showActorName ? (
 		<>
 			<span className="font-semibold">{event.actorName}</span> left the
 			conversation
 		</>
+	) : (
+		"left the conversation"
 	);
 
 	return (

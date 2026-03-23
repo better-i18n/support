@@ -32,6 +32,7 @@ export function PriorityChangedActivity({
 	event,
 	timestamp,
 	showIcon = true,
+	showActorName = true,
 	showTerminalIndicator = false,
 }: EventActivityProps) {
 	const priority = extractPriorityFromMessage(event.message);
@@ -41,14 +42,19 @@ export function PriorityChangedActivity({
 
 	const text = priority ? (
 		<>
-			<span className="font-semibold">{event.actorName}</span> changed priority
-			to <span className={cn(colorClass)}>{priority}</span>
+			{showActorName ? (
+				<span className="font-semibold">{event.actorName}</span>
+			) : null}
+			{showActorName ? " changed priority to " : "changed priority to "}
+			<span className={cn(colorClass)}>{priority}</span>
 		</>
-	) : (
+	) : showActorName ? (
 		<>
 			<span className="font-semibold">{event.actorName}</span>{" "}
 			{event.actionText}
 		</>
+	) : (
+		event.actionText
 	);
 
 	return (

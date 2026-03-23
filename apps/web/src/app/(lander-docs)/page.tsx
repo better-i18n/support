@@ -31,6 +31,7 @@ export const metadata = marketing({
 		"Next.js support widget",
 		"AI support framework",
 		"customer support infrastructure",
+		"saas customer support",
 	],
 });
 

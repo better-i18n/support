@@ -127,7 +127,8 @@ export function TimelineActivityGroup({
 	const hasSingleVisibleToolRow =
 		activityRows.length === 1 && activityRows[0]?.type === "tool";
 	const hasMultipleVisibleRows = activityRows.length > 1;
-	const showSenderLabel = hasToolRows;
+	const isMultiEventOnlyGroup = hasMultipleVisibleRows && !hasToolRows;
+	const showSenderLabel = hasToolRows || isMultiEventOnlyGroup;
 
 	return (
 		<PrimitiveTimelineItemGroup
@@ -167,7 +168,10 @@ export function TimelineActivityGroup({
 					>
 						<div className="flex w-full min-w-0 flex-col gap-1">
 							{showSenderLabel ? (
-								<div className="px-1 pt-1.5 text-muted-foreground text-xs leading-4">
+								<div
+									className="px-1 pt-1.5 text-muted-foreground text-xs leading-4"
+									data-activity-group-sender-label="true"
+								>
 									{senderDisplayName}
 								</div>
 							) : null}
@@ -179,6 +183,7 @@ export function TimelineActivityGroup({
 											availableHumanAgents={availableHumanAgents}
 											createdAt={row.item.createdAt}
 											event={row.event}
+											showActorName={!isMultiEventOnlyGroup}
 											showIcon={false}
 											showTerminalIndicator={hasMultipleVisibleRows}
 											visitor={visitor}

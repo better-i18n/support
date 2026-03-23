@@ -17,13 +17,16 @@ export function ParticipantJoinedActivity({
 	event,
 	timestamp,
 	showIcon = true,
+	showActorName = true,
 	showTerminalIndicator = false,
 }: EventActivityProps) {
-	const text = (
+	const text = showActorName ? (
 		<>
 			<span className="font-semibold">{event.actorName}</span> joined the
 			conversation
 		</>
+	) : (
+		"joined the conversation"
 	);
 
 	return (

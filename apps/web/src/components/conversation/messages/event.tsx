@@ -25,6 +25,7 @@ export type ConversationEventProps = {
 	availableHumanAgents: AvailableHumanAgent[];
 	visitor?: MinimalVisitorForEvent | null;
 	showIcon?: boolean;
+	showActorName?: boolean;
 	showTerminalIndicator?: boolean;
 };
 
@@ -56,6 +57,7 @@ export const ConversationEvent: React.FC<ConversationEventProps> = ({
 	availableHumanAgents,
 	visitor,
 	showIcon = true,
+	showActorName = true,
 	showTerminalIndicator = false,
 }) => {
 	const display = buildTimelineEventDisplay({
@@ -74,6 +76,7 @@ export const ConversationEvent: React.FC<ConversationEventProps> = ({
 	return (
 		<Renderer
 			event={normalizedEvent}
+			showActorName={showActorName}
 			showIcon={showIcon}
 			showTerminalIndicator={showTerminalIndicator}
 			timestamp={timestamp}

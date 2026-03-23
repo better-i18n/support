@@ -2,9 +2,10 @@
 
 import type React from "react";
 import { forwardRef, useEffect, useRef, useState } from "react";
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar, Facehash } from "@/components/ui/avatar";
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
+import { Spinner } from "../../../../components/ui/spinner";
 import { AnimatedBeam } from "../animated-beam";
 
 const Circle = forwardRef<
@@ -13,7 +14,7 @@ const Circle = forwardRef<
 >(({ className, children }, ref) => (
 	<div
 		className={cn(
-			"relative z-10 flex size-12 items-center justify-center rounded border border-dashed bg-background-200 p-0.5 dark:bg-background-300",
+			"relative z-10 flex size-10 items-center justify-center rounded border border-dashed bg-background-100 p-0.5 dark:bg-background-200",
 			className
 		)}
 		ref={ref}
@@ -76,38 +77,34 @@ export function CustomToolsGraphic() {
 			<div className="flex size-full max-h-[200px] flex-col items-stretch justify-between gap-10">
 				<div className="flex flex-row items-center justify-between">
 					<Circle ref={div1Ref}>
-						<p className="font-mono text-[10px]">LINEAR</p>
+						<p className="font-mono text-[8px]">LINEAR</p>
 					</Circle>
 					<Circle ref={div5Ref}>
-						<p className="font-mono text-[10px]">API</p>
+						<p className="font-mono text-[8px]">API</p>
 					</Circle>
 				</div>
 				<div className="flex flex-row items-center justify-between">
 					<Circle ref={div2Ref}>
-						<p className="font-mono text-[10px]">CAL</p>
+						<p className="font-mono text-[8px]">CAL</p>
 					</Circle>
 					<Circle className="ml-6 size-16 md:ml-8" ref={div4Ref}>
 						<Logo className="size-8 text-primary/90" />
 					</Circle>
 					<Circle className="mr-6 md:mr-8" ref={div6Ref}>
-						<Avatar
-							fallbackName="yin.yang"
-							url="https://cdn.cossistant.com/yin-yang.png"
-						/>
+						<Facehash className="size-8 text-primary/90" name="Olrewz" />
 						{showTyping && (
-							<div className="-bottom-1 fade-in slide-in-from-bottom-1 absolute flex w-[115px] animate-in gap-1 border border-dashed bg-background-200 px-0.5 text-center text-xs duration-300 dark:bg-background-500">
-								Yin Yang typing
-								<TypingDots />
+							<div className="-bottom-4 fade-in slide-in-from-bottom-1 absolute flex w-[60px] animate-in gap-1 border border-dashed bg-background-100 px-0.5 text-center text-xs duration-300 dark:bg-background-400">
+								typing <TypingDots />
 							</div>
 						)}
 					</Circle>
 				</div>
 				<div className="flex flex-row items-center justify-between">
 					<Circle ref={div3Ref}>
-						<p className="font-mono text-[10px]">STRIPE</p>
+						<p className="font-mono text-[8px]">STRIPE</p>
 					</Circle>
 					<Circle ref={div7Ref}>
-						<p className="text-center font-mono text-[10px]">WEB HOOK</p>
+						<p className="text-center font-mono text-[8px]">WEB HOOK</p>
 					</Circle>
 				</div>
 			</div>

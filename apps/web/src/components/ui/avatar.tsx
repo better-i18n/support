@@ -60,10 +60,12 @@ function Facehash({
 	className,
 	name,
 	interactive = true,
+	onRenderMouth,
 }: {
 	className?: string;
 	name: string;
 	interactive?: boolean;
+	onRenderMouth?: () => React.ReactNode;
 }) {
 	return (
 		<FacehashComponent
@@ -73,6 +75,7 @@ function Facehash({
 			intensity3d="dramatic"
 			interactive={interactive}
 			name={name}
+			onRenderMouth={onRenderMouth}
 			size="100%"
 			style={{
 				color: "#000000",

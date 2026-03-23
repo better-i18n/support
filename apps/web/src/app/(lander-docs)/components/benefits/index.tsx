@@ -82,16 +82,14 @@ export const Benefits = () => (
 				{HEADLINE}
 			</h2>
 		</div>
-		<div className="isolate grid gap-0 border-b-0 border-dashed lg:grid-cols-6 lg:border-y">
+		<div className="relative isolate grid gap-0 border-dashed lg:grid-cols-6">
+			<FullWidthBorder className="top-0" />
 			{benefits.map((benefit, index) => (
 				<div
 					className={cn(
-						"relative flex flex-col gap-2 overflow-hidden border-dashed p-4 pt-20 sm:p-8 sm:pt-16",
+						"relative flex flex-col gap-2 overflow-hidden border-b border-dashed p-4 pt-20 last:border-b-0 sm:p-8 sm:pt-16 lg:border-b-0",
 						benefit.className,
-						// Add border-right for first column items (index 0, 2, 4)
-						index % 1 === 0 && "border-r"
-						// Add border-bottom for all items except last row (index 0, 1, 2, 3)
-						// index < 4 && "border-b",
+						index < benefits.length - 1 && "lg:border-r"
 					)}
 					key={benefit.description}
 				>

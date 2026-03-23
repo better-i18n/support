@@ -168,7 +168,11 @@ describe("TimelineActivityGroup", () => {
 		const html = renderActivityGroup(group);
 
 		expect(html).toContain("Anthony Riera");
+		expect(html).not.toContain('data-activity-group-sender-label="true"');
 		expect(html).toContain('data-slot="avatar"');
+		expect(html).toContain(
+			'<span class="font-semibold">Anthony Riera</span> joined the conversation'
+		);
 		expect(html).not.toContain('data-tool-execution-indicator="arrow"');
 		expect(html).not.toContain("flex-row-reverse");
 		expect(html).not.toContain("mb-2 px-1 text-muted-foreground text-xs");
@@ -214,6 +218,17 @@ describe("TimelineActivityGroup", () => {
 		const html = renderActivityGroup(group);
 
 		expect(html).toContain("Anthony Riera");
+		expect(
+			countOccurrences(html, 'data-activity-group-sender-label="true"')
+		).toBe(1);
+		expect(html).toContain("joined the conversation");
+		expect(html).toContain("changed the status");
+		expect(html).not.toContain(
+			'<span class="font-semibold">Anthony Riera</span> joined the conversation'
+		);
+		expect(html).not.toContain(
+			'<span class="font-semibold">Anthony Riera</span> changed the status'
+		);
 		expect(
 			countOccurrences(html, 'data-tool-execution-indicator="arrow"')
 		).toBe(2);
@@ -374,6 +389,12 @@ describe("TimelineActivityGroup", () => {
 
 		const html = renderActivityGroup(group);
 
+		expect(
+			countOccurrences(html, 'data-activity-group-sender-label="true"')
+		).toBe(1);
+		expect(html).toContain(
+			'<span class="font-semibold">Anthony Riera</span> requested a team member to join'
+		);
 		expect(html).toContain("requested a team member to join");
 		expect(html).toContain("Searched for &quot;billing&quot;");
 		expect(

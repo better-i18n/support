@@ -11,9 +11,6 @@ const lines = [
 	"- If you don't know the answer, escalate to human support immediately",
 	"- NEVER make up information or provide guesses",
 	"- Do not book a time with our founder if the user is not an enterprise customer",
-	"## Available Tools",
-	"@updateUserEmail - Update customer email address",
-	"@check_status - Check service status and recent incidents",
 ];
 
 export const PromptToneGraphic = () => {
@@ -21,9 +18,9 @@ export const PromptToneGraphic = () => {
 	const isInView = useInView(ref, { once: true });
 
 	return (
-		<div className="relative">
+		<div className="relative overflow-clip">
 			<div
-				className="grid gap-2 font-mono text-muted-foreground text-xs"
+				className="grid gap-2 overflow-clip font-mono text-muted-foreground text-xs"
 				ref={ref}
 			>
 				{lines.map((line, index) => (
@@ -43,6 +40,7 @@ export const PromptToneGraphic = () => {
 				))}
 			</div>
 			<div className="absolute right-0 bottom-0 left-0 h-20 bg-gradient-to-t from-background to-transparent" />
+			<div className="absolute top-0 right-0 bottom-0 w-20 bg-gradient-to-l from-background to-transparent" />
 		</div>
 	);
 };

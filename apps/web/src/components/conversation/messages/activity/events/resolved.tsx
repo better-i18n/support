@@ -18,13 +18,16 @@ export function ResolvedActivity({
 	event,
 	timestamp,
 	showIcon = true,
+	showActorName = true,
 	showTerminalIndicator = false,
 }: EventActivityProps) {
-	const text = (
+	const text = showActorName ? (
 		<span className="flex items-center gap-1">
 			<span className="font-semibold">{event.actorName}</span> resolved the
 			conversation
 		</span>
+	) : (
+		"resolved the conversation"
 	);
 
 	return (

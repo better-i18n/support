@@ -17,13 +17,16 @@ export function ReopenedActivity({
 	event,
 	timestamp,
 	showIcon = true,
+	showActorName = true,
 	showTerminalIndicator = false,
 }: EventActivityProps) {
-	const text = (
+	const text = showActorName ? (
 		<>
 			<span className="font-semibold">{event.actorName}</span> reopened the
 			conversation
 		</>
+	) : (
+		"reopened the conversation"
 	);
 
 	return (
