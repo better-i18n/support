@@ -26,6 +26,8 @@ export type ConversationStartEvent = {
 	conversationId: string;
 	/**
 	 * Full conversation object when available.
+	 *
+	 * @remarks `Conversation`
 	 */
 	conversation?: Conversation;
 };
@@ -41,6 +43,8 @@ export type ConversationEndEvent = {
 	conversationId: string;
 	/**
 	 * Full conversation object when available.
+	 *
+	 * @remarks `Conversation`
 	 */
 	conversation?: Conversation;
 };
@@ -56,6 +60,8 @@ export type MessageSentEvent = {
 	conversationId: string;
 	/**
 	 * The sent message object.
+	 *
+	 * @remarks `TimelineItem`
 	 */
 	message: TimelineItem;
 };
@@ -71,6 +77,8 @@ export type MessageReceivedEvent = {
 	conversationId: string;
 	/**
 	 * The received message object.
+	 *
+	 * @remarks `TimelineItem`
 	 */
 	message: TimelineItem;
 };
@@ -113,14 +121,12 @@ export type SupportEventReference = {
 	 * Conversation payload included on conversation lifecycle events.
 	 *
 	 * @remarks `Conversation`
-	 * @fumadocsType `Conversation`
 	 */
 	conversation?: Conversation;
 	/**
 	 * Timeline item payload included on message events.
 	 *
 	 * @remarks `TimelineItem`
-	 * @fumadocsType `TimelineItem`
 	 */
 	message?: TimelineItem;
 	/**
@@ -167,11 +173,15 @@ export type SupportEventCallbacks = {
 export type SupportEventsContextValue = {
 	/**
 	 * Emit an event to all registered callbacks.
+	 *
+	 * @remarks `emit(event)`
 	 */
 	emit: <T extends SupportEvent>(event: T) => void;
 	/**
 	 * Subscribe to a specific event type.
 	 * Returns an unsubscribe function.
+	 *
+	 * @remarks `subscribe(type, callback)`
 	 */
 	subscribe: <T extends SupportEventType>(
 		type: T,

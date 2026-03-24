@@ -4,6 +4,7 @@ import type { ComponentPropsWithoutRef } from "react";
 import {
 	DOCS_TYPE_TABLE_BASE_PATH,
 	docsTypeTableGenerator,
+	isComplexTypeDefinition,
 } from "@/lib/fumadocs-typescript";
 import { type TypeNode, TypeTable, type TypeTableVariant } from "./type-table";
 
@@ -92,6 +93,10 @@ export async function AutoTypeTable({
 						type: entry.simplifiedType,
 						typeDescription: entry.type,
 						typeDescriptionLink: entry.typeHref,
+						complexType: isComplexTypeDefinition(
+							entry.simplifiedType,
+							entry.type
+						),
 						default: tags.default,
 						required: entry.required,
 						deprecated: entry.deprecated,

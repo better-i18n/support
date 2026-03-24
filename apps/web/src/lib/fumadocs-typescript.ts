@@ -70,6 +70,43 @@ const GENERIC_SIMPLIFIED_TYPES = new Set([
 	"union",
 ]);
 
+const SUPPORT_COMPONENT_TYPES_DOC_PATH = "/docs/support-component/types";
+
+const SUPPORT_COMPONENT_TYPE_DOCS = {
+	AIAgent: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#aiagent`,
+	Conversation: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#conversation`,
+	CossistantClient: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#cossistantclient`,
+	DefaultMessage: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#defaultmessage`,
+	HumanAgent: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#humanagent`,
+	IdentifyParams: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#identifyparams`,
+	MessageComposer: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#messagecomposer`,
+	PublicContact: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#publiccontact`,
+	PublicVisitor: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#publicvisitor`,
+	PublicWebsiteResponse: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#publicwebsiteresponse`,
+	SenderType: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#sendertype`,
+	SupportEvent: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#supportevent`,
+	SupportHandle: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#supporthandle`,
+	TimelineItem: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#timelineitem`,
+	TriggerRenderProps: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#triggerrenderprops`,
+	VisitorMetadata: `${SUPPORT_COMPONENT_TYPES_DOC_PATH}#visitormetadata`,
+} as const;
+
+const SUPPORT_COMPONENT_TYPE_DOCS_BY_ANCHOR = new Map(
+	Object.values(SUPPORT_COMPONENT_TYPE_DOCS).map((href) => {
+		const hashIndex = href.lastIndexOf("#");
+		return [href.slice(hashIndex + 1), href];
+	})
+);
+
+const GENERIC_TYPE_DISPLAY_LABELS: Record<string, string> = {
+	array: "Array",
+	function: "Function",
+	object: "Object",
+	union: "Union",
+};
+
+const COMPLEX_TYPE_DESCRIPTION_LENGTH = 120;
+
 function normalizeTypeText(
 	type: string,
 	options: {
@@ -86,8 +123,103 @@ function normalizeTypeText(
 	);
 }
 
-function shouldUseFullTypeAsShortType(type: string): boolean {
-	return type.length > 0 && type.length <= 96 && !type.includes("\n");
+function extractTypeDocKey(
+	...types: Array<string | undefined>
+): keyof typeof SUPPORT_COMPONENT_TYPE_DOCS | undefined {
+	for (const type of types) {
+		if (!type) {
+			continue;
+		}
+
+		const matches = type.match(/\b[A-Z][A-Za-z0-9_]*/g) ?? [];
+		for (const match of matches) {
+			if (match in SUPPORT_COMPONENT_TYPE_DOCS) {
+				return match as keyof typeof SUPPORT_COMPONENT_TYPE_DOCS;
+			}
+		}
+	}
+
+	return;
+}
+
+function isAbsoluteTypeDocHref(href: string): boolean {
+	return (
+		href.startsWith("/") ||
+		href.startsWith("http://") ||
+		href.startsWith("https://")
+	);
+}
+
+function resolveTypeHref(
+	typeHref: string | undefined,
+	displayType: string
+): string | undefined {
+	if (typeHref) {
+		const normalizedHref = typeHref.trim();
+
+		if (isAbsoluteTypeDocHref(normalizedHref)) {
+			return normalizedHref;
+		}
+
+		if (normalizedHref.startsWith("#")) {
+			return (
+				SUPPORT_COMPONENT_TYPE_DOCS_BY_ANCHOR.get(normalizedHref.slice(1)) ??
+				normalizedHref
+			);
+		}
+
+		return normalizedHref;
+	}
+
+	const docKey = extractTypeDocKey(displayType);
+	if (!docKey) {
+		return;
+	}
+
+	return SUPPORT_COMPONENT_TYPE_DOCS[docKey];
+}
+
+function resolveDisplayType(simplifiedType: string, type: string): string {
+	const normalizedSimplifiedType = simplifiedType.trim();
+	const docKey = extractTypeDocKey(normalizedSimplifiedType, type);
+
+	if (docKey) {
+		if (
+			normalizedSimplifiedType.length > 0 &&
+			!GENERIC_SIMPLIFIED_TYPES.has(normalizedSimplifiedType.toLowerCase())
+		) {
+			return normalizedSimplifiedType;
+		}
+
+		return docKey;
+	}
+
+	const genericDisplayLabel =
+		GENERIC_TYPE_DISPLAY_LABELS[normalizedSimplifiedType.toLowerCase()];
+	if (genericDisplayLabel) {
+		return genericDisplayLabel;
+	}
+
+	return normalizedSimplifiedType;
+}
+
+export function isComplexTypeDefinition(
+	displayType: string,
+	fullType: string
+): boolean {
+	const normalizedDisplayType = normalizeTypeText(displayType);
+	const normalizedFullType = normalizeTypeText(fullType);
+
+	return (
+		GENERIC_SIMPLIFIED_TYPES.has(normalizedDisplayType.toLowerCase()) ||
+		Object.values(GENERIC_TYPE_DISPLAY_LABELS).includes(
+			normalizedDisplayType
+		) ||
+		normalizedFullType.includes("\n") ||
+		normalizedFullType.length > COMPLEX_TYPE_DESCRIPTION_LENGTH ||
+		(normalizedDisplayType !== normalizedFullType &&
+			normalizedFullType.length > 96)
+	);
 }
 
 function normalizeEntry(entry: DocEntry): DocEntry {
@@ -96,19 +228,13 @@ function normalizeEntry(entry: DocEntry): DocEntry {
 	const simplifiedType = normalizeTypeText(entry.simplifiedType, {
 		stripUndefined,
 	});
-
-	if (!GENERIC_SIMPLIFIED_TYPES.has(simplifiedType)) {
-		return {
-			...entry,
-			type,
-			simplifiedType,
-		};
-	}
+	const displayType = resolveDisplayType(simplifiedType, type);
 
 	return {
 		...entry,
 		type,
-		simplifiedType: shouldUseFullTypeAsShortType(type) ? type : simplifiedType,
+		simplifiedType: displayType,
+		typeHref: resolveTypeHref(entry.typeHref, displayType),
 	};
 }
 

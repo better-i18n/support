@@ -42,6 +42,8 @@ export type TypeNode = {
 	 */
 	typeDescriptionLink?: string;
 
+	complexType?: boolean;
+
 	default?: ReactNode;
 
 	required?: boolean;
@@ -115,6 +117,7 @@ function Item({
 		default: defaultValue,
 		type,
 		typeDescriptionLink,
+		complexType = false,
 		returns,
 	},
 }: {
@@ -164,13 +167,30 @@ function Item({
 					{name}
 					{!required && <span className="ml-1 text-cossistant-orange">?</span>}
 				</code>
-				{typeDescriptionLink ? (
-					<Link className="@max-xl:hidden underline" href={typeDescriptionLink}>
-						{type}
-					</Link>
-				) : (
-					<span className="@max-xl:hidden">{type}</span>
-				)}
+				<div className="@max-xl:hidden min-w-0 flex-1 pe-6">
+					{typeDescriptionLink ? (
+						<Link
+							className={cn(
+								"inline-flex max-w-full items-center truncate underline underline-offset-4",
+								complexType &&
+									"rounded border border-border/60 border-dashed bg-background-200 px-2 py-0.5 font-mono text-xs no-underline"
+							)}
+							href={typeDescriptionLink}
+						>
+							<span className="truncate">{type}</span>
+						</Link>
+					) : (
+						<span
+							className={cn(
+								"inline-flex max-w-full items-center truncate",
+								complexType &&
+									"rounded border border-border/60 border-dashed bg-background-200 px-2 py-0.5 font-mono text-xs"
+							)}
+						>
+							<span className="truncate">{type}</span>
+						</span>
+					)}
+				</div>
 				<ChevronDown className="absolute end-2 size-4 text-fd-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
 			</CollapsibleTrigger>
 			<CollapsibleContent>
@@ -180,8 +200,18 @@ function Item({
 					</div>
 					{typeDescription && (
 						<>
-							<p className={cn(fieldVariants())}>Type</p>
-							<p className="not-prose my-auto">{typeDescription}</p>
+							<p className={cn(fieldVariants())}>
+								{complexType ? "Definition" : "Type"}
+							</p>
+							{complexType && typeof typeDescription === "string" ? (
+								<div className="not-prose my-auto overflow-hidden rounded border border-border/60 border-dashed bg-background-100">
+									<pre className="overflow-x-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs leading-6">
+										<code>{typeDescription}</code>
+									</pre>
+								</div>
+							) : (
+								<p className="not-prose my-auto">{typeDescription}</p>
+							)}
 						</>
 					)}
 					{defaultValue && (

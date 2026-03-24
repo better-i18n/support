@@ -8,6 +8,7 @@
     "primitives",
     "text",
     "hooks",
+    "types",
     "events"
   ],
   "title": "<Support />"

@@ -713,6 +713,8 @@ export type CossistantClientReference = {
 	fetchWebsite: CossistantClient["fetchWebsite"];
 	/**
 	 * Identify the current visitor as a contact.
+	 *
+	 * @remarks `identify(params)`
 	 */
 	identify: CossistantClient["identify"];
 	/**
@@ -729,14 +731,20 @@ export type CossistantClientReference = {
 	getConversation: CossistantClient["getConversation"];
 	/**
 	 * Fetch timeline items for a conversation.
+	 *
+	 * @remarks `getConversationTimelineItems(params)`
 	 */
 	getConversationTimelineItems: CossistantClient["getConversationTimelineItems"];
 	/**
 	 * Send a timeline item to a conversation.
+	 *
+	 * @remarks `sendMessage(params)`
 	 */
 	sendMessage: CossistantClient["sendMessage"];
 	/**
 	 * Generate a presigned upload URL for a conversation attachment.
+	 *
+	 * @remarks `generateUploadUrl(params)`
 	 */
 	generateUploadUrl: CossistantClient["generateUploadUrl"];
 	/**
