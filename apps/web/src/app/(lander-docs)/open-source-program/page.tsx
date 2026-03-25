@@ -332,7 +332,8 @@ export default function OpenSourceProgramPage() {
 				<div className="mx-auto flex w-full flex-col gap-6">
 					<div className="space-y-2 px-4">
 						<h2 className="font-f37-stout text-2xl leading-tight md:text-3xl">
-							Featured open source friends
+							Featured open source friends{" "}
+							<span className="text-cossistant-orange"> 👋</span>
 						</h2>
 						<p className="mb-6 max-w-2xl text-muted-foreground text-sm leading-7">
 							These are the awesome open source projects that have been accepted
@@ -398,10 +399,10 @@ export default function OpenSourceProgramPage() {
 										orientation="right"
 									/>
 								) : null}
-								<div className="overflow-hidden overflow-clip border-b border-dashed">
+								<div className="group overflow-hidden overflow-clip border-b border-dashed">
 									<Image
 										alt={`${project.name} open graph image`}
-										className="aspect-[1.91/1] h-auto w-full object-cover"
+										className="aspect-[1.91/1] h-auto w-full object-cover grayscale group-hover:grayscale-0"
 										height={630}
 										src={project.ogImageUrl}
 										width={1200}
