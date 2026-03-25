@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Background } from "@/components/ui/background";
-import { Logo, LogoText, LogoTextSVG } from "@/components/ui/logo";
-import { ThreeLogo } from "@/components/ui/three-logo";
+import { Logo, LogoTextSVG } from "@/components/ui/logo";
 import { DISCORD_INVITE, X_URL } from "@/constants";
 import { GitHubLink } from "./github-link";
-import { StatusWidget } from "./status-widget";
 
 export function Footer() {
 	return (
@@ -42,6 +40,14 @@ export function Footer() {
 									href="/docs"
 								>
 									Docs
+								</Link>
+							</li>
+							<li>
+								<Link
+									className="font-mono text-foreground/60 text-sm transition-colors hover:text-foreground"
+									href="/open-source-program"
+								>
+									Open Source
 								</Link>
 							</li>
 							<li>

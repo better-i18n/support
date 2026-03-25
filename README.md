@@ -59,3 +59,9 @@ By using this software, you agree to the terms of the license.
 <a href="https://vercel.com/oss">
 <img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge-2026.svg" />
 </a>
+<br />
+<br />
+You can also join our open source program:
+<a href="https://cossistant.com/open-source-program">
+<img alt="Cossistant OSS Program" src="https://cdn.cossistant.com/oss/oss-friends.svg" />
+</a>

@@ -363,6 +363,11 @@ export function getLanderSitemapEntries(): MetadataRoute.Sitemap {
 			priority: 0.9,
 		},
 		{
+			url: toAbsoluteUrl("/open-source-program"),
+			changeFrequency: "monthly",
+			priority: 0.85,
+		},
+		{
 			url: toAbsoluteUrl("/blog"),
 			changeFrequency: "weekly",
 			priority: 0.8,

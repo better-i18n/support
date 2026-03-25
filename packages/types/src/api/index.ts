@@ -10,6 +10,7 @@ export * from "./knowledge";
 export * from "./knowledge-clarification";
 export * from "./link-source";
 export * from "./notification";
+export * from "./open-source-program";
 export * from "./organization";
 export * from "./timeline-item";
 export * from "./upload";

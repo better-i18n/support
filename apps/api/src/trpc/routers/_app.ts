@@ -8,6 +8,7 @@ import { knowledgeRouter } from "./knowledge";
 import { knowledgeClarificationRouter } from "./knowledge-clarification";
 import { linkSourceRouter } from "./link-source";
 import { notificationRouter } from "./notification";
+import { openSourceProgramRouter } from "./open-source-program";
 import { planRouter } from "./plan";
 import { resendRouter } from "./resend";
 import { teamRouter } from "./team";
@@ -30,6 +31,7 @@ export const origamiTRPCRouter = createTRPCRouter({
 	upload: uploadRouter,
 	plan: planRouter,
 	notification: notificationRouter,
+	openSourceProgram: openSourceProgramRouter,
 	knowledge: knowledgeRouter,
 	knowledgeClarification: knowledgeClarificationRouter,
 	linkSource: linkSourceRouter,

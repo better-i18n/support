@@ -1,39 +1,80 @@
-import { describe, expect, it } from "bun:test";
-import { generateMetadata as blogArticleMetadata } from "./blog/[slug]/page";
-import { generateMetadata as blogMetadata } from "./blog/page";
-import { generateMetadata as blogTagMetadata } from "./blog/tag/[tag]/page";
-import { generateMetadata as changelogMetadata } from "./changelog/page";
-import { generateMetadata as docsMetadata } from "./docs/[[...slug]]/page";
-import { GET as legacyOpenApiRedirect } from "./docs/openapi/[[...slug]]/route";
-import { GET as llmsRoute } from "./llms.txt/route";
-import { GET as llmsFullRoute } from "./llms-full.txt/route";
-import { metadata as loginMetadata } from "./login/page";
-import { metadata as homeMetadata } from "./page";
-import { metadata as pricingMetadata } from "./pricing/page";
+import { describe, expect, it, mock } from "bun:test";
+
+mock.module("server-only", () => ({}));
+
+const seoRoutesModulePromise = Promise.all([
+	import("./blog/[slug]/page"),
+	import("./blog/page"),
+	import("./blog/tag/[tag]/page"),
+	import("./changelog/page"),
+	import("./docs/[[...slug]]/page"),
+	import("./docs/openapi/[[...slug]]/route"),
+	import("./llms.txt/route"),
+	import("./llms-full.txt/route"),
+	import("./login/page"),
+	import("./open-source-program/apply/page"),
+	import("./open-source-program/page"),
+	import("./page"),
+	import("./pricing/page"),
+]);
 
 describe("lander-docs seo routes", () => {
-	it("sets dedicated homepage metadata", () => {
+	it("sets dedicated homepage metadata", async () => {
+		const [, , , , , , , , , , , homePageModule] = await seoRoutesModulePromise;
+		const { metadata: homeMetadata } = homePageModule;
+
 		expect(homeMetadata.alternates?.canonical).toBe("http://localhost:3000/");
 		expect(homeMetadata.title).toBe(
-			"AI Support Framework for React and Next.js"
+			"AI agent customer support for your SaaS in under 10 lines of code"
 		);
 	});
 
-	it("sets canonical pricing metadata", () => {
+	it("sets canonical pricing metadata", async () => {
+		const [, , , , , , , , , , , , pricingPageModule] =
+			await seoRoutesModulePromise;
+		const { metadata: pricingMetadata } = pricingPageModule;
+
 		expect(pricingMetadata.alternates?.canonical).toBe(
 			"http://localhost:3000/pricing"
 		);
 	});
 
-	it("uses shared metadata for the blog index", () => {
-		const metadata = blogMetadata();
+	it("sets canonical open source program metadata", async () => {
+		const [, , , , , , , , , , openSourceProgramPageModule] =
+			await seoRoutesModulePromise;
+		const { metadata: openSourceProgramMetadata } = openSourceProgramPageModule;
+
+		expect(openSourceProgramMetadata.alternates?.canonical).toBe(
+			"http://localhost:3000/open-source-program"
+		);
+	});
+
+	it("keeps the open source program apply page out of the index", async () => {
+		const [, , , , , , , , , openSourceProgramApplyPageModule] =
+			await seoRoutesModulePromise;
+		const { metadata: openSourceProgramApplyMetadata } =
+			openSourceProgramApplyPageModule;
+
+		expect(openSourceProgramApplyMetadata.alternates?.canonical).toBe(
+			"http://localhost:3000/open-source-program/apply"
+		);
+		expect(openSourceProgramApplyMetadata.robots).toMatchObject({
+			index: false,
+			follow: false,
+		});
+	});
+
+	it("uses shared metadata for the blog index", async () => {
+		const [, blogPageModule] = await seoRoutesModulePromise;
+		const metadata = blogPageModule.generateMetadata();
 
 		expect(metadata.alternates?.canonical).toBe("http://localhost:3000/blog");
 		expect(metadata.openGraph && "type" in metadata.openGraph).toBe(true);
 	});
 
 	it("builds article metadata for blog posts", async () => {
-		const metadata = await blogArticleMetadata({
+		const [blogArticlePageModule] = await seoRoutesModulePromise;
+		const metadata = await blogArticlePageModule.generateMetadata({
 			params: Promise.resolve({ slug: "introducing-cossistant" }),
 		});
 
@@ -43,9 +84,10 @@ describe("lander-docs seo routes", () => {
 		expect(metadata.openGraph && "type" in metadata.openGraph).toBe(true);
 	});
 
-	it("keeps thin tag pages out of the index", async () => {
-		const metadata = await blogTagMetadata({
-			params: Promise.resolve({ tag: "react" }),
+	it("keeps non-indexable tag pages out of the index", async () => {
+		const [, , blogTagPageModule] = await seoRoutesModulePromise;
+		const metadata = await blogTagPageModule.generateMetadata({
+			params: Promise.resolve({ tag: "announcement" }),
 		});
 
 		expect(metadata.robots).toMatchObject({
@@ -55,7 +97,8 @@ describe("lander-docs seo routes", () => {
 	});
 
 	it("builds docs page metadata with canonical and article og type", async () => {
-		const metadata = await docsMetadata({
+		const [, , , , docsPageModule] = await seoRoutesModulePromise;
+		const metadata = await docsPageModule.generateMetadata({
 			params: Promise.resolve({ slug: ["quickstart"] }),
 		});
 
@@ -65,15 +108,19 @@ describe("lander-docs seo routes", () => {
 		expect(metadata.openGraph && "type" in metadata.openGraph).toBe(true);
 	});
 
-	it("builds changelog collection metadata", () => {
-		const metadata = changelogMetadata();
+	it("builds changelog collection metadata", async () => {
+		const [, , , changelogPageModule] = await seoRoutesModulePromise;
+		const metadata = changelogPageModule.generateMetadata();
 
 		expect(metadata.alternates?.canonical).toBe(
 			"http://localhost:3000/changelog"
 		);
 	});
 
-	it("marks auth routes as noindex", () => {
+	it("marks auth routes as noindex", async () => {
+		const [, , , , , , , , loginPageModule] = await seoRoutesModulePromise;
+		const { metadata: loginMetadata } = loginPageModule;
+
 		expect(loginMetadata.robots).toMatchObject({
 			index: false,
 			follow: false,
@@ -81,7 +128,8 @@ describe("lander-docs seo routes", () => {
 	});
 
 	it("redirects legacy openapi docs requests to the API docs", async () => {
-		const response = await legacyOpenApiRedirect();
+		const [, , , , , legacyOpenApiRouteModule] = await seoRoutesModulePromise;
+		const response = await legacyOpenApiRouteModule.GET();
 
 		expect(response.status).toBe(308);
 		expect(response.headers.get("location")).toBe(
@@ -91,9 +139,11 @@ describe("lander-docs seo routes", () => {
 	});
 
 	it("marks machine-readable llms routes as noindex", async () => {
+		const [, , , , , , llmsRouteModule, llmsFullRouteModule] =
+			await seoRoutesModulePromise;
 		const [llmsIndexResponse, llmsFullResponse] = await Promise.all([
-			llmsRoute(),
-			llmsFullRoute(),
+			llmsRouteModule.GET(),
+			llmsFullRouteModule.GET(),
 		]);
 
 		expect(llmsIndexResponse.headers.get("x-robots-tag")).toBe(

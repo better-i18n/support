@@ -14,8 +14,12 @@ describe("lander-docs sitemap", () => {
 		expect(urls).toContain("http://localhost:3000/");
 		expect(urls).toContain("http://localhost:3000/blog");
 		expect(urls).toContain("http://localhost:3000/docs");
+		expect(urls).toContain("http://localhost:3000/open-source-program");
 		expect(urls).toContain("http://localhost:3000/docs/others/contributors");
 		expect(urls).toContain("http://localhost:3000/blog/introducing-cossistant");
+		expect(urls).not.toContain(
+			"http://localhost:3000/open-source-program/apply"
+		);
 		for (const tag of indexableTags) {
 			expect(urls).toContain(
 				`http://localhost:3000/blog/tag/${encodeURIComponent(tag)}`

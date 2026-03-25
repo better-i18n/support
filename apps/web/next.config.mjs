@@ -25,6 +25,7 @@ const nextConfig = {
 		remotePatterns: [
 			new URL("https://cdn.cossistant.com/**"),
 			new URL("https://pbs.twimg.com/**"),
+			new URL("https://facehash.dev/**"),
 			new URL("https://www.facehash.dev/**"),
 		],
 		qualities: [70, 80, 85, 90],

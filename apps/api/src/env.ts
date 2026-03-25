@@ -49,6 +49,7 @@ export const env = {
 	RESEND_API_KEY: getEnvVariable("RESEND_API_KEY"),
 	RESEND_AUDIENCE_ID: getEnvVariable("RESEND_AUDIENCE_ID"),
 	RESEND_WEBHOOK_SECRET: getEnvVariable("RESEND_WEBHOOK_SECRET"),
+	SLACK_WEBHOOK_URL: getEnvVariable("SLACK_WEBHOOK_URL", ""),
 	PUBLIC_APP_URL: getEnvVariable("PUBLIC_APP_URL"),
 	PORT: +getEnvVariable("PORT", "8787"),
 	QSTASH_TOKEN: getEnvVariable("QSTASH_TOKEN"),
