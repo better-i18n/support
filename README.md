@@ -56,6 +56,9 @@ for a commercial license at [anthony@cossistant.com](mailto:anthony@cossistant.c
 By using this software, you agree to the terms of the license.
 <br />
 <br />
+
+### Open source friends
+
 Proudly part of Vercel open source program:
 <br />
 <br />
