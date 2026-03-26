@@ -14,7 +14,7 @@ export const FEATURED_OPEN_SOURCE_PROJECTS: FeaturedOpenSourceProject[] = [
 	},
 	{
 		id: "databuddy",
-		name: "DataBuddy",
+		name: "Databuddy",
 		websiteUrl: "https://databuddy.cc",
 		ogImageUrl: "https://databuddy.cc/og-image.png",
 	},
