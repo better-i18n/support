@@ -7,7 +7,4 @@ export {
 	InboxAnalyticsDisplay,
 	InboxAnalyticsRangeControl,
 } from "./inbox-analytics-display";
-export {
-	INBOX_ANALYTICS_RANGES,
-	type InboxAnalyticsRangeDays,
-} from "./types";
+export { INBOX_ANALYTICS_RANGES, type InboxAnalyticsRangeDays } from "./types";

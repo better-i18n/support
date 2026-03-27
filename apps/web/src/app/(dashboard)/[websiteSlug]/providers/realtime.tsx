@@ -10,6 +10,7 @@ import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { UpgradeModal } from "@/components/plan/upgrade-modal";
 import { useUserSession, useWebsite } from "@/contexts/website";
 import { getOnlineNowQueryKeyPrefix } from "@/data/use-online-now";
+import { getPresenceLocationsQueryKeyPrefix } from "@/data/use-presence-locations";
 import { getVisitorPresenceQueryKeyPrefix } from "@/data/use-visitor-presence";
 import { useTrainingControls } from "@/hooks/use-training-controls";
 import { useTRPC } from "@/lib/trpc/client";
@@ -70,6 +71,10 @@ export function Realtime({ children }: { children: ReactNode }) {
 		() => getOnlineNowQueryKeyPrefix(website.slug),
 		[website.slug]
 	);
+	const presenceLocationsQueryKeyPrefix = useMemo(
+		() => getPresenceLocationsQueryKeyPrefix(website.slug),
+		[website.slug]
+	);
 
 	const invalidatePresenceQueries = useCallback(() => {
 		void queryClient.invalidateQueries({
@@ -78,7 +83,15 @@ export function Realtime({ children }: { children: ReactNode }) {
 		void queryClient.invalidateQueries({
 			queryKey: onlineNowQueryKeyPrefix,
 		});
-	}, [onlineNowQueryKeyPrefix, presenceQueryKeyPrefix, queryClient]);
+		void queryClient.invalidateQueries({
+			queryKey: presenceLocationsQueryKeyPrefix,
+		});
+	}, [
+		onlineNowQueryKeyPrefix,
+		presenceLocationsQueryKeyPrefix,
+		presenceQueryKeyPrefix,
+		queryClient,
+	]);
 
 	const realtimeContext = useMemo<DashboardRealtimeContext>(
 		() => ({
@@ -168,6 +181,11 @@ export function Realtime({ children }: { children: ReactNode }) {
 				},
 			],
 			visitorDisconnected: [
+				() => {
+					invalidatePresenceQueries();
+				},
+			],
+			visitorPresenceUpdate: [
 				() => {
 					invalidatePresenceQueries();
 				},

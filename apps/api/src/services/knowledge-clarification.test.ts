@@ -1,9 +1,20 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import { zodSchema } from "ai";
+import {
+	sharedCalculateAiCreditChargeMock as calculateAiCreditChargeMock,
+	sharedCreateTimelineItemMock as createTimelineItemMock,
+	sharedGetMinimumAiCreditChargeMock as getMinimumAiCreditChargeMock,
+	sharedResolveClarificationModelForExecutionMock as resolveClarificationModelForExecutionMock,
+	sharedUpdateTimelineItemMock as updateTimelineItemMock,
+} from "../test-support/shared-module-mocks";
 
 const getAiAgentForWebsiteMock = mock(async () => null);
 const getConversationByIdMock = mock(async () => null);
 const getConversationTimelineItemsMock = mock(async () => ({ items: [] }));
+const getConversationTimelineItemsAfterCursorMock = mock(async () => ({
+	items: [],
+	nextCursor: null,
+}));
 const createKnowledgeClarificationRequestMock = mock(async () => null);
 const getActiveKnowledgeClarificationForConversationMock = mock(
 	async () => null
@@ -52,26 +63,10 @@ class NoContentGeneratedErrorMock extends RetryableMockError {}
 class NoObjectGeneratedErrorMock extends RetryableMockError {}
 class NoOutputGeneratedErrorMock extends RetryableMockError {}
 class NoSuchModelErrorMock extends RetryableMockError {}
-const resolveClarificationModelForExecutionMock = mock((modelId: string) => ({
-	modelIdOriginal: modelId,
-	modelIdResolved: "google/gemini-3-flash-preview",
-	modelMigrationApplied: modelId !== "google/gemini-3-flash-preview",
-}));
 const realtimeEmitMock = mock(async () => {});
-const trackGenerationUsageMock = mock(async () => ({
-	usageTokens: {
-		inputTokens: 120,
-		outputTokens: 40,
-		totalTokens: 160,
-		source: "provider" as const,
-	},
-	creditUsage: {
-		totalCredits: 1,
-		mode: "normal" as const,
-		ingestStatus: "ingested" as const,
-	},
+const ingestAiCreditUsageMock = mock(async () => ({
+	status: "ingested" as const,
 }));
-const createTimelineItemMock = mock(async () => null);
 const ulidMock = mock(() => "usage_evt_1");
 
 mock.module("@api/db/queries/ai-agent", () => ({
@@ -81,6 +76,8 @@ mock.module("@api/db/queries/ai-agent", () => ({
 mock.module("@api/db/queries/conversation", () => ({
 	getConversationById: getConversationByIdMock,
 	getConversationTimelineItems: getConversationTimelineItemsMock,
+	getConversationTimelineItemsAfterCursor:
+		getConversationTimelineItemsAfterCursorMock,
 }));
 
 mock.module("@api/db/queries/knowledge-clarification", () => ({
@@ -144,6 +141,8 @@ mock.module("@api/lib/ai", () => ({
 }));
 
 mock.module("@api/lib/ai-credits/config", () => ({
+	calculateAiCreditCharge: calculateAiCreditChargeMock,
+	getMinimumAiCreditCharge: getMinimumAiCreditChargeMock,
 	resolveClarificationModelForExecution:
 		resolveClarificationModelForExecutionMock,
 	resolveModelForExecution: resolveClarificationModelForExecutionMock,
@@ -155,12 +154,13 @@ mock.module("@api/realtime/emitter", () => ({
 	},
 }));
 
-mock.module("@api/ai-pipeline/shared/usage", () => ({
-	trackGenerationUsage: trackGenerationUsageMock,
+mock.module("@api/lib/ai-credits/polar-meter", () => ({
+	ingestAiCreditUsage: ingestAiCreditUsageMock,
 }));
 
 mock.module("@api/utils/timeline-item", () => ({
 	createTimelineItem: createTimelineItemMock,
+	updateTimelineItem: updateTimelineItemMock,
 }));
 
 mock.module("ulid", () => ({
@@ -241,6 +241,7 @@ function createRequest(overrides: Record<string, unknown> = {}) {
 		maxSteps: 3,
 		contextSnapshot: createContextSnapshot(),
 		targetKnowledgeId: null,
+		questionPlan: null,
 		draftFaqPayload: null,
 		currentQuestionInputMode: "suggested_answers",
 		currentQuestionScope: "narrow_detail",
@@ -249,6 +250,23 @@ function createRequest(overrides: Record<string, unknown> = {}) {
 		updatedAt: "2026-03-13T10:00:00.000Z",
 		...overrides,
 	} as never;
+}
+
+function createAnalyzingRequest(overrides: Record<string, unknown> = {}) {
+	return createRequest({
+		status: "analyzing",
+		stepIndex: 1,
+		...overrides,
+	});
+}
+
+function createDraftReadyRequest(overrides: Record<string, unknown> = {}) {
+	return createRequest({
+		status: "draft_ready",
+		stepIndex: 1,
+		draftFaqPayload: createDraftOutput().draftFaqPayload,
+		...overrides,
+	});
 }
 
 function createTurn(overrides: Record<string, unknown> = {}) {
@@ -270,25 +288,68 @@ function createTurn(overrides: Record<string, unknown> = {}) {
 	} as never;
 }
 
-function createQuestionOutput(overrides: Record<string, unknown> = {}) {
+function createPlannedQuestion(overrides: Record<string, unknown> = {}) {
 	return {
-		kind: "question",
-		continueClarifying: true,
+		id: "plan_q_1",
+		question: "When does the billing change take effect?",
+		suggestedAnswers: [
+			"Immediately",
+			"At the next billing cycle",
+			"It depends on the plan",
+		],
 		inputMode: "suggested_answers",
 		questionScope: "narrow_detail",
-		topicSummary: "Clarify billing timing",
-		missingFact:
-			"Whether the billing change always waits for the next billing cycle",
-		whyItMatters: "That determines how the FAQ should describe timing.",
-		groundingSource: "latest_exchange",
-		groundingSnippet: "Does the billing change immediately?",
-		question: "Should the change wait for the next billing cycle?",
-		suggestedAnswers: [
+		missingFact: "When the billing change takes effect",
+		whyItMatters: "That determines the FAQ timing answer.",
+		...overrides,
+	} as const;
+}
+
+function createQuestionOutput(overrides: Record<string, unknown> = {}) {
+	const {
+		id = "plan_q_1",
+		question = "Should the change wait for the next billing cycle?",
+		suggestedAnswers = [
 			"Yes, always",
 			"No, it is immediate",
 			"It depends on the plan",
 		],
+		inputMode = "suggested_answers",
+		questionScope = "narrow_detail",
+		missingFact = "Whether the billing change always waits for the next billing cycle",
+		whyItMatters = "That determines how the FAQ should describe timing.",
+		topicSummary = "Clarify billing timing",
+		...rest
+	} = overrides;
+
+	return {
+		kind: "question_plan",
+		topicSummary,
+		missingFact,
+		whyItMatters,
+		questions: [
+			{
+				id,
+				question,
+				suggestedAnswers,
+				inputMode,
+				questionScope,
+				missingFact,
+				whyItMatters,
+			},
+		],
 		draftFaqPayload: null,
+		...rest,
+	} as const;
+}
+
+function createEvaluationOutput(overrides: Record<string, unknown> = {}) {
+	return {
+		topicSummary: "Clarify billing timing",
+		outcome: "continue",
+		reason: "One queued question still matters.",
+		nextQuestionId: "plan_q_2",
+		coveredQuestionIds: [],
 		...overrides,
 	} as const;
 }
@@ -340,6 +401,7 @@ describe("knowledge clarification usage tracking", () => {
 		getAiAgentForWebsiteMock.mockReset();
 		getConversationByIdMock.mockReset();
 		getConversationTimelineItemsMock.mockReset();
+		getConversationTimelineItemsAfterCursorMock.mockReset();
 		createKnowledgeClarificationRequestMock.mockReset();
 		getActiveKnowledgeClarificationForConversationMock.mockReset();
 		getLatestKnowledgeClarificationForConversationBySourceTriggerMessageIdMock.mockReset();
@@ -360,11 +422,15 @@ describe("knowledge clarification usage tracking", () => {
 		outputObjectMock.mockReset();
 		resolveClarificationModelForExecutionMock.mockReset();
 		realtimeEmitMock.mockReset();
-		trackGenerationUsageMock.mockReset();
+		ingestAiCreditUsageMock.mockReset();
 		createTimelineItemMock.mockReset();
 		ulidMock.mockReset();
 
 		getConversationTimelineItemsMock.mockResolvedValue({ items: [] });
+		getConversationTimelineItemsAfterCursorMock.mockResolvedValue({
+			items: [],
+			nextCursor: null,
+		});
 		getLatestKnowledgeClarificationForConversationBySourceTriggerMessageIdMock.mockResolvedValue(
 			null
 		);
@@ -393,20 +459,14 @@ describe("knowledge clarification usage tracking", () => {
 				modelMigrationApplied: modelId !== "google/gemini-3-flash-preview",
 			})
 		);
-		trackGenerationUsageMock.mockResolvedValue({
-			usageTokens: {
-				inputTokens: 120,
-				outputTokens: 40,
-				totalTokens: 160,
-				source: "provider",
-			},
-			creditUsage: {
-				totalCredits: 1,
-				mode: "normal",
-				ingestStatus: "ingested",
-			},
+		ingestAiCreditUsageMock.mockResolvedValue({
+			status: "ingested",
 		});
 		ulidMock.mockImplementation(() => "usage_evt_1");
+	});
+
+	afterAll(() => {
+		mock.restore();
 	});
 
 	it("does not bill when an existing unanswered clarification step is reused", async () => {
@@ -438,7 +498,7 @@ describe("knowledge clarification usage tracking", () => {
 		}
 		expect(step.kind).toBe("question");
 		expect(generateTextMock).not.toHaveBeenCalled();
-		expect(trackGenerationUsageMock).not.toHaveBeenCalled();
+		expect(ingestAiCreditUsageMock).not.toHaveBeenCalled();
 	});
 
 	it("suppresses automated duplicates when the same trigger already led to an applied clarification", async () => {
@@ -590,6 +650,25 @@ describe("knowledge clarification usage tracking", () => {
 		expect(serialized.currentQuestionScope).toBe("broad_discovery");
 	});
 
+	it("prefers stored question-plan metadata over ordinal heuristics", async () => {
+		const { serializeKnowledgeClarificationRequest } = await modulePromise;
+		const serialized = serializeKnowledgeClarificationRequest({
+			request: createRequest({
+				questionPlan: [
+					createPlannedQuestion({
+						question: "When does the billing change take effect?",
+						inputMode: "suggested_answers",
+						questionScope: "narrow_detail",
+					}),
+				],
+			}),
+			turns: [createTurn()],
+		});
+
+		expect(serialized.currentQuestionInputMode).toBe("suggested_answers");
+		expect(serialized.currentQuestionScope).toBe("narrow_detail");
+	});
+
 	it("emits retry-required conversation clarifications as active retryable summaries", async () => {
 		const { emitConversationClarificationUpdate } = await modulePromise;
 
@@ -688,7 +767,7 @@ describe("knowledge clarification usage tracking", () => {
 				progressReporter: progressReporterMock,
 			});
 
-			const usageCall = trackGenerationUsageMock.mock.calls[0] as unknown as
+			const usageCall = createTimelineItemMock.mock.calls[0] as unknown as
 				| [Record<string, unknown>]
 				| undefined;
 
@@ -697,17 +776,27 @@ describe("knowledge clarification usage tracking", () => {
 				inputMode: "textarea_first",
 				questionScope: "broad_discovery",
 			});
-			expect(trackGenerationUsageMock).toHaveBeenCalledTimes(1);
+			expect(ingestAiCreditUsageMock).toHaveBeenCalledTimes(1);
 			expect(usageCall?.[0]).toMatchObject({
 				conversationId: "conv_1",
-				visitorId: "visitor_1",
-				aiAgentId: "agent_1",
-				usageEventId: "usage_evt_1",
-				triggerMessageId: "clar_req_1",
-				source: "knowledge_clarification",
-				phase: "clarification_question",
-				knowledgeClarificationRequestId: "clar_req_1",
-				knowledgeClarificationStepIndex: 1,
+				conversationOwnerVisitorId: "visitor_1",
+				item: {
+					tool: "aiCreditUsage",
+					aiAgentId: "agent_1",
+					visitorId: "visitor_1",
+					parts: [
+						{
+							input: {
+								usageEventId: "usage_evt_1",
+								triggerMessageId: "clar_req_1",
+								source: "knowledge_clarification",
+								phase: "clarification_plan_generation",
+								knowledgeClarificationRequestId: "clar_req_1",
+								knowledgeClarificationStepIndex: 1,
+							},
+						},
+					],
+				},
 			});
 			expect(resolveClarificationModelForExecutionMock).toHaveBeenCalledWith(
 				"moonshotai/kimi-k2-0905"
@@ -727,7 +816,7 @@ describe("knowledge clarification usage tracking", () => {
 			).toEqual([
 				"loading_context",
 				"reviewing_evidence",
-				"generating_question",
+				"planning_questions",
 				"finalizing_step",
 			]);
 			expect(progressReporterMock.mock.calls[3]?.[0]).toMatchObject({
@@ -803,16 +892,10 @@ describe("knowledge clarification usage tracking", () => {
 		expect(jsonSchema.required).toEqual(
 			expect.arrayContaining([
 				"kind",
-				"continueClarifying",
 				"topicSummary",
 				"missingFact",
 				"whyItMatters",
-				"inputMode",
-				"questionScope",
-				"groundingSource",
-				"groundingSnippet",
-				"question",
-				"suggestedAnswers",
+				"questions",
 				"draftFaqPayload",
 			])
 		);
@@ -964,7 +1047,7 @@ describe("knowledge clarification usage tracking", () => {
 		);
 	});
 
-	it("falls back to a draft when the first broad question degrades into a catch-all prompt", async () => {
+	it("goes straight to a draft when the planner decides the existing evidence is enough", async () => {
 		const { runKnowledgeClarificationStep } = await modulePromise;
 		const request = createRequest({
 			status: "analyzing",
@@ -972,53 +1055,17 @@ describe("knowledge clarification usage tracking", () => {
 		});
 
 		listKnowledgeClarificationTurnsMock.mockResolvedValue([]);
-		generateTextMock
-			.mockResolvedValueOnce({
-				output: {
-					kind: "question",
-					continueClarifying: true,
-					inputMode: "textarea_first",
-					questionScope: "broad_discovery",
-					topicSummary: "Clarify billing timing",
-					missingFact: "How billing-change handling works today",
-					whyItMatters: "That detail determines the FAQ draft.",
-					groundingSource: "topic_anchor",
-					groundingSnippet: "Clarify billing timing",
-					question: "Can you share more context?",
-					suggestedAnswers: [
-						"It changes immediately",
-						"It changes on the next cycle",
-						"It depends on the plan",
-					],
-				},
-				usage: {
-					inputTokens: 120,
-					outputTokens: 40,
-					totalTokens: 160,
-				},
-			})
-			.mockResolvedValueOnce({
-				output: {
-					kind: "draft_ready",
-					continueClarifying: false,
-					topicSummary: "Clarify billing timing",
-					missingFact: "No additional grounded gap remains",
-					whyItMatters:
-						"The first broad question was too generic to keep asking.",
-					draftFaqPayload: {
-						title: "Billing timing",
-						question: "When does a billing change take effect?",
-						answer: "Billing changes apply at the next billing cycle.",
-						categories: ["Billing"],
-						relatedQuestions: [],
-					},
-				},
-				usage: {
-					inputTokens: 80,
-					outputTokens: 30,
-					totalTokens: 110,
-				},
-			});
+		generateTextMock.mockResolvedValue({
+			output: createDraftOutput({
+				whyItMatters:
+					"The evidence is already grounded enough to skip clarification questions.",
+			}),
+			usage: {
+				inputTokens: 120,
+				outputTokens: 40,
+				totalTokens: 160,
+			},
+		});
 		updateKnowledgeClarificationRequestMock.mockResolvedValue(
 			createRequest({
 				status: "draft_ready",
@@ -1045,7 +1092,7 @@ describe("knowledge clarification usage tracking", () => {
 		});
 
 		expect(step.kind).toBe("draft_ready");
-		expect(generateTextMock).toHaveBeenCalledTimes(2);
+		expect(generateTextMock).toHaveBeenCalledTimes(1);
 	});
 
 	it("sanitizes malformed clarification questions before storing them", async () => {
@@ -1075,19 +1122,13 @@ describe("knowledge clarification usage tracking", () => {
 			.mockResolvedValueOnce([])
 			.mockResolvedValueOnce([nextQuestionTurn]);
 		generateTextMock.mockResolvedValue({
-			output: {
-				kind: "question",
-				continueClarifying: true,
-				inputMode: "suggested_answers",
-				questionScope: "narrow_detail",
+			output: createQuestionOutput({
+				question: malformedQuestion,
+				suggestedAnswers,
 				topicSummary: "Clarify account deletion",
 				missingFact: "Which account deletion path users should follow",
 				whyItMatters: "That determines the final FAQ answer.",
-				groundingSource: "topic_anchor",
-				groundingSnippet: "Clarify account deletion",
-				question: malformedQuestion,
-				suggestedAnswers,
-			},
+			}),
 			usage: {
 				inputTokens: 120,
 				outputTokens: 40,
@@ -1155,24 +1196,18 @@ describe("knowledge clarification usage tracking", () => {
 			.mockResolvedValueOnce(historyTurns)
 			.mockResolvedValueOnce([...historyTurns, nextQuestionTurn]);
 		generateTextMock.mockResolvedValue({
-			output: {
-				kind: "question",
-				continueClarifying: true,
-				inputMode: "suggested_answers",
-				questionScope: "narrow_detail",
-				topicSummary: "Clarify billing timing",
-				missingFact:
-					"Whether the billing change always waits for the next cycle",
-				whyItMatters: "That determines how the FAQ should describe timing.",
-				groundingSource: "latest_exchange",
-				groundingSnippet: "Does the billing change immediately?",
+			output: createQuestionOutput({
+				id: "plan_q_2",
 				question: "Should the change wait for the next billing cycle?",
 				suggestedAnswers: [
 					"Yes, always",
 					"No, it is immediate",
 					"It depends on the plan",
 				],
-			},
+				missingFact:
+					"Whether the billing change always waits for the next cycle",
+				whyItMatters: "That determines how the FAQ should describe timing.",
+			}),
 			usage: {
 				inputTokens: 140,
 				outputTokens: 45,
@@ -1203,10 +1238,15 @@ describe("knowledge clarification usage tracking", () => {
 
 	it("tracks faq-draft-generation usage when the model returns a draft faq", async () => {
 		const { runKnowledgeClarificationStep } = await modulePromise;
-		const request = createRequest({
-			status: "analyzing",
-			stepIndex: 2,
+		const questionPlan = [
+			createPlannedQuestion({
+				id: "plan_q_1",
+				question: "When does the billing change take effect?",
+			}),
+		];
+		const request = createAnalyzingRequest({
 			updatedAt: "2026-03-13T10:05:00.000Z",
+			questionPlan,
 		});
 
 		listKnowledgeClarificationTurnsMock.mockResolvedValue([
@@ -1228,9 +1268,8 @@ describe("knowledge clarification usage tracking", () => {
 			},
 		});
 		updateKnowledgeClarificationRequestMock.mockResolvedValue(
-			createRequest({
-				status: "draft_ready",
-				stepIndex: 2,
+			createDraftReadyRequest({
+				questionPlan,
 				draftFaqPayload: {
 					title: "Billing timing",
 					question: "When does a billing change take effect?",
@@ -1248,30 +1287,49 @@ describe("knowledge clarification usage tracking", () => {
 			conversation: createConversation(),
 		});
 
-		const usageCall = trackGenerationUsageMock.mock.calls[0] as unknown as
+		const usageCall = createTimelineItemMock.mock.calls[0] as unknown as
 			| [Record<string, unknown>]
 			| undefined;
 
 		expect(step.kind).toBe("draft_ready");
-		expect(trackGenerationUsageMock).toHaveBeenCalledTimes(1);
+		expect(ingestAiCreditUsageMock).toHaveBeenCalledTimes(1);
 		expect(usageCall?.[0]).toMatchObject({
 			conversationId: "conv_1",
-			visitorId: "visitor_1",
-			aiAgentId: "agent_1",
-			usageEventId: "usage_evt_1",
-			triggerMessageId: "clar_req_1",
-			source: "knowledge_clarification",
-			phase: "faq_draft_generation",
-			knowledgeClarificationRequestId: "clar_req_1",
-			knowledgeClarificationStepIndex: 2,
+			conversationOwnerVisitorId: "visitor_1",
+			item: {
+				tool: "aiCreditUsage",
+				aiAgentId: "agent_1",
+				visitorId: "visitor_1",
+				parts: [
+					{
+						input: {
+							usageEventId: "usage_evt_1",
+							triggerMessageId: "clar_req_1",
+							source: "knowledge_clarification",
+							phase: "faq_draft_generation",
+							knowledgeClarificationRequestId: "clar_req_1",
+							knowledgeClarificationStepIndex: 1,
+						},
+					},
+				],
+			},
 		});
 	});
 
-	it("falls back to a draft when the next question repeats an earlier clarification", async () => {
+	it("skips redundant queued questions and drafts when the evaluator says the answer is sufficient", async () => {
 		const { runKnowledgeClarificationStep } = await modulePromise;
-		const request = createRequest({
-			status: "analyzing",
-			stepIndex: 1,
+		const questionPlan = [
+			createPlannedQuestion({
+				id: "plan_q_1",
+				question: "Does the billing change immediately?",
+			}),
+			createPlannedQuestion({
+				id: "plan_q_2",
+				question: "Are annual plans handled differently?",
+			}),
+		];
+		const request = createAnalyzingRequest({
+			questionPlan,
 		});
 		const historyTurns = [
 			createTurn({
@@ -1289,23 +1347,12 @@ describe("knowledge clarification usage tracking", () => {
 		listKnowledgeClarificationTurnsMock.mockResolvedValue(historyTurns);
 		generateTextMock
 			.mockResolvedValueOnce({
-				output: {
-					kind: "question",
-					continueClarifying: true,
-					inputMode: "suggested_answers",
-					questionScope: "narrow_detail",
-					topicSummary: "Clarify billing timing",
-					missingFact: "Whether billing changes immediately",
-					whyItMatters: "That controls the FAQ answer.",
-					groundingSource: "latest_exchange",
-					groundingSnippet: "Does the billing change immediately?",
-					question: "Does the billing change immediately?",
-					suggestedAnswers: [
-						"Immediately",
-						"At the next billing cycle",
-						"It depends on the plan",
-					],
-				},
+				output: createEvaluationOutput({
+					outcome: "draft_ready",
+					nextQuestionId: null,
+					coveredQuestionIds: ["plan_q_2"],
+					reason: "The queued follow-up would repeat an answered question.",
+				}),
 				usage: {
 					inputTokens: 120,
 					outputTokens: 40,
@@ -1334,9 +1381,8 @@ describe("knowledge clarification usage tracking", () => {
 				},
 			});
 		updateKnowledgeClarificationRequestMock.mockResolvedValue(
-			createRequest({
-				status: "draft_ready",
-				stepIndex: 1,
+			createDraftReadyRequest({
+				questionPlan,
 				draftFaqPayload: {
 					title: "Billing timing",
 					question: "When does a billing change take effect?",
@@ -1353,23 +1399,40 @@ describe("knowledge clarification usage tracking", () => {
 			aiAgent: createAiAgent(),
 			conversation: createConversation(),
 		});
-		const usageCall = trackGenerationUsageMock.mock.calls[0] as unknown as
-			| [Record<string, unknown>]
-			| undefined;
+		const usageCalls = createTimelineItemMock.mock.calls as unknown as [
+			Record<string, unknown>,
+		][];
 
 		expect(step.kind).toBe("draft_ready");
 		expect(generateTextMock).toHaveBeenCalledTimes(2);
-		expect(trackGenerationUsageMock).toHaveBeenCalledTimes(1);
-		expect(usageCall?.[0]).toMatchObject({
-			phase: "faq_draft_generation",
+		expect(ingestAiCreditUsageMock).toHaveBeenCalledTimes(2);
+		expect(usageCalls[0]?.[0]).toMatchObject({
+			item: {
+				parts: [
+					{
+						input: {
+							phase: "clarification_answer_evaluation",
+						},
+					},
+				],
+			},
 		});
 	});
 
-	it("falls back to a draft when a follow-up is not grounded in the latest answer", async () => {
+	it("falls back to a draft when the evaluator decides no queued follow-up is still useful", async () => {
 		const { runKnowledgeClarificationStep } = await modulePromise;
-		const request = createRequest({
-			status: "analyzing",
-			stepIndex: 1,
+		const questionPlan = [
+			createPlannedQuestion({
+				id: "plan_q_1",
+				question: "When does the billing change take effect?",
+			}),
+			createPlannedQuestion({
+				id: "plan_q_2",
+				question: "Are annual plans handled differently?",
+			}),
+		];
+		const request = createAnalyzingRequest({
+			questionPlan,
 		});
 		const historyTurns = [
 			createTurn({
@@ -1387,23 +1450,12 @@ describe("knowledge clarification usage tracking", () => {
 		listKnowledgeClarificationTurnsMock.mockResolvedValue(historyTurns);
 		generateTextMock
 			.mockResolvedValueOnce({
-				output: {
-					kind: "question",
-					continueClarifying: true,
-					inputMode: "suggested_answers",
-					questionScope: "narrow_detail",
-					topicSummary: "Clarify billing timing",
-					missingFact: "Whether annual plans are an exception",
-					whyItMatters: "That would materially change the FAQ answer.",
-					groundingSource: "topic_anchor",
-					groundingSnippet: "Clarify billing timing",
-					question: "Are annual plans handled differently?",
-					suggestedAnswers: [
-						"No, same rule",
-						"Yes, they are different",
-						"It depends on the plan",
-					],
-				},
+				output: createEvaluationOutput({
+					outcome: "draft_ready",
+					nextQuestionId: null,
+					coveredQuestionIds: ["plan_q_2"],
+					reason: "The latest answer is specific enough for a narrow draft.",
+				}),
 				usage: {
 					inputTokens: 120,
 					outputTokens: 40,
@@ -1433,9 +1485,8 @@ describe("knowledge clarification usage tracking", () => {
 				},
 			});
 		updateKnowledgeClarificationRequestMock.mockResolvedValue(
-			createRequest({
-				status: "draft_ready",
-				stepIndex: 1,
+			createDraftReadyRequest({
+				questionPlan,
 				draftFaqPayload: {
 					title: "Billing timing",
 					question: "When does a billing change take effect?",
@@ -1642,16 +1693,16 @@ describe("knowledge clarification usage tracking", () => {
 		const systemPrompt = String(promptCall?.[0]?.system ?? "");
 
 		expect(systemPrompt).toContain(
-			"the question field must be one short, simple plain-language question."
+			"Every question must be short, plain-language, and focused on one missing fact."
 		);
 		expect(systemPrompt).toContain(
-			'must not start with numbering or bullets such as "1.", "1)", "a)", or "(a)".'
+			"Suggested answers must have exactly 3 distinct options."
 		);
 		expect(systemPrompt).toContain(
-			"must not include answer options, multiple-choice labels, button text, support emails, CLI commands, or any candidate answers."
+			"Use textarea_first only for the first broad discovery question; all follow-ups should use suggested_answers."
 		);
 		expect(systemPrompt).toContain(
-			"Put all answer choices only in suggestedAnswers."
+			"The queue should be ordered, but later questions should be skippable if an earlier answer already covers them."
 		);
 	});
 
@@ -1715,23 +1766,17 @@ describe("knowledge clarification usage tracking", () => {
 		const systemPrompt = String(promptCall?.[0]?.system ?? "");
 		const prompt = String(promptCall?.[0]?.prompt ?? "");
 
-		expect(systemPrompt).toContain("website owner or one of their teammates");
-		expect(systemPrompt).toContain("never the visitor");
 		expect(systemPrompt).toContain(
-			"Never ask what the visitor already tried, clicked, searched for, entered, or saw."
+			"private internal clarification flow for a website owner or teammate"
 		);
 		expect(systemPrompt).toContain(
-			'Good broad question: "How does avatar setup work in your product today?"'
+			"This is internal only. Never address the visitor."
 		);
 		expect(systemPrompt).toContain(
-			'Good narrow question: "Which settings page lets users upload a profile photo?"'
+			"Never ask about what the visitor already tried, clicked, searched for, entered, or saw."
 		);
-		expect(systemPrompt).toContain(
-			'Bad question: "Where has the visitor already looked for the avatar option?"'
-		);
-		expect(prompt).toContain(
-			"Clarification audience: website owner or teammate. This is private/internal, not the visitor."
-		);
+		expect(prompt).toContain("Agent name: Support Agent");
+		expect(prompt).toContain("Clarification source: conversation");
 		expect(prompt).not.toContain(
 			"Help the visitor clearly and ask what they already clicked."
 		);
@@ -1787,12 +1832,17 @@ describe("knowledge clarification usage tracking", () => {
 		);
 	});
 
-	it("forces a draft once the clarification flow has already asked three questions", async () => {
+	it("goes straight to a draft once no queued clarification questions remain", async () => {
 		const { runKnowledgeClarificationStep } = await modulePromise;
 		const request = createRequest({
 			status: "analyzing",
 			stepIndex: 3,
 			maxSteps: 3,
+			questionPlan: [
+				createPlannedQuestion({ id: "plan_q_1", question: "Question 1?" }),
+				createPlannedQuestion({ id: "plan_q_2", question: "Question 2?" }),
+				createPlannedQuestion({ id: "plan_q_3", question: "Question 3?" }),
+			],
 		});
 		const progressReporterMock = mock((async () => {}) as (
 			...args: unknown[]
@@ -1866,7 +1916,7 @@ describe("knowledge clarification usage tracking", () => {
 			| undefined;
 
 		expect(step.kind).toBe("draft_ready");
-		expect(promptCall?.[0]?.prompt).toContain("Return draft_ready now.");
+		expect(promptCall?.[0]?.prompt).toContain("Write the final FAQ draft now.");
 		expect(
 			progressReporterMock.mock.calls.map(
 				(call) =>

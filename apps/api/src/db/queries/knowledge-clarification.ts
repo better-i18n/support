@@ -12,6 +12,7 @@ import { buildConversationClarificationSummary } from "@api/utils/knowledge-clar
 import type {
 	ConversationClarificationSummary,
 	KnowledgeClarificationDraftFaq,
+	KnowledgeClarificationQuestionPlan,
 	KnowledgeClarificationStatus,
 } from "@cossistant/types";
 import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
@@ -303,6 +304,7 @@ export async function createKnowledgeClarificationRequest(
 		contextSnapshot?: KnowledgeClarificationContextSnapshot | null;
 		maxSteps?: number;
 		status?: KnowledgeClarificationRequestInsert["status"];
+		questionPlan?: KnowledgeClarificationQuestionPlan | null;
 		draftFaqPayload?: KnowledgeClarificationDraftFaq | null;
 		lastError?: string | null;
 	}
@@ -325,6 +327,7 @@ export async function createKnowledgeClarificationRequest(
 			maxSteps: params.maxSteps ?? 3,
 			contextSnapshot: params.contextSnapshot ?? null,
 			targetKnowledgeId: params.targetKnowledgeId ?? null,
+			questionPlan: params.questionPlan ?? null,
 			draftFaqPayload: params.draftFaqPayload ?? null,
 			lastError: params.lastError ?? null,
 			createdAt: now,
@@ -350,6 +353,7 @@ export async function updateKnowledgeClarificationRequest(
 			maxSteps: number;
 			contextSnapshot: KnowledgeClarificationContextSnapshot | null;
 			targetKnowledgeId: string | null;
+			questionPlan: KnowledgeClarificationQuestionPlan | null;
 			draftFaqPayload: KnowledgeClarificationDraftFaq | null;
 			lastError: string | null;
 		}>;

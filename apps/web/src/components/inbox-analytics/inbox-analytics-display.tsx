@@ -49,7 +49,7 @@ type MetricDisplay = MetricConfig & {
 };
 
 const LIVE_PRESENCE_DESCRIPTION =
-	"Connected visitors seen in the last 10 minutes.";
+	"Connected visitors seen in the last 5 minutes.";
 
 const numberFormatter = new Intl.NumberFormat("en-US", {
 	maximumFractionDigits: 0,
@@ -149,8 +149,7 @@ const metricConfigs: MetricConfig[] = [
 	{
 		key: "uniqueVisitors",
 		label: "Unique visitors",
-		description:
-			"Number of distinct visitors who started conversations in this period.",
+		description: "Number of distinct widget visitors active in this period.",
 		higherIsBetter: true,
 		formatValue: formatCount,
 	},

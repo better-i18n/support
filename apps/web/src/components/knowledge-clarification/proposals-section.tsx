@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import Icon from "@/components/ui/icons";
 import { Logo } from "@/components/ui/logo";
 import { useTRPC } from "@/lib/trpc/client";
+import { getClarificationRequestStatusLabel } from "./helpers";
 import { useKnowledgeClarificationQueryInvalidation } from "./use-query-invalidation";
 
 type KnowledgeClarificationProposalsSectionProps = {
@@ -41,37 +42,12 @@ function getProposalPrimaryLabel(
 function getProposalAppearance(
 	proposal: KnowledgeClarificationRequest
 ): ProposalAppearance {
-	if (proposal.status === "draft_ready" && proposal.draftFaqPayload) {
-		return {
-			statusLabel: "Ready for review",
-			statusVariant: "success",
-		};
-	}
-
-	if (proposal.status === "retry_required") {
-		return {
-			statusLabel: "Needs retry",
-			statusVariant: "secondary",
-		};
-	}
-
-	if (proposal.status === "deferred") {
-		return {
-			statusLabel: "Saved for later",
-			statusVariant: "secondary",
-		};
-	}
-
-	if (proposal.status === "analyzing") {
-		return {
-			statusLabel: "AI working",
-			statusVariant: "secondary",
-		};
-	}
-
 	return {
-		statusLabel: `Step ${Math.max(proposal.stepIndex, 1)} of ${proposal.maxSteps}`,
-		statusVariant: "secondary",
+		statusLabel: getClarificationRequestStatusLabel(proposal),
+		statusVariant:
+			proposal.status === "draft_ready" && proposal.draftFaqPayload
+				? "success"
+				: "secondary",
 	};
 }
 

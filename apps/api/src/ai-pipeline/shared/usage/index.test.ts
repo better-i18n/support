@@ -1,44 +1,33 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
-
-const calculateAiCreditChargeMock = mock(() => ({
-	baseCredits: 1,
-	modelCredits: 1,
-	toolCredits: 0,
-	totalCredits: 2,
-	billableToolCount: 0,
-	excludedToolCount: 0,
-	totalToolCount: 0,
-}));
-
-const getMinimumAiCreditChargeMock = mock(() => ({
-	baseCredits: 1,
-	modelCredits: 0,
-	toolCredits: 0,
-	totalCredits: 1,
-	billableToolCount: 0,
-	excludedToolCount: 0,
-	totalToolCount: 0,
-}));
+import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import {
+	sharedCalculateAiCreditChargeMock as calculateAiCreditChargeMock,
+	sharedCreateTimelineItemMock as createTimelineItemMock,
+	sharedGetMinimumAiCreditChargeMock as getMinimumAiCreditChargeMock,
+	sharedResolveClarificationModelForExecutionMock as resolveClarificationModelForExecutionMock,
+	sharedUpdateTimelineItemMock as updateTimelineItemMock,
+} from "../../../test-support/shared-module-mocks";
 
 const ingestAiCreditUsageMock = mock(async () => ({
 	status: "ingested" as const,
 }));
 
-const logGenerationUsageTimelineMock = mock(async () => {});
 const logAiPipelineMock = mock(() => {});
 
 mock.module("@api/lib/ai-credits/config", () => ({
 	calculateAiCreditCharge: calculateAiCreditChargeMock,
 	getMinimumAiCreditCharge: getMinimumAiCreditChargeMock,
+	resolveClarificationModelForExecution:
+		resolveClarificationModelForExecutionMock,
+	resolveModelForExecution: resolveClarificationModelForExecutionMock,
 }));
 
 mock.module("@api/lib/ai-credits/polar-meter", () => ({
 	ingestAiCreditUsage: ingestAiCreditUsageMock,
 }));
 
-mock.module("./timeline", () => ({
-	logGenerationUsageTimeline: logGenerationUsageTimelineMock,
-	AI_CREDIT_USAGE_TIMELINE_TOOL_NAME: "aiCreditUsage",
+mock.module("@api/utils/timeline-item", () => ({
+	createTimelineItem: createTimelineItemMock,
+	updateTimelineItem: updateTimelineItemMock,
 }));
 
 mock.module("../../logger", () => ({
@@ -56,14 +45,19 @@ describe("trackGenerationUsage", () => {
 		calculateAiCreditChargeMock.mockClear();
 		getMinimumAiCreditChargeMock.mockClear();
 		ingestAiCreditUsageMock.mockClear();
-		logGenerationUsageTimelineMock.mockClear();
 		logAiPipelineMock.mockClear();
+		createTimelineItemMock.mockClear();
+		updateTimelineItemMock.mockClear();
 		ingestAiCreditUsageMock.mockResolvedValue({
 			status: "ingested" as const,
 		});
 	});
 
-	it("bills and logs conversation-linked clarification usage", async () => {
+	afterAll(() => {
+		mock.restore();
+	});
+
+	it("bills and logs conversation-linked clarification planning usage", async () => {
 		const { trackGenerationUsage } = await loadUsageModule();
 
 		await trackGenerationUsage({
@@ -82,7 +76,7 @@ describe("trackGenerationUsage", () => {
 				totalTokens: 160,
 			},
 			source: "knowledge_clarification",
-			phase: "clarification_question",
+			phase: "clarification_plan_generation",
 			knowledgeClarificationRequestId: "clar_req_1",
 			knowledgeClarificationStepIndex: 2,
 		});
@@ -90,9 +84,6 @@ describe("trackGenerationUsage", () => {
 		const ingestCall = ingestAiCreditUsageMock.mock.calls[0] as unknown as
 			| [Record<string, unknown>]
 			| undefined;
-		const timelineCall = logGenerationUsageTimelineMock.mock
-			.calls[0] as unknown as [Record<string, unknown>] | undefined;
-
 		expect(ingestAiCreditUsageMock).toHaveBeenCalledTimes(1);
 		expect(ingestCall?.[0]).toMatchObject({
 			organizationId: "org_1",
@@ -101,19 +92,32 @@ describe("trackGenerationUsage", () => {
 			credits: 1,
 		});
 
-		expect(logGenerationUsageTimelineMock).toHaveBeenCalledTimes(1);
-		expect(timelineCall?.[0]).toMatchObject({
+		const timelineCreateCall = createTimelineItemMock.mock
+			.calls[0] as unknown as [Record<string, unknown>] | undefined;
+		expect(createTimelineItemMock).toHaveBeenCalledTimes(1);
+		expect(timelineCreateCall?.[0]).toMatchObject({
 			conversationId: "conv_1",
-			visitorId: "visitor_1",
-			aiAgentId: "agent_1",
-			payload: {
-				usageEventId: "usage_evt_1",
-				triggerMessageId: "clar_req_1",
-				source: "knowledge_clarification",
-				phase: "clarification_question",
-				knowledgeClarificationRequestId: "clar_req_1",
-				knowledgeClarificationStepIndex: 2,
-				totalTokens: 160,
+			conversationOwnerVisitorId: "visitor_1",
+			item: {
+				tool: "aiCreditUsage",
+				text: "Knowledge clarification planning: 160 tokens, 1 credits",
+				aiAgentId: "agent_1",
+				visitorId: "visitor_1",
+				parts: [
+					{
+						input: {
+							usageEventId: "usage_evt_1",
+							triggerMessageId: "clar_req_1",
+							source: "knowledge_clarification",
+							phase: "clarification_plan_generation",
+							knowledgeClarificationRequestId: "clar_req_1",
+							knowledgeClarificationStepIndex: 2,
+						},
+						output: {
+							totalTokens: 160,
+						},
+					},
+				],
 			},
 		});
 	});
@@ -139,6 +143,6 @@ describe("trackGenerationUsage", () => {
 		});
 
 		expect(ingestAiCreditUsageMock).toHaveBeenCalledTimes(1);
-		expect(logGenerationUsageTimelineMock).not.toHaveBeenCalled();
+		expect(createTimelineItemMock).not.toHaveBeenCalled();
 	});
 });

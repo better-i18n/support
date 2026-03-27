@@ -72,6 +72,45 @@ describe("routeEvent", () => {
 			undefined,
 		]);
 	});
+
+	it("routes visitor presence updates to website connections only", async () => {
+		const event: RealtimeEvent<"visitorPresenceUpdate"> = {
+			type: "visitorPresenceUpdate",
+			payload: {
+				websiteId: "website-live",
+				organizationId: "org-live",
+				visitorId: "visitor-123",
+				userId: null,
+				sessionId: "session-123",
+				activityType: "heartbeat",
+				currentPage: {
+					url: "https://app.example.com/pricing",
+					path: "/pricing",
+					title: "Pricing",
+					referrerUrl: "https://google.com",
+					updatedAt: new Date().toISOString(),
+				},
+				attribution: null,
+			},
+		};
+
+		await routeEvent(event, {
+			connectionId: "conn-live",
+			websiteId: "website-live",
+			visitorId: "visitor-123",
+			sendToWebsite,
+			sendToVisitor,
+			sendToConnection,
+		});
+
+		expect(sendToWebsite).toHaveBeenCalledTimes(1);
+		expect(sendToWebsite.mock.calls[0]).toEqual([
+			"website-live",
+			event,
+			undefined,
+		]);
+		expect(sendToVisitor).not.toHaveBeenCalled();
+	});
 });
 
 describe("timelineItemCreated handler", () => {

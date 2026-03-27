@@ -20,6 +20,8 @@ export type ClarificationProgressView =
 	| LocalClarificationProgress;
 
 export const CLARIFICATION_PROGRESS_FALLBACK_DELAY_MS = 1500;
+export const DEFAULT_CLARIFICATION_PROGRESS_FALLBACK_LABEL =
+	"Reviewing your answer...";
 
 export function createOptimisticClarificationProgress(
 	startedAt: Date
@@ -39,7 +41,7 @@ export function createFallbackClarificationProgress(
 ): LocalClarificationProgress {
 	return {
 		phase: "waiting_for_server",
-		label: "Preparing next step...",
+		label: DEFAULT_CLARIFICATION_PROGRESS_FALLBACK_LABEL,
 		detail: null,
 		attempt: null,
 		toolName: null,

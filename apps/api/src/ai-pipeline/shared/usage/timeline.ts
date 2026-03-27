@@ -19,7 +19,8 @@ export type GenerationUsageSource =
 
 export type GenerationUsagePhase =
 	| "primary_generation"
-	| "clarification_question"
+	| "clarification_plan_generation"
+	| "clarification_answer_evaluation"
 	| "faq_draft_generation";
 
 export type GenerationUsageTimelinePayload = {
@@ -160,7 +161,9 @@ function buildTimelineText(payload: GenerationUsageTimelinePayload): string {
 		const label =
 			payload.phase === "faq_draft_generation"
 				? "FAQ draft generation"
-				: "Knowledge clarification";
+				: payload.phase === "clarification_answer_evaluation"
+					? "Clarification answer review"
+					: "Knowledge clarification planning";
 		return `${label}: ${payload.totalTokens} tokens, ${payload.totalCredits} credits`;
 	}
 

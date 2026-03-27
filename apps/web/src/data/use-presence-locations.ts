@@ -3,6 +3,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { queryTinybirdPipe, useTinybirdToken } from "@/lib/tinybird";
 
+const PRESENCE_LOCATIONS_REFRESH_INTERVAL_MS = 120_000;
+
+export const PRESENCE_LOCATIONS_QUERY_KEY_PREFIX = [
+	"tinybird",
+	"presence-locations",
+] as const;
+
 type PresenceLocation = {
 	latitude: number;
 	longitude: number;
@@ -10,6 +17,10 @@ type PresenceLocation = {
 	country_code: string | null;
 	entity_count: number;
 };
+
+export function getPresenceLocationsQueryKeyPrefix(websiteSlug: string) {
+	return [...PRESENCE_LOCATIONS_QUERY_KEY_PREFIX, websiteSlug] as const;
+}
 
 export function usePresenceLocations({
 	websiteSlug,
@@ -20,10 +31,17 @@ export function usePresenceLocations({
 	minutes?: number;
 	enabled?: boolean;
 }) {
-	const { data: tokenData } = useTinybirdToken(websiteSlug);
+	const { data: tokenData } = useTinybirdToken(websiteSlug, {
+		staleTimeMs: PRESENCE_LOCATIONS_REFRESH_INTERVAL_MS,
+	});
 
 	return useQuery({
-		queryKey: ["tinybird", "presence-locations", websiteSlug, minutes],
+		queryKey: [
+			...PRESENCE_LOCATIONS_QUERY_KEY_PREFIX,
+			websiteSlug,
+			minutes,
+			tokenData?.token,
+		],
 		queryFn: () => {
 			const { token, host } = tokenData ?? {};
 			if (!(token && host)) {
@@ -37,7 +55,7 @@ export function usePresenceLocations({
 			);
 		},
 		enabled: enabled && !!tokenData,
-		staleTime: 30_000,
-		refetchInterval: 30_000,
+		staleTime: PRESENCE_LOCATIONS_REFRESH_INTERVAL_MS,
+		refetchInterval: PRESENCE_LOCATIONS_REFRESH_INTERVAL_MS,
 	});
 }

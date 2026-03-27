@@ -1,5 +1,8 @@
 import type { KnowledgeClarificationContextSnapshot } from "@api/lib/knowledge-clarification-context";
-import type { KnowledgeClarificationDraftFaq } from "@cossistant/types";
+import type {
+	KnowledgeClarificationDraftFaq,
+	KnowledgeClarificationQuestionPlan,
+} from "@cossistant/types";
 import {
 	type InferInsertModel,
 	type InferSelectModel,
@@ -84,6 +87,8 @@ export const knowledgeClarificationRequest = pgTable(
 			() => knowledge.id,
 			{ onDelete: "set null" }
 		),
+		questionPlan:
+			jsonb("question_plan").$type<KnowledgeClarificationQuestionPlan>(),
 		draftFaqPayload:
 			jsonb("draft_faq_payload").$type<KnowledgeClarificationDraftFaq>(),
 		lastError: text("last_error"),

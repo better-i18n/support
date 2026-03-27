@@ -1,7 +1,6 @@
 "use client";
 
 import type { RealtimeAuthConfig } from "@cossistant/core";
-import { PRESENCE_PING_INTERVAL_MS } from "@cossistant/types";
 import type { AnyRealtimeEvent } from "@cossistant/types/realtime-events";
 import {
 	createContext,
@@ -120,48 +119,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 		}
 		return realtime.subscribe((event) => setLastEvent(event));
 	}, [realtime]);
-
-	// Presence pings based on visibility
-	useEffect(() => {
-		if (
-			typeof window === "undefined" ||
-			typeof document === "undefined" ||
-			!realtime ||
-			!visitorId ||
-			connectionState.status !== "connected"
-		) {
-			return;
-		}
-
-		// Enable presence with the standard interval
-		realtime.enablePresence(PRESENCE_PING_INTERVAL_MS);
-
-		const handleVisibilityChange = () => {
-			if (document.visibilityState === "hidden") {
-				realtime.pausePresence();
-			} else {
-				realtime.resumePresence();
-			}
-		};
-
-		const handleFocus = () => {
-			realtime.resumePresence();
-		};
-
-		window.addEventListener("focus", handleFocus);
-		document.addEventListener("visibilitychange", handleVisibilityChange);
-
-		// Start with correct state
-		if (document.visibilityState === "hidden") {
-			realtime.pausePresence();
-		}
-
-		return () => {
-			window.removeEventListener("focus", handleFocus);
-			document.removeEventListener("visibilitychange", handleVisibilityChange);
-			realtime.pausePresence();
-		};
-	}, [realtime, visitorId, connectionState.status]);
 
 	// Stable send/subscribe callbacks
 	const send = useCallback(

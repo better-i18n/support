@@ -12,6 +12,15 @@ const updateVisitorForWebsiteMock = mock(
 	(async () => null) as (...args: unknown[]) => Promise<unknown>
 );
 const trackVisitorEventMock = mock((() => {}) as (...args: unknown[]) => void);
+const trackVisitorActivityMock = mock((() => {}) as (
+	...args: unknown[]
+) => void);
+const realtimeEmitMock = mock((async () => {}) as (
+	...args: unknown[]
+) => Promise<void>);
+const markVisitorPresenceMock = mock((async () => {}) as (
+	...args: unknown[]
+) => Promise<void>);
 
 const getContactForVisitorMock = mock(
 	(async () => null) as (...args: unknown[]) => Promise<unknown>
@@ -37,6 +46,17 @@ mock.module("@api/db/queries/contact", () => ({
 
 mock.module("@api/lib/tinybird-sdk", () => ({
 	trackVisitorEvent: trackVisitorEventMock,
+	trackVisitorActivity: trackVisitorActivityMock,
+}));
+
+mock.module("@api/realtime/emitter", () => ({
+	realtime: {
+		emit: realtimeEmitMock,
+	},
+}));
+
+mock.module("@api/services/presence", () => ({
+	markVisitorPresence: markVisitorPresenceMock,
 }));
 
 mock.module("../middleware", () => ({
@@ -93,12 +113,17 @@ describe("visitor route PATCH /:id countryCode handling", () => {
 		getContactForVisitorMock.mockReset();
 		mergeContactMetadataMock.mockReset();
 		trackVisitorEventMock.mockReset();
+		trackVisitorActivityMock.mockReset();
+		realtimeEmitMock.mockReset();
+		markVisitorPresenceMock.mockReset();
 
 		validateResponseMock.mockImplementation((value) => value);
 		findVisitorForWebsiteMock.mockResolvedValue(createVisitorRecord());
 		updateVisitorForWebsiteMock.mockResolvedValue(createVisitorRecord());
 		getContactForVisitorMock.mockResolvedValue(null);
 		mergeContactMetadataMock.mockResolvedValue();
+		realtimeEmitMock.mockResolvedValue(undefined);
+		markVisitorPresenceMock.mockResolvedValue(undefined);
 	});
 
 	it("does not persist locale macro-region values like es-419 as countryCode", async () => {
@@ -304,6 +329,7 @@ describe("visitor route PATCH /:id countryCode handling", () => {
 		expect(response.status).toBe(200);
 		expect(updateVisitorForWebsiteMock).toHaveBeenCalledTimes(1);
 		expect(trackVisitorEventMock).toHaveBeenCalledTimes(1);
+		expect(trackVisitorActivityMock).toHaveBeenCalledTimes(1);
 
 		const updateArg = updateVisitorForWebsiteMock.mock.calls[0]?.[1] as {
 			data: {
@@ -322,5 +348,197 @@ describe("visitor route PATCH /:id countryCode handling", () => {
 			attribution_channel: "referral",
 			attribution_referrer_domain: "news.ycombinator.com",
 		});
+		expect(trackVisitorActivityMock.mock.calls[0]?.[0]).toMatchObject({
+			website_id: "site-1",
+			visitor_id: "visitor-1",
+			session_id: "visitor-1",
+			event_type: "page_sync",
+			page_url: "https://app.example.com/docs?utm_source=newsletter",
+			page_path: "/docs",
+			page_title: "Docs | Cossistant",
+			page_referrer_url: "https://news.ycombinator.com/item",
+			attribution_channel: "referral",
+		});
+	});
+
+	it("returns 404 when posting live activity for an unknown visitor", async () => {
+		findVisitorForWebsiteMock.mockResolvedValue(null);
+		safelyExtractRequestDataMock.mockResolvedValue({
+			db: {},
+			website: { id: "site-1" },
+			body: {
+				sessionId: "session-1",
+				activityType: "heartbeat",
+				attribution: {
+					version: 1,
+					firstTouch: {
+						channel: "referral",
+						isDirect: false,
+						referrer: {
+							url: "https://news.ycombinator.com/item?id=1",
+							domain: "news.ycombinator.com",
+						},
+						landing: {
+							url: "https://app.example.com/pricing?utm_source=hn",
+							path: "/pricing",
+							title: "Pricing | Cossistant",
+						},
+						utm: {
+							source: "hn",
+							medium: "referral",
+							campaign: "launch",
+							content: null,
+							term: null,
+						},
+						clickIds: {
+							gclid: null,
+							gbraid: null,
+							wbraid: null,
+							fbclid: null,
+							msclkid: null,
+							ttclid: null,
+							li_fat_id: null,
+							twclid: null,
+						},
+						capturedAt: "2026-03-26T10:00:00.000Z",
+					},
+				},
+				currentPage: {
+					url: "https://app.example.com/pricing?utm_source=hn",
+					path: "/pricing",
+					title: "Pricing | Cossistant",
+					referrerUrl: "https://news.ycombinator.com/item?id=1",
+					updatedAt: "2026-03-26T10:00:00.000Z",
+				},
+			},
+		});
+
+		const { visitorRouter } = await visitorRouterModulePromise;
+		const response = await visitorRouter.request(
+			new Request("http://localhost/visitor-missing/activity", {
+				method: "POST",
+			})
+		);
+
+		expect(response.status).toBe(404);
+		expect(trackVisitorActivityMock).not.toHaveBeenCalled();
+		expect(markVisitorPresenceMock).not.toHaveBeenCalled();
+		expect(realtimeEmitMock).not.toHaveBeenCalled();
+	});
+
+	it("tracks live activity with last-known geo and emits dashboard invalidation", async () => {
+		const attribution = {
+			version: 1 as const,
+			firstTouch: {
+				channel: "paid" as const,
+				isDirect: false,
+				referrer: {
+					url: "https://google.com",
+					domain: "google.com",
+				},
+				landing: {
+					url: "https://app.example.com/docs?utm_source=google&utm_medium=cpc&gclid=gclid_123",
+					path: "/docs",
+					title: "Docs | Cossistant",
+				},
+				utm: {
+					source: "google",
+					medium: "cpc",
+					campaign: "brand",
+					content: null,
+					term: null,
+				},
+				clickIds: {
+					gclid: "gclid_123",
+					gbraid: null,
+					wbraid: null,
+					fbclid: null,
+					msclkid: null,
+					ttclid: null,
+					li_fat_id: null,
+					twclid: null,
+				},
+				capturedAt: "2026-03-26T10:00:00.000Z",
+			},
+		};
+		const currentPage = {
+			url: "https://app.example.com/docs?utm_source=google&utm_medium=cpc&gclid=gclid_123",
+			path: "/docs",
+			title: "Docs | Cossistant",
+			referrerUrl: "https://google.com",
+			updatedAt: "2026-03-26T10:00:00.000Z",
+		};
+		findVisitorForWebsiteMock.mockResolvedValue(
+			createVisitorRecord({
+				city: "Paris",
+				countryCode: "FR",
+				latitude: 48.8566,
+				longitude: 2.3522,
+			})
+		);
+		safelyExtractRequestDataMock.mockResolvedValue({
+			db: {},
+			website: { id: "site-1" },
+			body: {
+				sessionId: "session-1",
+				activityType: "heartbeat",
+				attribution,
+				currentPage,
+			},
+		});
+
+		const { visitorRouter } = await visitorRouterModulePromise;
+		const response = await visitorRouter.request(
+			new Request("http://localhost/visitor-1/activity", {
+				method: "POST",
+			})
+		);
+		const payload = (await response.json()) as {
+			ok: boolean;
+			acceptedAt: string;
+		};
+
+		expect(response.status).toBe(200);
+		expect(payload.ok).toBe(true);
+		expect(typeof payload.acceptedAt).toBe("string");
+		expect(trackVisitorActivityMock).toHaveBeenCalledTimes(1);
+		expect(trackVisitorActivityMock.mock.calls[0]?.[0]).toMatchObject({
+			website_id: "site-1",
+			visitor_id: "visitor-1",
+			session_id: "session-1",
+			event_type: "heartbeat",
+			city: "Paris",
+			country_code: "FR",
+			latitude: 48.8566,
+			longitude: 2.3522,
+			page_path: "/docs",
+			attribution_channel: "paid",
+			attribution_referrer_domain: "google.com",
+		});
+		expect(markVisitorPresenceMock).toHaveBeenCalledTimes(1);
+		expect(markVisitorPresenceMock.mock.calls[0]?.[0]).toMatchObject({
+			websiteId: "site-1",
+			visitorId: "visitor-1",
+			geo: {
+				city: "Paris",
+				countryCode: "FR",
+				latitude: 48.8566,
+				longitude: 2.3522,
+			},
+		});
+		expect(realtimeEmitMock).toHaveBeenCalledTimes(1);
+		expect(realtimeEmitMock.mock.calls[0]).toEqual([
+			"visitorPresenceUpdate",
+			expect.objectContaining({
+				organizationId: "org-1",
+				websiteId: "site-1",
+				visitorId: "visitor-1",
+				userId: null,
+				sessionId: "session-1",
+				activityType: "heartbeat",
+				attribution,
+				currentPage,
+			}),
+		]);
 	});
 });

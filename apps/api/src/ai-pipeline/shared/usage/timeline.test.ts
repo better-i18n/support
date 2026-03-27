@@ -1,22 +1,15 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
-
-const createTimelineItemMock = mock((async () => ({ id: "timeline-1" })) as (
-	...args: unknown[]
-) => Promise<unknown>);
-const updateTimelineItemMock = mock((async () => ({ id: "timeline-1" })) as (
-	...args: unknown[]
-) => Promise<unknown>);
+import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import {
+	sharedCreateTimelineItemMock as createTimelineItemMock,
+	sharedUpdateTimelineItemMock as updateTimelineItemMock,
+} from "../../../test-support/shared-module-mocks";
 
 mock.module("@api/utils/timeline-item", () => ({
 	createTimelineItem: createTimelineItemMock,
 	updateTimelineItem: updateTimelineItemMock,
 }));
 
-async function loadTimelineModule() {
-	const moduleUrl = new URL("./timeline.ts", import.meta.url);
-	moduleUrl.searchParams.set("test", `${Date.now()}-${Math.random()}`);
-	return import(moduleUrl.href);
-}
+const timelineModulePromise = import("./timeline");
 
 describe("logGenerationUsageTimeline", () => {
 	beforeEach(() => {
@@ -26,8 +19,12 @@ describe("logGenerationUsageTimeline", () => {
 		updateTimelineItemMock.mockResolvedValue({ id: "timeline-1" });
 	});
 
+	afterAll(() => {
+		mock.restore();
+	});
+
 	it("logs aiCreditUsage tool timeline payload with tokens and credits", async () => {
-		const { logGenerationUsageTimeline } = await loadTimelineModule();
+		const { logGenerationUsageTimeline } = await timelineModulePromise;
 
 		await logGenerationUsageTimeline({
 			db: {} as never,
@@ -58,8 +55,11 @@ describe("logGenerationUsageTimeline", () => {
 			},
 		});
 
+		const createCall = createTimelineItemMock.mock.calls as unknown as [
+			Record<string, unknown>,
+		][];
 		expect(createTimelineItemMock).toHaveBeenCalledTimes(1);
-		expect(createTimelineItemMock.mock.calls[0]?.[0]).toMatchObject({
+		expect(createCall[0]?.[0]).toMatchObject({
 			item: {
 				tool: "aiCreditUsage",
 				text: "AI usage: 150 tokens, 1.5 credits",
@@ -79,7 +79,7 @@ describe("logGenerationUsageTimeline", () => {
 	});
 
 	it("updates existing row when create fails with unique violation", async () => {
-		const { logGenerationUsageTimeline } = await loadTimelineModule();
+		const { logGenerationUsageTimeline } = await timelineModulePromise;
 		createTimelineItemMock.mockRejectedValue({ code: "23505" });
 
 		await logGenerationUsageTimeline({
@@ -111,8 +111,11 @@ describe("logGenerationUsageTimeline", () => {
 			},
 		});
 
+		const updateCall = updateTimelineItemMock.mock.calls as unknown as [
+			Record<string, unknown>,
+		][];
 		expect(updateTimelineItemMock).toHaveBeenCalledTimes(1);
-		expect(updateTimelineItemMock.mock.calls[0]?.[0]).toMatchObject({
+		expect(updateCall[0]?.[0]).toMatchObject({
 			item: {
 				tool: "aiCreditUsage",
 			},
@@ -120,7 +123,7 @@ describe("logGenerationUsageTimeline", () => {
 	});
 
 	it("updates existing row when create fails with wrapped unique violation", async () => {
-		const { logGenerationUsageTimeline } = await loadTimelineModule();
+		const { logGenerationUsageTimeline } = await timelineModulePromise;
 		createTimelineItemMock.mockRejectedValue({ cause: { code: "23505" } });
 
 		await logGenerationUsageTimeline({
@@ -156,7 +159,7 @@ describe("logGenerationUsageTimeline", () => {
 	});
 
 	it("logs clarification usage with clarification context and a stable usage event id", async () => {
-		const { logGenerationUsageTimeline } = await loadTimelineModule();
+		const { logGenerationUsageTimeline } = await timelineModulePromise;
 
 		await logGenerationUsageTimeline({
 			db: {} as never,
@@ -191,8 +194,11 @@ describe("logGenerationUsageTimeline", () => {
 			},
 		});
 
+		const createCall = createTimelineItemMock.mock.calls as unknown as [
+			Record<string, unknown>,
+		][];
 		expect(createTimelineItemMock).toHaveBeenCalledTimes(1);
-		expect(createTimelineItemMock.mock.calls[0]?.[0]).toMatchObject({
+		expect(createCall[0]?.[0]).toMatchObject({
 			item: {
 				text: "FAQ draft generation: 150 tokens, 1 credits",
 				parts: [
@@ -224,7 +230,7 @@ describe("logGenerationUsageTimeline", () => {
 	});
 
 	it("throws when create fails with non-unique wrapped error", async () => {
-		const { logGenerationUsageTimeline } = await loadTimelineModule();
+		const { logGenerationUsageTimeline } = await timelineModulePromise;
 		createTimelineItemMock.mockRejectedValue({
 			cause: { code: "XX000" },
 			message: "internal error",

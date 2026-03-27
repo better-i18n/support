@@ -502,7 +502,7 @@ export const websiteRouter = createTRPCRouter({
 				token,
 				host: env.TINYBIRD_HOST,
 				expiresAt: Date.now() + 600_000,
-				maxRetentionDays: 21, // TODO: check subscription tier
+				maxRetentionDays: 90, // TODO: check subscription tier
 			};
 		}),
 

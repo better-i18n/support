@@ -1,5 +1,5 @@
 DESCRIPTION >
-	Pageview analytics with flattened visitor attribution snapshots. 30-day TTL.
+	Pageview analytics with flattened visitor attribution snapshots. 90-day TTL.
 
 SCHEMA >
 	`timestamp` DateTime `json:$.timestamp`,
@@ -35,4 +35,4 @@ SCHEMA >
 ENGINE "MergeTree"
 ENGINE_PARTITION_KEY "toYYYYMM(timestamp)"
 ENGINE_SORTING_KEY "website_id, toDate(timestamp), visitor_id, event_type"
-ENGINE_TTL "timestamp + toIntervalDay(30)"
+ENGINE_TTL "timestamp + toIntervalDay(90)"

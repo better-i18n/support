@@ -1,9 +1,6 @@
 "use client";
 
-import type {
-	KnowledgeClarificationDraftFaq,
-	KnowledgeClarificationRequest,
-} from "@cossistant/types";
+import type { KnowledgeClarificationDraftFaq } from "@cossistant/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -19,39 +16,12 @@ import { useTRPC } from "@/lib/trpc/client";
 import { TrainingEntryDetailLayout } from "../training-entries";
 import { useKnowledgeClarificationDraftReviewState } from "./draft-review";
 import { KnowledgeClarificationFlowContent } from "./flow-content";
+import { getClarificationRequestStatusLabel } from "./helpers";
 import { useKnowledgeClarificationFlow } from "./use-clarification-flow";
 
 type KnowledgeClarificationProposalPageProps = {
 	requestId: string;
 };
-
-function getStatusLabel(request: KnowledgeClarificationRequest): string {
-	if (request.status === "draft_ready") {
-		return "Ready for review";
-	}
-
-	if (request.status === "retry_required") {
-		return "Needs retry";
-	}
-
-	if (request.status === "deferred") {
-		return "Saved for later";
-	}
-
-	if (request.status === "applied") {
-		return "Applied";
-	}
-
-	if (request.status === "dismissed") {
-		return "Dismissed";
-	}
-
-	if (request.status === "analyzing") {
-		return "AI working";
-	}
-
-	return `Step ${Math.max(request.stepIndex, 1)} of ${request.maxSteps}`;
-}
 
 export function KnowledgeClarificationProposalPage({
 	requestId,
@@ -205,7 +175,7 @@ export function KnowledgeClarificationProposalPage({
 								: "secondary"
 						}
 					>
-						{getStatusLabel(flow.currentRequest)}
+						{getClarificationRequestStatusLabel(flow.currentRequest)}
 					</Badge>
 				) : null}
 			</div>

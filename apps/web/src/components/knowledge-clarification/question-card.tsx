@@ -4,6 +4,7 @@ import type { KnowledgeClarificationQuestionInputMode } from "@cossistant/types"
 import { LoaderCircleIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatClarificationQuestionLabel } from "./helpers";
 import {
 	KnowledgeClarificationQuestionContent,
 	useKnowledgeClarificationAnswerDraft,
@@ -14,7 +15,6 @@ type KnowledgeClarificationQuestionCardProps = {
 	suggestedAnswers: [string, string, string] | string[];
 	inputMode?: KnowledgeClarificationQuestionInputMode;
 	stepIndex: number;
-	maxSteps: number;
 	onSubmit: (payload: {
 		selectedAnswer?: string;
 		freeAnswer?: string;
@@ -41,7 +41,6 @@ export function KnowledgeClarificationQuestionCard({
 	question,
 	suggestedAnswers,
 	stepIndex,
-	maxSteps,
 	onSubmit,
 	onDismiss,
 	onDefer,
@@ -79,7 +78,7 @@ export function KnowledgeClarificationQuestionCard({
 					<p className="text-muted-foreground text-sm">{description}</p>
 				</div>
 				<div className="shrink-0 font-medium text-muted-foreground text-xs">
-					{Math.max(stepIndex, 1)} of {maxSteps}
+					{formatClarificationQuestionLabel(stepIndex)}
 				</div>
 			</div>
 

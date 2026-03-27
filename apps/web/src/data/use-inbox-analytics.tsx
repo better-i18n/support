@@ -24,6 +24,17 @@ type UniqueVisitorsRow = {
 	period: "current" | "previous";
 };
 
+type SatisfactionSignals = {
+	ratingScore: number | null;
+	sentimentScore: number | null;
+};
+
+type ParseMetricsOptions = {
+	hideSatisfactionIndex?: boolean;
+	period: "current" | "previous";
+	satisfactionSignals: SatisfactionSignals | null;
+};
+
 function toNumberOrNull(value: unknown): number | null {
 	if (value === null || value === undefined) {
 		return null;
@@ -32,7 +43,7 @@ function toNumberOrNull(value: unknown): number | null {
 	return Number.isFinite(parsed) ? parsed : null;
 }
 
-function computeDateRanges(rangeDays: number, maxRetentionDays: number) {
+export function computeDateRanges(rangeDays: number, maxRetentionDays: number) {
 	const now = new Date();
 	const currentEnd = now;
 	const currentStart = new Date(
@@ -64,14 +75,14 @@ function computeDateRanges(rangeDays: number, maxRetentionDays: number) {
 	};
 }
 
-function parseMetricsFromTinybird(
+export function parseMetricsFromTinybird(
 	analyticsRows: InboxAnalyticsRow[],
 	visitorsRows: UniqueVisitorsRow[],
-	period: "current" | "previous",
-	satisfactionSignals: {
-		ratingScore: number | null;
-		sentimentScore: number | null;
-	} | null
+	{
+		hideSatisfactionIndex = false,
+		period,
+		satisfactionSignals,
+	}: ParseMetricsOptions
 ) {
 	const periodData = analyticsRows.filter((row) => row.period === period);
 
@@ -113,12 +124,14 @@ function parseMetricsFromTinybird(
 		medianResponseTimeSeconds
 	);
 
-	const satisfactionIndex = calculateSatisfactionIndex({
-		ratingScore: satisfactionSignals?.ratingScore ?? null,
-		sentimentScore: satisfactionSignals?.sentimentScore ?? null,
-		responseTimeScore,
-		resolutionScore,
-	});
+	const satisfactionIndex = hideSatisfactionIndex
+		? null
+		: calculateSatisfactionIndex({
+				ratingScore: satisfactionSignals?.ratingScore ?? null,
+				sentimentScore: satisfactionSignals?.sentimentScore ?? null,
+				responseTimeScore,
+				resolutionScore,
+			});
 
 	return {
 		medianResponseTimeSeconds,
@@ -140,7 +153,9 @@ export function useInboxAnalytics({
 }) {
 	const trpc = useTRPC();
 	const queryClient = useQueryClient();
-	const { data: tokenData } = useTinybirdToken(websiteSlug);
+	const { data: tokenData } = useTinybirdToken(websiteSlug, {
+		staleTimeMs: STALE_TIME,
+	});
 
 	return useQuery<InboxAnalyticsResponse>({
 		queryKey: ["inbox-analytics", websiteSlug, rangeDays, tokenData?.token],
@@ -151,56 +166,74 @@ export function useInboxAnalytics({
 			const { token, host, maxRetentionDays } = tokenData;
 
 			const ranges = computeDateRanges(rangeDays, maxRetentionDays);
+			const hasFullPreviousSatisfactionWindow =
+				ranges.effectivePreviousStart.getTime() ===
+				ranges.previousStart.getTime();
 
-			const [analyticsRows, visitorsRows, satisfactionSignals] =
-				await Promise.all([
-					queryTinybirdPipe<InboxAnalyticsRow>(
-						"inbox_analytics",
-						{
-							date_from: ranges.effectiveCurrentStart.toISOString(),
-							date_to: ranges.currentEnd.toISOString(),
-							prev_date_from: ranges.effectivePreviousStart.toISOString(),
-							prev_date_to: ranges.previousEnd.toISOString(),
-						},
-						token,
-						host
-					),
-
-					queryTinybirdPipe<UniqueVisitorsRow>(
-						"unique_visitors",
-						{
-							date_from: ranges.effectiveCurrentStart.toISOString(),
-							date_to: ranges.currentEnd.toISOString(),
-							prev_date_from: ranges.effectivePreviousStart.toISOString(),
-							prev_date_to: ranges.previousEnd.toISOString(),
-						},
-						token,
-						host
-					),
-
-					queryClient
-						.fetchQuery(
-							trpc.website.getSatisfactionSignals.queryOptions({
-								websiteSlug,
-								dateFrom: ranges.effectiveCurrentStart.toISOString(),
-								dateTo: ranges.currentEnd.toISOString(),
-							})
-						)
-						.catch(() => null),
-				]);
-
-			const current = parseMetricsFromTinybird(
+			const [
 				analyticsRows,
 				visitorsRows,
-				"current",
-				satisfactionSignals
-			);
-			const previous = parseMetricsFromTinybird(
-				analyticsRows,
-				visitorsRows,
-				"previous",
-				null // No PG signals for previous period (too complex for marginal value)
-			);
+				currentSatisfactionSignals,
+				previousSatisfactionSignals,
+			] = await Promise.all([
+				queryTinybirdPipe<InboxAnalyticsRow>(
+					"inbox_analytics",
+					{
+						date_from: ranges.effectiveCurrentStart.toISOString(),
+						date_to: ranges.currentEnd.toISOString(),
+						prev_date_from: ranges.effectivePreviousStart.toISOString(),
+						prev_date_to: ranges.previousEnd.toISOString(),
+					},
+					token,
+					host
+				),
+
+				queryTinybirdPipe<UniqueVisitorsRow>(
+					"unique_visitors",
+					{
+						date_from: ranges.effectiveCurrentStart.toISOString(),
+						date_to: ranges.currentEnd.toISOString(),
+						prev_date_from: ranges.effectivePreviousStart.toISOString(),
+						prev_date_to: ranges.previousEnd.toISOString(),
+					},
+					token,
+					host
+				),
+
+				queryClient
+					.fetchQuery(
+						trpc.website.getSatisfactionSignals.queryOptions({
+							websiteSlug,
+							dateFrom: ranges.effectiveCurrentStart.toISOString(),
+							dateTo: ranges.currentEnd.toISOString(),
+						})
+					)
+					.catch(() => null),
+
+				hasFullPreviousSatisfactionWindow
+					? queryClient
+							.fetchQuery(
+								trpc.website.getSatisfactionSignals.queryOptions({
+									websiteSlug,
+									dateFrom: ranges.previousStart.toISOString(),
+									dateTo: ranges.previousEnd.toISOString(),
+								})
+							)
+							.catch(() => null)
+					: Promise.resolve(null),
+			]);
+
+			const current = parseMetricsFromTinybird(analyticsRows, visitorsRows, {
+				period: "current",
+				satisfactionSignals: currentSatisfactionSignals,
+			});
+			const previous = parseMetricsFromTinybird(analyticsRows, visitorsRows, {
+				period: "previous",
+				satisfactionSignals: previousSatisfactionSignals,
+				hideSatisfactionIndex:
+					!hasFullPreviousSatisfactionWindow ||
+					previousSatisfactionSignals === null,
+			});
 
 			return {
 				range: {

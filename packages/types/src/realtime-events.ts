@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { conversationClarificationSummarySchema } from "./api/knowledge-clarification";
-import { visitorResponseSchema } from "./api/visitor";
+import {
+	visitorActivityTypeSchema,
+	visitorAttributionSchema,
+	visitorCurrentPageSchema,
+	visitorResponseSchema,
+} from "./api/visitor";
 import {
 	ConversationEventType,
 	ConversationStatus,
@@ -35,6 +40,14 @@ export const realtimeSchema = {
 	visitorDisconnected: baseRealtimeEvent.extend({
 		visitorId: z.string(),
 		connectionId: z.string(),
+	}),
+	visitorPresenceUpdate: baseRealtimeEvent.extend({
+		visitorId: z.string(),
+		userId: z.null(),
+		sessionId: z.string(),
+		activityType: visitorActivityTypeSchema.or(z.literal("page_sync")),
+		attribution: visitorAttributionSchema.nullable().optional(),
+		currentPage: visitorCurrentPageSchema.nullable().optional(),
 	}),
 	userPresenceUpdate: baseRealtimeEvent.extend({
 		userId: z.string(),

@@ -272,7 +272,6 @@ export function KnowledgeClarificationFlowContent({
 				inputMode={currentStep.inputMode}
 				isAnalyzing={isSubmittingAnswer}
 				isSubmitting={isSubmittingAnswer}
-				maxSteps={currentStep.request.maxSteps}
 				onDefer={() => {
 					runFlowAction(() => onDefer(currentStep.request.id));
 				}}
@@ -337,7 +336,6 @@ export function KnowledgeClarificationFlowContent({
 				}
 				inputMode={fallbackStep.inputMode}
 				isSubmitting={isSubmittingAnswer}
-				maxSteps={fallbackStep.request.maxSteps}
 				onDefer={() => {
 					runFlowAction(() => onDefer(fallbackStep.request.id));
 				}}

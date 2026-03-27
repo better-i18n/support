@@ -28,7 +28,8 @@ type CreditPayload = {
 	source?: "primary_pipeline" | "knowledge_clarification";
 	phase?:
 		| "primary_generation"
-		| "clarification_question"
+		| "clarification_plan_generation"
+		| "clarification_answer_evaluation"
 		| "faq_draft_generation";
 	knowledgeClarificationRequestId?: string;
 	knowledgeClarificationStepIndex?: number;
@@ -68,12 +69,14 @@ function toPhase(
 	value: unknown
 ):
 	| "primary_generation"
-	| "clarification_question"
+	| "clarification_plan_generation"
+	| "clarification_answer_evaluation"
 	| "faq_draft_generation"
 	| undefined {
 	if (
 		value === "primary_generation" ||
-		value === "clarification_question" ||
+		value === "clarification_plan_generation" ||
+		value === "clarification_answer_evaluation" ||
 		value === "faq_draft_generation"
 	) {
 		return value;
@@ -91,7 +94,11 @@ function getUsageContextLabel(payload: CreditPayload): string | null {
 		return "FAQ draft generation";
 	}
 
-	return "Knowledge clarification";
+	if (payload.phase === "clarification_answer_evaluation") {
+		return "Clarification answer review";
+	}
+
+	return "Knowledge clarification planning";
 }
 
 function normalizeCreditPayload(

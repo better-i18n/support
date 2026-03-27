@@ -7,11 +7,13 @@ import {
 	findVisitorForWebsite,
 	updateVisitorForWebsite,
 } from "@api/db/queries/visitor";
-import { trackVisitorEvent } from "@api/lib/tinybird-sdk";
+import { trackVisitorActivity, trackVisitorEvent } from "@api/lib/tinybird-sdk";
 import {
 	flattenVisitorTrackingContext,
 	resolveFirstTouchAttribution,
 } from "@api/lib/visitor-attribution";
+import { realtime } from "@api/realtime/emitter";
+import { markVisitorPresence } from "@api/services/presence";
 import {
 	safelyExtractRequestData,
 	validateResponse,
@@ -21,7 +23,11 @@ import {
 	type UpdateVisitorRequest,
 	updateVisitorMetadataRequestSchema,
 	updateVisitorRequestSchema,
+	type VisitorActivityRequest,
+	type VisitorActivityResponse,
 	type VisitorResponse,
+	visitorActivityRequestSchema,
+	visitorActivityResponseSchema,
 	visitorResponseSchema,
 } from "@cossistant/types";
 import { OpenAPIHono } from "@hono/zod-openapi";
@@ -219,6 +225,26 @@ function getEdgeCoordinates(request: Context<RestContext>["req"]): {
 	};
 }
 
+function toOptionalNumber(
+	value: number | null | undefined
+): number | undefined {
+	if (value === null || value === undefined) {
+		return;
+	}
+
+	return value;
+}
+
+function toOptionalString(
+	value: string | null | undefined
+): string | undefined {
+	if (value === null || value === undefined) {
+		return;
+	}
+
+	return value;
+}
+
 function extractNetworkContext(request: Context<RestContext>["req"]): {
 	context: Partial<UpdateVisitorRequest>;
 	preferredLocale: string | null;
@@ -279,6 +305,185 @@ function extractNetworkContext(request: Context<RestContext>["req"]): {
 }
 
 visitorRouter.use("/*", ...protectedPublicApiKeyMiddleware);
+
+// POST /visitors/:id/activity - Track live visitor activity
+visitorRouter.openapi(
+	{
+		method: "post",
+		path: "/:id/activity",
+		summary: "Track live visitor activity",
+		description:
+			"Records live visitor activity for realtime dashboards. This endpoint is the canonical ingestion path for live visitor presence and page activity.",
+		inputSchema: [
+			{
+				name: "id",
+				in: "path",
+				required: true,
+				description: "The visitor ID",
+				schema: {
+					type: "string",
+				},
+			},
+			{
+				name: "body",
+				in: "body",
+				required: true,
+				schema: visitorActivityRequestSchema,
+			},
+		],
+		request: {
+			body: {
+				content: {
+					"application/json": {
+						schema: visitorActivityRequestSchema,
+					},
+				},
+			},
+		},
+		responses: {
+			200: {
+				description: "Live activity accepted",
+				content: {
+					"application/json": {
+						schema: visitorActivityResponseSchema,
+					},
+				},
+			},
+			400: {
+				description: "Invalid request data",
+				content: {
+					"application/json": {
+						schema: z.object({
+							error: z.string(),
+							message: z.string(),
+						}),
+					},
+				},
+			},
+			404: {
+				description: "Visitor not found",
+				content: {
+					"application/json": {
+						schema: z.object({
+							error: z.string(),
+							message: z.string(),
+						}),
+					},
+				},
+			},
+			500: {
+				description: "Internal server error",
+				content: {
+					"application/json": {
+						schema: z.object({
+							error: z.string(),
+							message: z.string(),
+						}),
+					},
+				},
+			},
+		},
+	},
+	async (c) => {
+		try {
+			const { body, db, website } = await safelyExtractRequestData(
+				c,
+				visitorActivityRequestSchema
+			);
+			const visitorId = c.req.param("id");
+
+			if (!visitorId) {
+				return c.json(
+					{
+						error: "BAD_REQUEST",
+						message: "Visitor ID is required",
+					},
+					400
+				);
+			}
+
+			const visitor = await findVisitorForWebsite(db, {
+				visitorId,
+				websiteId: website.id,
+			});
+
+			if (!visitor) {
+				return c.json(
+					{ error: "NOT_FOUND", message: "Visitor not found" },
+					404
+				);
+			}
+
+			const acceptedAt = new Date().toISOString();
+			const trackingContext = flattenVisitorTrackingContext({
+				attribution: body.attribution,
+				currentPage: body.currentPage,
+			});
+
+			trackVisitorActivity({
+				website_id: website.id,
+				visitor_id: visitorId,
+				session_id: body.sessionId,
+				event_type: body.activityType,
+				city: toOptionalString(visitor.city),
+				country_code: toOptionalString(visitor.countryCode),
+				latitude: toOptionalNumber(visitor.latitude),
+				longitude: toOptionalNumber(visitor.longitude),
+				...trackingContext,
+			});
+
+			await markVisitorPresence({
+				websiteId: website.id,
+				visitorId,
+				lastSeenAt: acceptedAt,
+				geo: {
+					city: toOptionalString(visitor.city),
+					countryCode: toOptionalString(visitor.countryCode),
+					latitude: toOptionalNumber(visitor.latitude),
+					longitude: toOptionalNumber(visitor.longitude),
+				},
+			});
+
+			void realtime
+				.emit("visitorPresenceUpdate", {
+					activityType: body.activityType,
+					attribution: body.attribution,
+					currentPage: body.currentPage,
+					organizationId: visitor.organizationId,
+					sessionId: body.sessionId,
+					userId: null,
+					visitorId,
+					websiteId: website.id,
+				})
+				.catch((error) => {
+					console.error("[VisitorActivity] Failed to publish realtime event", {
+						websiteId: website.id,
+						visitorId,
+						error,
+					});
+				});
+
+			const response: VisitorActivityResponse = {
+				ok: true,
+				acceptedAt,
+			};
+
+			return c.json(
+				validateResponse(response, visitorActivityResponseSchema),
+				200
+			);
+		} catch (error) {
+			console.error("Error tracking visitor activity:", error);
+			return c.json(
+				{
+					error: "INTERNAL_SERVER_ERROR",
+					message: "Failed to track visitor activity",
+				},
+				500
+			);
+		}
+	}
+);
 
 // PATCH /visitors/:id - Update existing visitor information
 visitorRouter.openapi(
@@ -502,14 +707,28 @@ visitorRouter.openapi(
 			}
 
 			if (normalizedBody.currentPage) {
+				const trackingContext = flattenVisitorTrackingContext({
+					attribution: updatedVisitor.attribution,
+					currentPage: updatedVisitor.currentPage,
+				});
+
 				trackVisitorEvent({
 					website_id: website.id,
 					visitor_id: visitorId,
 					event_type: "page_view",
-					...flattenVisitorTrackingContext({
-						attribution: updatedVisitor.attribution,
-						currentPage: updatedVisitor.currentPage,
-					}),
+					...trackingContext,
+				});
+
+				trackVisitorActivity({
+					website_id: website.id,
+					visitor_id: visitorId,
+					event_type: "page_sync",
+					session_id: visitorId,
+					city: updatedVisitor.city ?? undefined,
+					country_code: updatedVisitor.countryCode ?? undefined,
+					latitude: updatedVisitor.latitude ?? undefined,
+					longitude: updatedVisitor.longitude ?? undefined,
+					...trackingContext,
 				});
 			}
 

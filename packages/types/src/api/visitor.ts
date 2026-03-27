@@ -222,6 +222,59 @@ export type VisitorAttributionFirstTouch = z.infer<
 export type VisitorAttribution = z.infer<typeof visitorAttributionSchema>;
 export type VisitorCurrentPage = z.infer<typeof visitorCurrentPageSchema>;
 
+export const visitorActivityTypeSchema = z.enum([
+	"connected",
+	"focus",
+	"heartbeat",
+	"route_change",
+]);
+
+export const visitorActivityRequestSchema = z.object({
+	sessionId: z.string().min(1).openapi({
+		description: "Stable per-tab or per-session identifier for the visitor.",
+		example: "550e8400-e29b-41d4-a716-446655440000",
+	}),
+	activityType: visitorActivityTypeSchema.openapi({
+		description: "The kind of live visitor activity being reported.",
+		example: "heartbeat",
+	}),
+	attribution: visitorAttributionSchema.openapi({
+		description:
+			"Current first-touch attribution snapshot captured in the widget.",
+	}),
+	currentPage: visitorCurrentPageSchema.openapi({
+		description: "Current page context captured in the widget.",
+	}),
+	occurredAt: z
+		.string()
+		.datetime({ offset: true })
+		.openapi({
+			description:
+				"Optional client-observed timestamp for diagnostics. Server ingestion time remains authoritative.",
+			example: "2026-03-26T10:00:00.000Z",
+		})
+		.optional(),
+});
+
+export const visitorActivityResponseSchema = z.object({
+	ok: z.literal(true).openapi({
+		description: "Whether the activity event was accepted.",
+		example: true,
+	}),
+	acceptedAt: z.string().datetime({ offset: true }).openapi({
+		description: "Server timestamp when the activity event was accepted.",
+		example: "2026-03-26T10:00:01.000Z",
+	}),
+});
+
+export type VisitorActivityType = z.infer<typeof visitorActivityTypeSchema>;
+export type VisitorActivityRequest = z.infer<
+	typeof visitorActivityRequestSchema
+>;
+export type VisitorActivityResponse = z.infer<
+	typeof visitorActivityResponseSchema
+>;
+
 /**
  * Visitor data update request schema
  */

@@ -33,43 +33,49 @@ mock.module("@/components/ui/tooltip", () => ({
 	),
 }));
 
-mock.module("@/components/inbox-analytics/live-presence-globe", () => ({
-	LivePresenceGlobe: ({
+mock.module("@/components/globe", () => ({
+	Globe: ({
+		allowDrag,
+		autoRotate,
 		className,
-		globeProps,
-		showSummaryBadge,
-		staticLocations,
+		focus,
+		visitors,
 	}: {
+		allowDrag?: boolean;
+		autoRotate?: boolean;
 		className?: string;
-		globeProps?: {
-			config?: {
-				offset?: [number, number];
-			};
-		};
-		showSummaryBadge?: boolean;
-		staticLocations?: Array<{
-			avatarUrl?: string | null;
-			fallbackName?: string;
-			id: string;
+		focus?: {
 			latitude: number;
 			longitude: number;
+		};
+		visitors?: Array<{
+			avatarUrl?: string | null;
+			id: string;
+			latitude: number;
+			locationLabel?: string | null;
+			longitude: number;
+			name: string;
+			pageLabel?: string | null;
 		}>;
 	}) => (
 		<div
 			className={className}
-			data-globe-config={JSON.stringify(globeProps?.config ?? null)}
-			data-show-summary-badge={String(showSummaryBadge ?? true)}
-			data-slot="mock-live-presence-globe"
+			data-allow-drag={String(allowDrag ?? true)}
+			data-auto-rotate={String(autoRotate ?? true)}
+			data-focus={JSON.stringify(focus ?? null)}
+			data-slot="mock-globe"
 		>
-			{staticLocations?.map((location) => (
+			{visitors?.map((visitor) => (
 				<div
-					data-avatar-url={location.avatarUrl ?? ""}
-					data-fallback-name={location.fallbackName ?? ""}
-					data-id={location.id}
-					data-latitude={String(location.latitude)}
-					data-longitude={String(location.longitude)}
-					data-slot="mock-live-presence-globe-location"
-					key={location.id}
+					data-avatar-url={visitor.avatarUrl ?? ""}
+					data-id={visitor.id}
+					data-latitude={String(visitor.latitude)}
+					data-location-label={visitor.locationLabel ?? ""}
+					data-longitude={String(visitor.longitude)}
+					data-name={visitor.name}
+					data-page-label={visitor.pageLabel ?? ""}
+					data-slot="mock-globe-visitor"
+					key={visitor.id}
 				/>
 			))}
 		</div>
@@ -177,7 +183,7 @@ const heroVisitor = {
 	contact,
 };
 
-const visitors = [
+const visitorSummaries = [
 	{
 		id: "visitor-1",
 		lastSeenAt: "2026-03-05T14:45:00.000Z",
@@ -225,9 +231,9 @@ async function renderView(props: Record<string, unknown>) {
 			heroVisitor={heroVisitor}
 			isError={false}
 			isLoading={false}
-			leadVisitorSummary={visitors[0] ?? null}
+			leadVisitorSummary={visitorSummaries[0] ?? null}
 			mode="contact"
-			visitors={visitors}
+			visitors={visitorSummaries}
 			websiteSlug="website-1"
 			{...props}
 		/>
@@ -241,7 +247,7 @@ describe("ContactVisitorDetailView", () => {
 		expect(html).toContain('data-slot="contact-visitor-detail-overlay"');
 		expect(html).toContain('data-slot="contact-visitor-detail-layout"');
 		expect(html).toContain("grid-cols-1 lg:grid-cols-2");
-		expect(html.match(/max-w-sm/g)?.length).toBe(2);
+		expect(html.match(/max-w-sm/g)?.length).toBe(3);
 		expect(html).toContain("size-10 rounded-[2px]");
 		expect(html).toContain('data-slot="contact-visitor-summary-copy"');
 		expect(html).toContain('data-slot="contact-visitor-summary-location"');
@@ -277,6 +283,24 @@ describe("ContactVisitorDetailView", () => {
 		expect(html).not.toContain("translate-y-12");
 		expect(html).toContain("Anthony");
 		expect(html).toContain("pro");
+		expect(html).toContain(
+			'data-slot="contact-visitor-detail-mobile-globe-wrapper"'
+		);
+		expect(html).toContain(
+			'data-slot="contact-visitor-detail-desktop-globe-wrapper"'
+		);
+		expect(html).toContain('data-slot="mock-globe"');
+		expect(html).toContain('data-allow-drag="false"');
+		expect(html).toContain('data-auto-rotate="false"');
+		expect(html).toContain(
+			'data-focus="{&quot;latitude&quot;:13.7563,&quot;longitude&quot;:100.5018}"'
+		);
+		expect(html).toContain('data-slot="mock-globe-visitor"');
+		expect(html).toContain('data-id="visitor-1"');
+		expect(html).toContain('data-avatar-url="https://example.com/wolf.png"');
+		expect(html).toContain('data-name="Gorgeous Wolf"');
+		expect(html).toContain('data-location-label="Bangkok, Thailand"');
+		expect(html).toContain('data-page-label="/pricing"');
 	});
 
 	it("renders visitor mode with linked contact details on the right", async () => {
@@ -323,7 +347,7 @@ describe("ContactVisitorDetailView", () => {
 		expect(html).not.toContain(
 			'data-slot="contact-visitor-detail-mobile-globe-wrapper"'
 		);
-		expect(html).not.toContain('data-slot="mock-live-presence-globe"');
+		expect(html).not.toContain('data-slot="mock-globe"');
 	});
 
 	it("renders loading, error, and empty states", async () => {

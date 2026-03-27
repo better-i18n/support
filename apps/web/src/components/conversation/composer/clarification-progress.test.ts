@@ -34,7 +34,7 @@ describe("resolveClarificationProgressView", () => {
 			})
 		).toMatchObject({
 			phase: "waiting_for_server",
-			label: "Preparing next step...",
+			label: "Reviewing your answer...",
 		});
 	});
 });

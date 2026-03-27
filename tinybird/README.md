@@ -16,6 +16,9 @@ bun dev  # Starts Docker services + Tinybird Local
 ```
 
 Tinybird Local runs on `http://localhost:7181` and is managed by the Tinybird CLI.
+This repo keeps the Tinybird project files under `tinybird/` and points the root
+`.tinyb` at that folder via `cwd`, so both `bun dev` and `cd tinybird && tb info`
+resolve the same project.
 
 ### First-Time Setup
 
@@ -29,7 +32,27 @@ brew install tinybird-cli
 
 The `bun dev` command automatically:
 1. Starts Tinybird Local (`tb local start`)
-2. Makes your datasources and pipes available locally
+2. Runs `tb dev` from the `tinybird/` workspace so local datasources and pipes are loaded
+
+### Local Auth Source Of Truth
+
+Tinybird Local rotates workspace tokens. For local app env, do not rely on stale
+`.env` values or the `/tokens` endpoint. Use the active Tinybird Local workspace
+from the CLI instead:
+
+```bash
+scripts/tinybird-local-env.sh
+```
+
+That prints ready-to-paste values for:
+- `TINYBIRD_TOKEN`
+- `TINYBIRD_SIGNING_KEY`
+- `TINYBIRD_WORKSPACE`
+
+The helper reads `workspace_id` and `token` from `tb local status`, which matches
+the active Tinybird Local workspace used for event ingestion and direct API access.
+For localhost frontend queries, the API now asks Tinybird CLI to mint JWTs instead
+of self-signing them from env.
 
 ### Manual Control
 
@@ -38,6 +61,9 @@ cd tinybird
 
 # Start Tinybird Local manually
 tb local start
+
+# Check CLI/project context
+tb info
 
 # Check status
 tb local status
@@ -52,7 +78,7 @@ tb dev
 ## Datasources
 
 ### `visitor_events`
-High-volume operational events (seen, page views) with 30-day TTL.
+High-volume operational events (seen, page views) with 90-day TTL.
 
 ### `conversation_metrics`
 Low-volume business KPIs (conversation lifecycle) with no TTL (kept indefinitely for paid customers).
@@ -61,8 +87,9 @@ Low-volume business KPIs (conversation lifecycle) with no TTL (kept indefinitely
 
 - `inbox_analytics` - Dashboard metrics (response time, resolution time, AI rate)
 - `unique_visitors` - Unique visitor counts by date range
-- `active_visitors` - Real-time active visitors with geo data
-- `visitor_locations` - Geo aggregation for globe visualization
+- `online_now` - Real-time visitor count
+- `visitor_presence` - Live visitor list with page path + attribution
+- `presence_locations` - Geo aggregation for live map visualization
 
 ## Deployment
 

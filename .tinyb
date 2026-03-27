@@ -1,4 +1,5 @@
 {
+    "cwd": "./tinybird",
     "host": "https://api.us-east.aws.tinybird.co",
     "id": "962ec18f-836c-4689-9a0e-8dd247943b4f",
     "name": "cossistant",

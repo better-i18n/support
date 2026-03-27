@@ -41,11 +41,7 @@ import {
 	type KnowledgeClarificationContextSnapshot,
 } from "@api/lib/knowledge-clarification-context";
 import { realtime } from "@api/realtime/emitter";
-import {
-	buildClarificationRelevancePacket,
-	CLARIFICATION_QUESTION_GROUNDING_SOURCES,
-	validateClarificationQuestionCandidate,
-} from "@api/services/knowledge-clarification-relevance";
+import { buildClarificationRelevancePacket } from "@api/services/knowledge-clarification-relevance";
 import {
 	buildClarificationTopicFingerprint,
 	getClarificationSourceTriggerMessageId,
@@ -61,7 +57,9 @@ import {
 	type ConversationClarificationProgressPhase,
 	ConversationTimelineType,
 	type KnowledgeClarificationDraftFaq,
+	type KnowledgeClarificationPlannedQuestion,
 	type KnowledgeClarificationQuestionInputMode,
+	type KnowledgeClarificationQuestionPlan,
 	type KnowledgeClarificationQuestionScope,
 	type KnowledgeClarificationRequest,
 	type KnowledgeClarificationStatus,
@@ -79,15 +77,14 @@ const clarificationOutputBaseSchema = z.object({
 	whyItMatters: z.string().min(1).max(400),
 });
 
-const clarificationQuestionOutputSchema = clarificationOutputBaseSchema.extend({
-	kind: z.literal("question"),
-	continueClarifying: z.literal(true),
-	inputMode: z.enum(["textarea_first", "suggested_answers"]),
-	questionScope: z.enum(["broad_discovery", "narrow_detail"]),
-	groundingSource: z.enum(CLARIFICATION_QUESTION_GROUNDING_SOURCES),
-	groundingSnippet: z.string().min(1).max(280),
+const clarificationPlannedQuestionOutputSchema = z.object({
+	id: z.string().min(1).max(80),
 	question: z.string().min(1).max(500),
 	suggestedAnswers: z.array(z.string().min(1).max(240)).length(3),
+	inputMode: z.enum(["textarea_first", "suggested_answers"]),
+	questionScope: z.enum(["broad_discovery", "narrow_detail"]),
+	missingFact: z.string().min(1).max(280),
+	whyItMatters: z.string().min(1).max(400),
 });
 
 const clarificationDraftFaqPayloadSchema = z.object({
@@ -104,23 +101,40 @@ const clarificationDraftOutputSchema = clarificationOutputBaseSchema.extend({
 	draftFaqPayload: clarificationDraftFaqPayloadSchema,
 });
 
-const clarificationModelOutputSchema = clarificationOutputBaseSchema.extend({
-	kind: z.enum(["question", "draft_ready"]),
-	continueClarifying: z.boolean(),
-	inputMode: z.enum(["textarea_first", "suggested_answers"]).nullable(),
-	questionScope: z.enum(["broad_discovery", "narrow_detail"]).nullable(),
-	groundingSource: z.enum(CLARIFICATION_QUESTION_GROUNDING_SOURCES).nullable(),
-	groundingSnippet: z.string().min(1).max(280).nullable(),
-	question: z.string().min(1).max(500).nullable(),
-	suggestedAnswers: z.array(z.string().min(1).max(240)).length(3).nullable(),
+const clarificationPlannerOutputSchema = clarificationOutputBaseSchema.extend({
+	kind: z.enum(["question_plan", "draft_ready"]),
+	questions: z
+		.array(clarificationPlannedQuestionOutputSchema)
+		.max(3)
+		.nullable(),
 	draftFaqPayload: clarificationDraftFaqPayloadSchema.nullable(),
 });
 
-type ClarificationQuestionOutput = z.infer<
-	typeof clarificationQuestionOutputSchema
->;
+const clarificationEvaluationOutputSchema = z.object({
+	topicSummary: z.string().min(1).max(400),
+	outcome: z.enum(["continue", "draft_ready"]),
+	reason: z.string().min(1).max(400),
+	nextQuestionId: z.string().min(1).max(80).nullable(),
+	coveredQuestionIds: z.array(z.string().min(1).max(80)).max(3),
+});
+
+const clarificationDraftOnlyOutputSchema = z.object({
+	topicSummary: z.string().min(1).max(400),
+	missingFact: z.string().min(1).max(280),
+	whyItMatters: z.string().min(1).max(400),
+	draftFaqPayload: clarificationDraftFaqPayloadSchema,
+});
+
 type ClarificationDraftOutput = z.infer<typeof clarificationDraftOutputSchema>;
-type ClarificationModelOutput = z.infer<typeof clarificationModelOutputSchema>;
+type ClarificationPlannerOutput = z.infer<
+	typeof clarificationPlannerOutputSchema
+>;
+type ClarificationEvaluationOutput = z.infer<
+	typeof clarificationEvaluationOutputSchema
+>;
+type ClarificationDraftOnlyOutput = z.infer<
+	typeof clarificationDraftOnlyOutputSchema
+>;
 
 type KnowledgeClarificationActor = {
 	userId?: string | null;
@@ -160,23 +174,56 @@ type RunKnowledgeClarificationStepParams = {
 	progressReporter?: ClarificationProgressReporter;
 };
 
+type ClarificationProviderUsage = {
+	inputTokens?: number;
+	outputTokens?: number;
+	totalTokens?: number;
+};
+
+type ClarificationModelMetadata = {
+	modelId: string;
+	modelIdOriginal: string;
+	modelMigrationApplied: boolean;
+};
+
+type ClarificationModelCallSuccess<TOutput> = {
+	kind: "success";
+	model: ClarificationModelMetadata;
+	output: TOutput;
+	providerUsage?: ClarificationProviderUsage;
+	attemptCount: number;
+	toolName: string | null;
+};
+
+type ClarificationModelCallRetryRequired = {
+	kind: "retry_required";
+	lastError: string;
+	attemptCount: number;
+	toolName: string | null;
+};
+
+type ClarificationModelCallResult<TOutput> =
+	| ClarificationModelCallSuccess<TOutput>
+	| ClarificationModelCallRetryRequired;
+
 type ClarificationUsagePhase =
-	| "clarification_question"
+	| "clarification_plan_generation"
+	| "clarification_answer_evaluation"
 	| "faq_draft_generation";
+
+type ClarificationUsageEvent = {
+	phase: ClarificationUsagePhase;
+	stepIndex: number;
+	model: ClarificationModelMetadata;
+	providerUsage?: ClarificationProviderUsage;
+};
 
 type ClarificationGenerationResult = {
 	kind: "success";
-	output: ClarificationQuestionOutput | ClarificationDraftOutput;
-	modelId: string;
-	modelIdOriginal?: string;
-	modelMigrationApplied?: boolean;
-	providerUsage?:
-		| {
-				inputTokens?: number;
-				outputTokens?: number;
-				totalTokens?: number;
-		  }
-		| undefined;
+	output: ClarificationQueuedQuestionOutput | ClarificationDraftOutput;
+	questionPlan: KnowledgeClarificationQuestionPlan | null;
+	model: ClarificationModelMetadata;
+	usageEvents: ClarificationUsageEvent[];
 	metrics: ClarificationGenerationMetrics;
 };
 
@@ -184,6 +231,17 @@ type ClarificationRetryRequiredResult = {
 	kind: "retry_required";
 	lastError: string;
 	metrics: ClarificationGenerationMetrics;
+};
+
+type ClarificationQueuedQuestionOutput = {
+	kind: "question";
+	topicSummary: string;
+	question: string;
+	suggestedAnswers: string[];
+	inputMode: KnowledgeClarificationQuestionInputMode;
+	questionScope: KnowledgeClarificationQuestionScope;
+	missingFact: string;
+	whyItMatters: string;
 };
 
 type ClarificationProgressReporter = (
@@ -222,6 +280,19 @@ const CLARIFICATION_FALLBACK_MODEL_IDS = [
 	"moonshotai/kimi-k2.5",
 ] as const;
 
+const CLARIFICATION_PROGRESS_LABELS: Record<
+	ConversationClarificationProgressPhase,
+	string
+> = {
+	loading_context: "Loading context...",
+	reviewing_evidence: "Reviewing evidence...",
+	planning_questions: "Planning questions...",
+	evaluating_answer: "Reviewing your answer...",
+	generating_draft: "Generating draft...",
+	retrying_generation: "Retrying generation...",
+	finalizing_step: "Finalizing...",
+};
+
 function createClarificationGenerationMetrics(
 	overrides: Partial<ClarificationGenerationMetrics> = {}
 ): ClarificationGenerationMetrics {
@@ -233,6 +304,17 @@ function createClarificationGenerationMetrics(
 		endedKind: "retry_required",
 		toolName: null,
 		...overrides,
+	};
+}
+
+function buildClarificationModelMetadata(
+	aiAgentModelId: string,
+	modelId: string
+): ClarificationModelMetadata {
+	return {
+		modelId,
+		modelIdOriginal: aiAgentModelId,
+		modelMigrationApplied: aiAgentModelId !== modelId,
 	};
 }
 
@@ -253,14 +335,13 @@ function sanitizeClarificationProgressToolName(
 
 function createClarificationProgress(params: {
 	phase: ConversationClarificationProgressPhase;
-	label: string;
 	detail?: string | null;
 	attempt?: number | null;
 	toolName?: string | null;
 }): ConversationClarificationProgress {
 	return {
 		phase: params.phase,
-		label: params.label,
+		label: CLARIFICATION_PROGRESS_LABELS[params.phase],
 		detail: params.detail ?? null,
 		attempt: params.attempt ?? null,
 		toolName: sanitizeClarificationProgressToolName(params.toolName),
@@ -273,6 +354,21 @@ async function reportClarificationProgress(
 	progress: ConversationClarificationProgress
 ): Promise<void> {
 	await reporter?.(progress);
+}
+
+async function reportClarificationPhaseProgress(
+	reporter: ClarificationProgressReporter | undefined,
+	params: {
+		phase: ConversationClarificationProgressPhase;
+		detail?: string | null;
+		attempt?: number | null;
+		toolName?: string | null;
+	}
+): Promise<void> {
+	await reportClarificationProgress(
+		reporter,
+		createClarificationProgress(params)
+	);
 }
 
 function logClarificationGenerationTiming(params: {
@@ -387,73 +483,69 @@ function sanitizeClarificationQuestion(question: string): string {
 	return sanitized.endsWith("?") ? sanitized : `${sanitized}?`;
 }
 
-function normalizeClarificationQuestionOutput(
-	output: ClarificationModelOutput
-): ClarificationQuestionOutput {
-	if ((output.draftFaqPayload ?? null) !== null) {
+function normalizeSuggestedAnswers(
+	suggestedAnswers: string[]
+): [string, string, string] {
+	if (suggestedAnswers.length !== 3) {
 		throw new Error(
-			"Clarification model returned a draft payload for a question response."
+			"Clarification model must return exactly 3 suggested answers."
 		);
 	}
 
-	const parsed = clarificationQuestionOutputSchema.safeParse({
-		kind: "question",
-		continueClarifying: output.continueClarifying,
-		inputMode: output.inputMode ?? null,
-		questionScope: output.questionScope ?? null,
-		groundingSource: output.groundingSource ?? null,
-		groundingSnippet: output.groundingSnippet ?? null,
-		question: output.question ?? null,
-		suggestedAnswers: output.suggestedAnswers ?? null,
-		topicSummary: output.topicSummary,
-		missingFact: output.missingFact,
-		whyItMatters: output.whyItMatters,
-	});
+	return suggestedAnswers.map((answer: string) =>
+		normalizeClarificationQuestionText(answer)
+	) as [string, string, string];
+}
 
-	if (!parsed.success) {
-		throw new Error(
-			"Clarification model returned an invalid question response."
-		);
+function normalizePlannedClarificationQuestion(
+	question: NonNullable<ClarificationPlannerOutput["questions"]>[number]
+): KnowledgeClarificationPlannedQuestion {
+	return {
+		id: normalizeClarificationQuestionText(question.id),
+		question: sanitizeClarificationQuestion(question.question),
+		suggestedAnswers: normalizeSuggestedAnswers(question.suggestedAnswers),
+		inputMode: question.inputMode,
+		questionScope: question.questionScope,
+		missingFact: normalizeClarificationQuestionText(question.missingFact),
+		whyItMatters: normalizeClarificationQuestionText(question.whyItMatters),
+	};
+}
+
+function normalizeClarificationQuestionPlan(
+	questions: ClarificationPlannerOutput["questions"]
+): KnowledgeClarificationQuestionPlan {
+	if (!questions || questions.length === 0) {
+		throw new Error("Clarification planner returned no queued questions.");
 	}
 
-	return parsed.data;
+	const normalizedQuestions = questions.map(
+		normalizePlannedClarificationQuestion
+	);
+	const seenQuestionIds = new Set<string>();
+	const seenQuestions = new Set<string>();
+
+	for (const question of normalizedQuestions) {
+		if (seenQuestionIds.has(question.id)) {
+			throw new Error("Clarification planner returned duplicate question ids.");
+		}
+		if (seenQuestions.has(question.question.toLowerCase())) {
+			throw new Error("Clarification planner returned duplicate questions.");
+		}
+		seenQuestionIds.add(question.id);
+		seenQuestions.add(question.question.toLowerCase());
+	}
+
+	return normalizedQuestions;
 }
 
 function normalizeClarificationDraftOutput(
-	output: ClarificationModelOutput
+	output:
+		| ClarificationPlannerOutput
+		| ClarificationDraftOutput
+		| ClarificationDraftOnlyOutput
 ): ClarificationDraftOutput {
-	if ((output.inputMode ?? null) !== null) {
-		throw new Error(
-			"Clarification model returned inputMode for a draft response."
-		);
-	}
-	if ((output.questionScope ?? null) !== null) {
-		throw new Error(
-			"Clarification model returned questionScope for a draft response."
-		);
-	}
-	if ((output.groundingSource ?? null) !== null) {
-		throw new Error(
-			"Clarification model returned groundingSource for a draft response."
-		);
-	}
-	if ((output.groundingSnippet ?? null) !== null) {
-		throw new Error(
-			"Clarification model returned groundingSnippet for a draft response."
-		);
-	}
-	if ((output.question ?? null) !== null) {
-		throw new Error(
-			"Clarification model returned a question for a draft response."
-		);
-	}
-	if ((output.suggestedAnswers ?? null) !== null) {
-		throw new Error(
-			"Clarification model returned suggested answers for a draft response."
-		);
-	}
-
-	const draftFaqPayload = output.draftFaqPayload ?? null;
+	const draftFaqPayload =
+		"draftFaqPayload" in output ? output.draftFaqPayload : null;
 	if (draftFaqPayload === null) {
 		throw new Error(
 			"Clarification model returned no draft payload for a draft response."
@@ -462,7 +554,7 @@ function normalizeClarificationDraftOutput(
 
 	const parsed = clarificationDraftOutputSchema.safeParse({
 		kind: "draft_ready",
-		continueClarifying: output.continueClarifying,
+		continueClarifying: false,
 		topicSummary: output.topicSummary,
 		missingFact: output.missingFact,
 		whyItMatters: output.whyItMatters,
@@ -480,6 +572,71 @@ function getAiQuestionCount(turns: KnowledgeClarificationTurnSelect[]): number {
 	return turns.filter((turn) => turn.role === "ai_question").length;
 }
 
+function getQuestionPlan(
+	request: Pick<KnowledgeClarificationRequestSelect, "questionPlan">
+): KnowledgeClarificationQuestionPlan {
+	return request.questionPlan ?? [];
+}
+
+function getPlannedQuestionByQuestionText(params: {
+	request: Pick<KnowledgeClarificationRequestSelect, "questionPlan">;
+	questionText: string | null | undefined;
+}): KnowledgeClarificationPlannedQuestion | null {
+	if (!params.questionText) {
+		return null;
+	}
+
+	const normalizedQuestionText = normalizeClarificationQuestionText(
+		params.questionText
+	).toLowerCase();
+
+	return (
+		getQuestionPlan(params.request).find(
+			(question) =>
+				normalizeClarificationQuestionText(question.question).toLowerCase() ===
+				normalizedQuestionText
+		) ?? null
+	);
+}
+
+function getAskedQuestionTexts(
+	turns: KnowledgeClarificationTurnSelect[]
+): Set<string> {
+	return new Set(
+		turns
+			.filter(
+				(turn) =>
+					turn.role === "ai_question" && typeof turn.question === "string"
+			)
+			.map((turn) => normalizeClarificationQuestionText(turn.question ?? ""))
+			.filter(Boolean)
+	);
+}
+
+function getRemainingPlannedQuestions(params: {
+	request: Pick<KnowledgeClarificationRequestSelect, "questionPlan">;
+	turns: KnowledgeClarificationTurnSelect[];
+}): KnowledgeClarificationQuestionPlan {
+	const askedQuestionTexts = getAskedQuestionTexts(params.turns);
+	return getQuestionPlan(params.request).filter(
+		(question) =>
+			!askedQuestionTexts.has(
+				normalizeClarificationQuestionText(question.question)
+			)
+	);
+}
+
+function getPlannedQuestionById(params: {
+	request: Pick<KnowledgeClarificationRequestSelect, "questionPlan">;
+	questionId: string;
+}): KnowledgeClarificationPlannedQuestion | null {
+	return (
+		getQuestionPlan(params.request).find(
+			(question) => question.id === params.questionId
+		) ?? null
+	);
+}
+
 function isBroadDiscoveryQuestion(params: {
 	request: Pick<
 		KnowledgeClarificationRequestSelect,
@@ -494,40 +651,29 @@ function isBroadDiscoveryQuestion(params: {
 	);
 }
 
-function resolveExpectedQuestionStrategy(params: {
-	request: Pick<
-		KnowledgeClarificationRequestSelect,
-		"source" | "targetKnowledgeId"
-	>;
-	turns: KnowledgeClarificationTurnSelect[];
-}): ClarificationQuestionStrategy {
-	const nextQuestionOrdinal = getAiQuestionCount(params.turns) + 1;
-	if (
-		isBroadDiscoveryQuestion({
-			request: params.request,
-			questionOrdinal: nextQuestionOrdinal,
-		})
-	) {
-		return {
-			inputMode: "textarea_first",
-			questionScope: "broad_discovery",
-		};
-	}
-
-	return {
-		inputMode: "suggested_answers",
-		questionScope: "narrow_detail",
-	};
-}
-
 function resolveStoredQuestionStrategy(params: {
 	request: Pick<
 		KnowledgeClarificationRequestSelect,
-		"source" | "targetKnowledgeId"
+		"source" | "targetKnowledgeId" | "questionPlan"
 	>;
 	turns: KnowledgeClarificationTurnSelect[];
 	questionTurnId: string;
 }): ClarificationQuestionStrategy {
+	const questionTurn = params.turns.find(
+		(turn) => turn.id === params.questionTurnId
+	);
+	const plannedQuestion = getPlannedQuestionByQuestionText({
+		request: params.request,
+		questionText: questionTurn?.question,
+	});
+
+	if (plannedQuestion) {
+		return {
+			inputMode: plannedQuestion.inputMode,
+			questionScope: plannedQuestion.questionScope,
+		};
+	}
+
 	let questionOrdinal = 0;
 
 	for (const turn of params.turns) {
@@ -572,42 +718,64 @@ function formatPromptList(
 	}`;
 }
 
-function mergeProviderUsage(
-	...usages: Array<
-		| {
-				inputTokens?: number;
-				outputTokens?: number;
-				totalTokens?: number;
-		  }
-		| undefined
-	>
-):
-	| {
-			inputTokens?: number;
-			outputTokens?: number;
-			totalTokens?: number;
-	  }
-	| undefined {
-	const merged: {
-		inputTokens?: number;
-		outputTokens?: number;
-		totalTokens?: number;
-	} = {};
+function buildClarificationPromptContext(params: {
+	request: Pick<KnowledgeClarificationRequestSelect, "source" | "topicSummary">;
+	contextSnapshot: KnowledgeClarificationContextSnapshot | null;
+	turns: KnowledgeClarificationTurnSelect[];
+	extraSections?: string[];
+}): string {
+	const packet = buildClarificationRelevancePacket({
+		topicSummary: params.request.topicSummary,
+		contextSnapshot: params.contextSnapshot,
+		turns: params.turns,
+	});
 
-	for (const usage of usages) {
-		if (!usage) {
-			continue;
-		}
-
-		merged.inputTokens = (merged.inputTokens ?? 0) + (usage.inputTokens ?? 0);
-		merged.outputTokens =
-			(merged.outputTokens ?? 0) + (usage.outputTokens ?? 0);
-		merged.totalTokens = (merged.totalTokens ?? 0) + (usage.totalTokens ?? 0);
-	}
-
-	return merged.inputTokens || merged.outputTokens || merged.totalTokens
-		? merged
-		: undefined;
+	return [
+		`Clarification source: ${params.request.source}`,
+		`Topic anchor: ${packet.topicAnchor}`,
+		`Current open gap: ${packet.openGap}`,
+		`Source trigger: ${
+			params.contextSnapshot?.sourceTrigger.text ??
+			"No explicit trigger text stored."
+		}`,
+		packet.latestHumanAnswer
+			? `Latest human answer: ${packet.latestHumanAnswer}`
+			: "Latest human answer: none",
+		packet.latestExchange
+			? `Latest clarification exchange:\n- Q: ${packet.latestExchange.question}\n- A: ${packet.latestExchange.answer}`
+			: "Latest clarification exchange:\n- none",
+		packet.linkedFaqSummary
+			? `Linked FAQ snapshot:\n${packet.linkedFaqSummary}`
+			: "Linked FAQ snapshot:\n- none",
+		formatPromptList(
+			"Transcript claims",
+			packet.transcriptClaims,
+			"No relevant transcript claims stored."
+		),
+		formatPromptList(
+			"Search evidence",
+			packet.searchEvidence,
+			"No KB search evidence stored."
+		),
+		formatPromptList(
+			"Grounded facts",
+			packet.groundedFacts,
+			"No grounded facts were extracted yet."
+		),
+		formatPromptList(
+			"Answered clarification questions",
+			packet.answeredQuestions.map(
+				(entry) => `Q: ${entry.question} | A: ${entry.answer}`
+			),
+			"No prior clarification answers."
+		),
+		formatPromptList(
+			"Disallowed questions",
+			packet.disallowedQuestions,
+			"No explicit disallowed questions."
+		),
+		...(params.extraSections ?? []),
+	].join("\n\n");
 }
 
 async function resolveConversationForAudit(
@@ -744,6 +912,7 @@ export function serializeKnowledgeClarificationRequest(params: {
 		stepIndex: params.request.stepIndex,
 		maxSteps: params.request.maxSteps,
 		targetKnowledgeId: params.request.targetKnowledgeId,
+		questionPlan: params.request.questionPlan ?? null,
 		currentQuestion: currentQuestionTurn?.question ?? null,
 		currentSuggestedAnswers:
 			(currentQuestionTurn?.suggestedAnswers as
@@ -835,140 +1004,26 @@ async function buildResolvedContextSnapshot(params: {
 	return null;
 }
 
-async function callClarificationModel(params: {
-	request: KnowledgeClarificationRequestSelect;
+async function callStructuredClarificationModel<TOutput>(params: {
 	aiAgent: AiAgentSelect;
 	modelId: string;
-	contextSnapshot: KnowledgeClarificationContextSnapshot | null;
-	turns: KnowledgeClarificationTurnSelect[];
-	expectedQuestionStrategy: ClarificationQuestionStrategy;
-	forceDraft: boolean;
-	forceDraftReason?: string | null;
+	schema: z.ZodType<TOutput>;
+	system: string;
+	prompt: string;
 }): Promise<{
-	output: ClarificationModelOutput;
-	providerUsage?:
-		| {
-				inputTokens?: number;
-				outputTokens?: number;
-				totalTokens?: number;
-		  }
-		| undefined;
+	output: TOutput;
+	providerUsage?: ClarificationProviderUsage;
 	toolName: string | null;
 }> {
-	const packet = buildClarificationRelevancePacket({
-		topicSummary: params.request.topicSummary,
-		contextSnapshot: params.contextSnapshot,
-		turns: params.turns,
-	});
 	let toolName: string | null = null;
 
 	const result = streamText({
 		model: createStructuredOutputModel(params.modelId),
 		output: Output.object({
-			schema: clarificationModelOutputSchema,
+			schema: params.schema,
 		}),
-		system: `You are helping an internal support team close a knowledge gap.
-
-You are writing a private internal clarification question for the website owner or one of their teammates.
-This is not a visitor-facing reply. The recipient is the website owner or team, never the visitor.
-Your job is to turn incomplete or fuzzy support knowledge into a precise FAQ proposal.
-
-Rules:
-- Ask about the website owner's product behavior, business rule, policy, or workflow.
-- Never address the visitor.
-- Never ask what the visitor already tried, clicked, searched for, entered, or saw.
-- Ask at most one question at a time.
-- Return every field in the schema. Use null for fields that do not apply to the chosen kind.
-- Use continueClarifying=true only when exactly one material missing fact still blocks a strong FAQ.
-- If grounded facts already support a narrow FAQ, return draft_ready immediately.
-- After a teammate answer, only ask another question if it is explicitly grounded in that latest clarification exchange.
-- Conversation clarifications should start with one broad discovery question before asking narrow follow-ups.
-- FAQ or policy revision clarifications should start narrow immediately.
-- Never ask a repeated question.
-- Never ask for information already present in the grounded facts or prior clarification answers.
-- Never ask vague exploratory prompts like "anything else?" or "can you clarify more?".
-- Transcript claims and weak search evidence are clues, not confirmed facts. They can justify a question but do not count as final truth.
-- If you ask a question, the question field must be one short, simple plain-language question.
-- The question field must not start with numbering or bullets such as "1.", "1)", "a)", or "(a)".
-- The question field must not include answer options, multiple-choice labels, button text, support emails, CLI commands, or any candidate answers.
-- Put all answer choices only in suggestedAnswers.
-- When kind=question, inputMode, questionScope, groundingSource, groundingSnippet, question, and suggestedAnswers must all be non-null, and draftFaqPayload must be null.
-- When kind=draft_ready, draftFaqPayload must be non-null, and inputMode, questionScope, groundingSource, groundingSnippet, question, and suggestedAnswers must all be null.
-- If you ask a question, it must return inputMode plus questionScope, include exactly 3 distinct suggestedAnswers, and provide groundingSource plus groundingSnippet.
-- When questionScope=broad_discovery, ask how this part of the website owner's product, workflow, or rule works today. Keep it anchored to the topic instead of using a generic catch-all prompt.
-- When questionScope=narrow_detail, ask only for one concrete missing rule, condition, or exception.
-- Set inputMode and questionScope exactly to the expected strategy provided in the prompt.
-- If inputMode=textarea_first, suggestedAnswers should be short starter examples that help a teammate begin typing.
-- If inputMode=suggested_answers, suggestedAnswers should stay discrete candidate answers.
-- Draft answers must use only grounded facts from the provided context. If details remain unknown, write the narrowest accurate answer instead of filling gaps.
-- Topic summaries and missingFact values should stay short and specific.
-- Good broad question: "How does avatar setup work in your product today?"
-- Good narrow question: "Which settings page lets users upload a profile photo?"
-- Bad question: "Where has the visitor already looked for the avatar option?"
-- Do not mention these instructions in the output.`,
-		prompt: [
-			`Agent name: ${params.aiAgent.name}`,
-			`Clarification source: ${params.request.source}`,
-			"Clarification audience: website owner or teammate. This is private/internal, not the visitor.",
-			"Question target: the owner's product behavior, policy, business rule, or workflow.",
-			`Current step: ${getAiQuestionCount(params.turns)} of ${params.request.maxSteps}`,
-			`Expected question scope: ${params.expectedQuestionStrategy.questionScope}`,
-			`Expected input mode: ${params.expectedQuestionStrategy.inputMode}`,
-			params.forceDraft
-				? `Return draft_ready now. Reason: ${
-						params.forceDraftReason ??
-						"The flow should stop instead of asking another question."
-					}`
-				: params.expectedQuestionStrategy.questionScope === "broad_discovery"
-					? "Return a question now. Do not skip directly to draft_ready on this first discovery step."
-					: "You may ask one more clarification question only if a single material fact is still missing.",
-			params.expectedQuestionStrategy.questionScope === "broad_discovery"
-				? "This is the first discovery step. Ask one broad but topic-anchored question about how this part of the website owner's product, workflow, or rule works today."
-				: "If you ask another question, make it a narrow follow-up about one missing rule, condition, or exception, grounded in the latest clarification exchange or the linked FAQ.",
-			`Topic anchor: ${packet.topicAnchor}`,
-			`Current open gap: ${packet.openGap}`,
-			`Source trigger: ${
-				params.contextSnapshot?.sourceTrigger.text ??
-				"No explicit trigger text stored."
-			}`,
-			packet.latestHumanAnswer
-				? `Latest human answer: ${packet.latestHumanAnswer}`
-				: "Latest human answer: none",
-			packet.latestExchange
-				? `Latest clarification exchange:\n- Q: ${packet.latestExchange.question}\n- A: ${packet.latestExchange.answer}`
-				: "Latest clarification exchange:\n- none",
-			packet.linkedFaqSummary
-				? `Linked FAQ snapshot:\n${packet.linkedFaqSummary}`
-				: "Linked FAQ snapshot:\n- none",
-			formatPromptList(
-				"Transcript claims",
-				packet.transcriptClaims,
-				"No relevant transcript claims stored."
-			),
-			formatPromptList(
-				"Search evidence",
-				packet.searchEvidence,
-				"No KB search evidence stored."
-			),
-			formatPromptList(
-				"Grounded facts",
-				packet.groundedFacts,
-				"No grounded facts were extracted yet."
-			),
-			formatPromptList(
-				"Answered clarification questions",
-				packet.answeredQuestions.map(
-					(entry) => `Q: ${entry.question} | A: ${entry.answer}`
-				),
-				"No prior clarification answers."
-			),
-			formatPromptList(
-				"Disallowed questions",
-				packet.disallowedQuestions,
-				"No explicit disallowed questions."
-			),
-			"When returning draft_ready, continueClarifying should normally be false.",
-		].join("\n\n"),
+		system: params.system,
+		prompt: params.prompt,
 		temperature: params.aiAgent.temperature ?? 0.4,
 		maxOutputTokens: Math.min(params.aiAgent.maxOutputTokens ?? 1200, 1200),
 		onChunk: async ({ chunk }) => {
@@ -1072,62 +1127,35 @@ function buildClarificationFallbackModelSequence(
 	].filter((modelId, index, values) => values.indexOf(modelId) === index);
 }
 
-async function callClarificationModelWithFallback(params: {
+async function callStructuredClarificationModelWithFallback<TOutput>(params: {
 	request: KnowledgeClarificationRequestSelect;
 	aiAgent: AiAgentSelect;
-	contextSnapshot: KnowledgeClarificationContextSnapshot | null;
-	turns: KnowledgeClarificationTurnSelect[];
-	expectedQuestionStrategy: ClarificationQuestionStrategy;
-	forceDraft: boolean;
-	forceDraftReason?: string | null;
+	schema: z.ZodType<TOutput>;
+	system: string;
+	prompt: string;
 	progressReporter?: ClarificationProgressReporter;
-}): Promise<
-	| {
-			kind: "success";
-			modelId: string;
-			output: ClarificationModelOutput;
-			providerUsage?:
-				| {
-						inputTokens?: number;
-						outputTokens?: number;
-						totalTokens?: number;
-				  }
-				| undefined;
-			attemptCount: number;
-			toolName: string | null;
-	  }
-	| {
-			kind: "retry_required";
-			lastError: string;
-			attemptCount: number;
-			toolName: string | null;
-	  }
-> {
+}): Promise<ClarificationModelCallResult<TOutput>> {
 	const candidateModelIds = buildClarificationFallbackModelSequence(
 		params.aiAgent.model
 	);
 	let lastRetryableError: unknown = null;
 	let attemptCount = 0;
-	const lastToolName: string | null = null;
 
 	for (const [index, modelId] of candidateModelIds.entries()) {
 		attemptCount = index + 1;
 
 		try {
-			const result = await callClarificationModel({
-				request: params.request,
+			const result = await callStructuredClarificationModel({
 				aiAgent: params.aiAgent,
 				modelId,
-				contextSnapshot: params.contextSnapshot,
-				turns: params.turns,
-				expectedQuestionStrategy: params.expectedQuestionStrategy,
-				forceDraft: params.forceDraft,
-				forceDraftReason: params.forceDraftReason,
+				schema: params.schema,
+				system: params.system,
+				prompt: params.prompt,
 			});
 
 			return {
 				kind: "success",
-				modelId,
+				model: buildClarificationModelMetadata(params.aiAgent.model, modelId),
 				output: result.output,
 				providerUsage: result.providerUsage,
 				attemptCount,
@@ -1147,15 +1175,10 @@ async function callClarificationModelWithFallback(params: {
 			});
 
 			if (index < candidateModelIds.length - 1) {
-				await reportClarificationProgress(
-					params.progressReporter,
-					createClarificationProgress({
-						phase: "retrying_generation",
-						label: "Retrying generation...",
-						attempt: index + 2,
-						toolName: lastToolName,
-					})
-				);
+				await reportClarificationPhaseProgress(params.progressReporter, {
+					phase: "retrying_generation",
+					attempt: index + 2,
+				});
 			}
 		}
 	}
@@ -1164,8 +1187,281 @@ async function callClarificationModelWithFallback(params: {
 		kind: "retry_required",
 		lastError: formatClarificationRetryErrorMessage(lastRetryableError),
 		attemptCount,
-		toolName: lastToolName,
+		toolName: null,
 	};
+}
+
+async function planClarificationQuestionQueue(params: {
+	request: KnowledgeClarificationRequestSelect;
+	aiAgent: AiAgentSelect;
+	contextSnapshot: KnowledgeClarificationContextSnapshot | null;
+	turns: KnowledgeClarificationTurnSelect[];
+	progressReporter?: ClarificationProgressReporter;
+}): Promise<ClarificationModelCallResult<ClarificationPlannerOutput>> {
+	await reportClarificationPhaseProgress(params.progressReporter, {
+		phase: "planning_questions",
+	});
+
+	const isConversationDiscovery =
+		params.request.source === "conversation" &&
+		!params.request.targetKnowledgeId;
+
+	return callStructuredClarificationModelWithFallback({
+		request: params.request,
+		aiAgent: params.aiAgent,
+		schema: clarificationPlannerOutputSchema,
+		system: `You are planning a private internal clarification flow for a website owner or teammate.
+
+Your job is to decide whether the grounded evidence already supports a strong FAQ draft, or whether the team should answer a short queue of clarification questions first.
+
+Rules:
+- This is internal only. Never address the visitor.
+- If grounded facts are already sufficient, return draft_ready immediately.
+- Otherwise return question_plan with 1 to 3 questions total.
+- Conversation clarifications should start with one broad discovery question, followed by narrow follow-ups only when they are likely to matter.
+- FAQ or policy revision clarifications should stay narrow immediately.
+- Never ask repeated, generic, or catch-all questions.
+- Never ask about what the visitor already tried, clicked, searched for, entered, or saw.
+- Every question must be short, plain-language, and focused on one missing fact.
+- Suggested answers must have exactly 3 distinct options.
+- Use textarea_first only for the first broad discovery question; all follow-ups should use suggested_answers.
+- The queue should be ordered, but later questions should be skippable if an earlier answer already covers them.
+- Draft answers must use only grounded facts from the provided context.`,
+		prompt: [
+			`Agent name: ${params.aiAgent.name}`,
+			isConversationDiscovery
+				? "Plan a queue that starts broad and gets narrower."
+				: "Plan only narrow clarification questions if any are still needed.",
+			`Question budget: up to ${params.request.maxSteps} total queued questions.`,
+			"Return draft_ready when the evidence is already good enough to write the FAQ now.",
+			buildClarificationPromptContext({
+				request: params.request,
+				contextSnapshot: params.contextSnapshot,
+				turns: params.turns,
+			}),
+		].join("\n\n"),
+		progressReporter: params.progressReporter,
+	});
+}
+
+async function evaluateClarificationAnswer(params: {
+	request: KnowledgeClarificationRequestSelect;
+	aiAgent: AiAgentSelect;
+	contextSnapshot: KnowledgeClarificationContextSnapshot | null;
+	turns: KnowledgeClarificationTurnSelect[];
+	progressReporter?: ClarificationProgressReporter;
+}): Promise<ClarificationModelCallResult<ClarificationEvaluationOutput>> {
+	const remainingQuestions = getRemainingPlannedQuestions({
+		request: params.request,
+		turns: params.turns,
+	});
+
+	await reportClarificationPhaseProgress(params.progressReporter, {
+		phase: "evaluating_answer",
+	});
+
+	return callStructuredClarificationModelWithFallback({
+		request: params.request,
+		aiAgent: params.aiAgent,
+		schema: clarificationEvaluationOutputSchema,
+		system: `You are deciding whether a clarification flow should stop now or continue to one more pre-generated question.
+
+Rules:
+- This is an internal decision for a website owner or teammate.
+- Prefer draft_ready when the latest answer already grounds a strong FAQ draft.
+- Prefer continue only when one remaining queued question is still materially useful.
+- You may skip over queued questions that are already answered indirectly.
+- If outcome=continue, nextQuestionId must be one of the remaining queued question ids.
+- If outcome=draft_ready, nextQuestionId must be null.
+- coveredQuestionIds should list any remaining queued questions that no longer need to be asked.`,
+		prompt: [
+			`Agent name: ${params.aiAgent.name}`,
+			formatPromptList(
+				"Remaining queued questions",
+				remainingQuestions.map(
+					(question) =>
+						`${question.id}: ${question.question} | missing fact: ${question.missingFact}`
+				),
+				"No queued questions remain."
+			),
+			buildClarificationPromptContext({
+				request: params.request,
+				contextSnapshot: params.contextSnapshot,
+				turns: params.turns,
+			}),
+		].join("\n\n"),
+		progressReporter: params.progressReporter,
+	});
+}
+
+async function generateClarificationDraft(params: {
+	request: KnowledgeClarificationRequestSelect;
+	aiAgent: AiAgentSelect;
+	contextSnapshot: KnowledgeClarificationContextSnapshot | null;
+	turns: KnowledgeClarificationTurnSelect[];
+	progressReporter?: ClarificationProgressReporter;
+}): Promise<ClarificationModelCallResult<ClarificationDraftOnlyOutput>> {
+	await reportClarificationPhaseProgress(params.progressReporter, {
+		phase: "generating_draft",
+	});
+
+	return callStructuredClarificationModelWithFallback({
+		request: params.request,
+		aiAgent: params.aiAgent,
+		schema: clarificationDraftOnlyOutputSchema,
+		system: `You are writing a private internal FAQ draft from grounded clarification evidence.
+
+Rules:
+- This is for the website owner or teammate, not the visitor.
+- Use only grounded facts from the provided context and clarification answers.
+- If details remain uncertain, write the narrowest accurate draft instead of inventing specifics.
+- Keep topicSummary and missingFact short and specific.`,
+		prompt: [
+			`Agent name: ${params.aiAgent.name}`,
+			"Write the final FAQ draft now.",
+			buildClarificationPromptContext({
+				request: params.request,
+				contextSnapshot: params.contextSnapshot,
+				turns: params.turns,
+			}),
+		].join("\n\n"),
+		progressReporter: params.progressReporter,
+	});
+}
+
+function getCurrentClarificationStepIndex(
+	turns: KnowledgeClarificationTurnSelect[]
+): number {
+	return Math.max(getAiQuestionCount(turns), 1);
+}
+
+function appendClarificationUsageEvent(params: {
+	usageEvents: ClarificationUsageEvent[];
+	phase: ClarificationUsagePhase;
+	stepIndex: number;
+	model: ClarificationModelMetadata;
+	providerUsage?: ClarificationProviderUsage;
+}): void {
+	params.usageEvents.push({
+		phase: params.phase,
+		stepIndex: params.stepIndex,
+		model: params.model,
+		providerUsage: params.providerUsage,
+	});
+}
+
+function buildQueuedQuestionOutput(params: {
+	topicSummary: string;
+	plannedQuestion: KnowledgeClarificationPlannedQuestion;
+}): ClarificationQueuedQuestionOutput {
+	return {
+		kind: "question",
+		topicSummary: params.topicSummary,
+		question: params.plannedQuestion.question,
+		suggestedAnswers: params.plannedQuestion.suggestedAnswers,
+		inputMode: params.plannedQuestion.inputMode,
+		questionScope: params.plannedQuestion.questionScope,
+		missingFact: params.plannedQuestion.missingFact,
+		whyItMatters: params.plannedQuestion.whyItMatters,
+	};
+}
+
+function createRetryRequiredGenerationResult(
+	lastError: string,
+	metrics: ClarificationGenerationMetrics
+): ClarificationRetryRequiredResult {
+	return {
+		kind: "retry_required",
+		lastError,
+		metrics: {
+			...metrics,
+			endedKind: "retry_required",
+		},
+	};
+}
+
+function createQuestionGenerationResult(params: {
+	output: ClarificationQueuedQuestionOutput;
+	questionPlan: KnowledgeClarificationQuestionPlan | null;
+	model: ClarificationModelMetadata;
+	usageEvents: ClarificationUsageEvent[];
+	metrics: ClarificationGenerationMetrics;
+}): ClarificationGenerationResult {
+	return {
+		kind: "success",
+		output: params.output,
+		questionPlan: params.questionPlan,
+		model: params.model,
+		usageEvents: params.usageEvents,
+		metrics: {
+			...params.metrics,
+			endedKind: "question",
+		},
+	};
+}
+
+function createDraftGenerationResult(params: {
+	output: ClarificationDraftOutput;
+	questionPlan: KnowledgeClarificationQuestionPlan | null;
+	model: ClarificationModelMetadata;
+	usageEvents: ClarificationUsageEvent[];
+	metrics: ClarificationGenerationMetrics;
+}): ClarificationGenerationResult {
+	return {
+		kind: "success",
+		output: params.output,
+		questionPlan: params.questionPlan,
+		model: params.model,
+		usageEvents: params.usageEvents,
+		metrics: {
+			...params.metrics,
+			endedKind: "draft_ready",
+		},
+	};
+}
+
+async function finalizeClarificationDraftGeneration(params: {
+	request: KnowledgeClarificationRequestSelect;
+	aiAgent: AiAgentSelect;
+	contextSnapshot: KnowledgeClarificationContextSnapshot | null;
+	turns: KnowledgeClarificationTurnSelect[];
+	questionPlan: KnowledgeClarificationQuestionPlan | null;
+	progressReporter?: ClarificationProgressReporter;
+	usageEvents: ClarificationUsageEvent[];
+	metrics: ClarificationGenerationMetrics;
+	timingField: "modelMs" | "fallbackMs";
+}): Promise<ClarificationGenerationResult | ClarificationRetryRequiredResult> {
+	const draftStartedAt = Date.now();
+	const draft = await generateClarificationDraft({
+		request: params.request,
+		aiAgent: params.aiAgent,
+		contextSnapshot: params.contextSnapshot,
+		turns: params.turns,
+		progressReporter: params.progressReporter,
+	});
+	params.metrics[params.timingField] = Date.now() - draftStartedAt;
+	params.metrics.attemptCount += draft.attemptCount;
+	params.metrics.toolName = draft.toolName ?? params.metrics.toolName;
+
+	if (draft.kind === "retry_required") {
+		return createRetryRequiredGenerationResult(draft.lastError, params.metrics);
+	}
+
+	appendClarificationUsageEvent({
+		usageEvents: params.usageEvents,
+		phase: "faq_draft_generation",
+		stepIndex: getCurrentClarificationStepIndex(params.turns),
+		model: draft.model,
+		providerUsage: draft.providerUsage,
+	});
+
+	return createDraftGenerationResult({
+		output: normalizeClarificationDraftOutput(draft.output),
+		questionPlan: params.questionPlan,
+		model: draft.model,
+		usageEvents: params.usageEvents,
+		metrics: params.metrics,
+	});
 }
 
 async function generateClarificationOutput(params: {
@@ -1177,21 +1473,12 @@ async function generateClarificationOutput(params: {
 	turns: KnowledgeClarificationTurnSelect[];
 	progressReporter?: ClarificationProgressReporter;
 }): Promise<ClarificationGenerationResult | ClarificationRetryRequiredResult> {
-	const aiQuestionCount = getAiQuestionCount(params.turns);
-	const forceDraft = aiQuestionCount >= params.request.maxSteps;
-	const expectedQuestionStrategy = resolveExpectedQuestionStrategy({
-		request: params.request,
-		turns: params.turns,
-	});
 	const metrics = createClarificationGenerationMetrics();
+	const usageEvents: ClarificationUsageEvent[] = [];
 
-	await reportClarificationProgress(
-		params.progressReporter,
-		createClarificationProgress({
-			phase: "loading_context",
-			label: "Loading context...",
-		})
-	);
+	await reportClarificationPhaseProgress(params.progressReporter, {
+		phase: "loading_context",
+	});
 	const contextStartedAt = Date.now();
 	const contextSnapshot = await buildResolvedContextSnapshot({
 		db: params.db,
@@ -1201,179 +1488,157 @@ async function generateClarificationOutput(params: {
 	});
 	metrics.contextMs = Date.now() - contextStartedAt;
 
-	await reportClarificationProgress(
-		params.progressReporter,
-		createClarificationProgress({
-			phase: "reviewing_evidence",
-			label: "Reviewing evidence...",
-		})
-	);
+	await reportClarificationPhaseProgress(params.progressReporter, {
+		phase: "reviewing_evidence",
+	});
 
-	await reportClarificationProgress(
-		params.progressReporter,
-		createClarificationProgress({
-			phase: forceDraft ? "generating_draft" : "generating_question",
-			label: forceDraft ? "Generating draft..." : "Generating next question...",
-		})
-	);
-
-	const firstPassStartedAt = Date.now();
-	const firstPass = await callClarificationModelWithFallback({
+	const questionPlan = getQuestionPlan(params.request);
+	const remainingQuestions = getRemainingPlannedQuestions({
 		request: params.request,
+		turns: params.turns,
+	});
+	const latestTurn = params.turns.at(-1) ?? null;
+
+	if (questionPlan.length === 0) {
+		const planningStartedAt = Date.now();
+		const planning = await planClarificationQuestionQueue({
+			request: params.request,
+			aiAgent: params.aiAgent,
+			contextSnapshot,
+			turns: params.turns,
+			progressReporter: params.progressReporter,
+		});
+		metrics.modelMs = Date.now() - planningStartedAt;
+		metrics.attemptCount += planning.attemptCount;
+		metrics.toolName = planning.toolName;
+		if (planning.kind === "retry_required") {
+			return createRetryRequiredGenerationResult(planning.lastError, metrics);
+		}
+
+		appendClarificationUsageEvent({
+			usageEvents,
+			phase:
+				planning.output.kind === "draft_ready"
+					? "faq_draft_generation"
+					: "clarification_plan_generation",
+			stepIndex: 1,
+			model: planning.model,
+			providerUsage: planning.providerUsage,
+		});
+
+		if (planning.output.kind === "draft_ready") {
+			return createDraftGenerationResult({
+				output: normalizeClarificationDraftOutput(planning.output),
+				questionPlan: null,
+				model: planning.model,
+				usageEvents,
+				metrics,
+			});
+		}
+
+		const normalizedPlan = normalizeClarificationQuestionPlan(
+			planning.output.questions
+		);
+		const firstQuestion = normalizedPlan[0];
+		if (!firstQuestion) {
+			throw new Error("Clarification planner did not return a first question.");
+		}
+
+		return createQuestionGenerationResult({
+			output: buildQueuedQuestionOutput({
+				topicSummary: planning.output.topicSummary,
+				plannedQuestion: firstQuestion,
+			}),
+			questionPlan: normalizedPlan,
+			model: planning.model,
+			usageEvents,
+			metrics,
+		});
+	}
+
+	const shouldEvaluateAnswer =
+		latestTurn?.role === "human_answer" || latestTurn?.role === "human_skip";
+
+	if (shouldEvaluateAnswer && remainingQuestions.length > 0) {
+		const evaluationStartedAt = Date.now();
+		const evaluation = await evaluateClarificationAnswer({
+			request: params.request,
+			aiAgent: params.aiAgent,
+			contextSnapshot,
+			turns: params.turns,
+			progressReporter: params.progressReporter,
+		});
+		metrics.modelMs = Date.now() - evaluationStartedAt;
+		metrics.attemptCount += evaluation.attemptCount;
+		metrics.toolName = evaluation.toolName;
+		if (evaluation.kind === "retry_required") {
+			return createRetryRequiredGenerationResult(evaluation.lastError, metrics);
+		}
+
+		appendClarificationUsageEvent({
+			usageEvents,
+			phase: "clarification_answer_evaluation",
+			stepIndex: getCurrentClarificationStepIndex(params.turns),
+			model: evaluation.model,
+			providerUsage: evaluation.providerUsage,
+		});
+
+		if (evaluation.output.outcome === "continue") {
+			const nextQuestion =
+				evaluation.output.nextQuestionId === null
+					? null
+					: getPlannedQuestionById({
+							request: params.request,
+							questionId: evaluation.output.nextQuestionId,
+						});
+			if (nextQuestion) {
+				return createQuestionGenerationResult({
+					output: buildQueuedQuestionOutput({
+						topicSummary: evaluation.output.topicSummary,
+						plannedQuestion: nextQuestion,
+					}),
+					questionPlan,
+					model: evaluation.model,
+					usageEvents,
+					metrics,
+				});
+			}
+		}
+
+		return finalizeClarificationDraftGeneration({
+			request: {
+				...params.request,
+				topicSummary: evaluation.output.topicSummary,
+			},
+			questionPlan,
+			aiAgent: params.aiAgent,
+			contextSnapshot,
+			turns: params.turns,
+			progressReporter: params.progressReporter,
+			usageEvents,
+			metrics,
+			timingField: "fallbackMs",
+		});
+	}
+
+	return finalizeClarificationDraftGeneration({
+		request: params.request,
+		questionPlan,
 		aiAgent: params.aiAgent,
 		contextSnapshot,
 		turns: params.turns,
-		expectedQuestionStrategy,
-		forceDraft,
 		progressReporter: params.progressReporter,
+		usageEvents,
+		metrics,
+		timingField: "modelMs",
 	});
-	metrics.modelMs = Date.now() - firstPassStartedAt;
-	metrics.attemptCount += firstPass.attemptCount;
-	metrics.toolName = firstPass.toolName;
-	if (firstPass.kind === "retry_required") {
-		return {
-			kind: "retry_required",
-			lastError: firstPass.lastError,
-			metrics: {
-				...metrics,
-				endedKind: "retry_required",
-			},
-		};
-	}
-
-	const firstPassOutput = firstPass.output;
-	let output: ClarificationQuestionOutput | ClarificationDraftOutput;
-	let providerUsage = firstPass.providerUsage;
-	let successfulModelId = firstPass.modelId;
-
-	if (forceDraft && firstPassOutput.kind !== "draft_ready") {
-		throw new Error(
-			"Clarification model returned a question after the draft-only limit."
-		);
-	}
-
-	if (firstPassOutput.kind === "question") {
-		let sanitizedQuestionOutput: ClarificationQuestionOutput | null = null;
-		let fallbackDraftReason: string | null = null;
-
-		try {
-			const normalizedQuestionOutput =
-				normalizeClarificationQuestionOutput(firstPassOutput);
-			const candidateQuestionOutput: ClarificationQuestionOutput = {
-				...normalizedQuestionOutput,
-				question: sanitizeClarificationQuestion(
-					normalizedQuestionOutput.question
-				),
-			};
-			const packet = buildClarificationRelevancePacket({
-				topicSummary: params.request.topicSummary,
-				contextSnapshot,
-				turns: params.turns,
-			});
-			const validation = validateClarificationQuestionCandidate({
-				question: candidateQuestionOutput.question,
-				missingFact: candidateQuestionOutput.missingFact,
-				whyItMatters: candidateQuestionOutput.whyItMatters,
-				inputMode: candidateQuestionOutput.inputMode,
-				questionScope: candidateQuestionOutput.questionScope,
-				expectedInputMode: expectedQuestionStrategy.inputMode,
-				expectedQuestionScope: expectedQuestionStrategy.questionScope,
-				groundingSource: candidateQuestionOutput.groundingSource,
-				groundingSnippet: candidateQuestionOutput.groundingSnippet,
-				packet,
-			});
-
-			if (validation.valid) {
-				sanitizedQuestionOutput = candidateQuestionOutput;
-			} else {
-				fallbackDraftReason = validation.reason;
-			}
-		} catch (error) {
-			fallbackDraftReason =
-				error instanceof Error
-					? error.message
-					: "Clarification question output could not be normalized.";
-		}
-
-		if (sanitizedQuestionOutput) {
-			output = sanitizedQuestionOutput;
-		} else {
-			await reportClarificationProgress(
-				params.progressReporter,
-				createClarificationProgress({
-					phase: "generating_draft",
-					label: "Generating draft...",
-					toolName: metrics.toolName,
-				})
-			);
-			const fallbackStartedAt = Date.now();
-			const fallbackDraft = await callClarificationModelWithFallback({
-				request: {
-					...params.request,
-					topicSummary: buildSpecificClarificationTopicSummary({
-						triggerText: contextSnapshot?.sourceTrigger.text,
-						searchEvidence: contextSnapshot?.kbSearchEvidence,
-						linkedFaq: contextSnapshot?.linkedFaq,
-						fallback:
-							firstPassOutput.missingFact || params.request.topicSummary,
-					}),
-				},
-				aiAgent: params.aiAgent,
-				contextSnapshot,
-				turns: params.turns,
-				expectedQuestionStrategy,
-				forceDraft: true,
-				forceDraftReason:
-					fallbackDraftReason ??
-					"The clarification question could not be validated.",
-				progressReporter: params.progressReporter,
-			});
-			metrics.fallbackMs = Date.now() - fallbackStartedAt;
-			metrics.attemptCount += fallbackDraft.attemptCount;
-			metrics.toolName = fallbackDraft.toolName ?? metrics.toolName;
-			if (fallbackDraft.kind === "retry_required") {
-				return {
-					kind: "retry_required",
-					lastError: fallbackDraft.lastError,
-					metrics: {
-						...metrics,
-						endedKind: "retry_required",
-					},
-				};
-			}
-
-			output = normalizeClarificationDraftOutput(fallbackDraft.output);
-			successfulModelId = fallbackDraft.modelId;
-			providerUsage = mergeProviderUsage(
-				firstPass.providerUsage,
-				fallbackDraft.providerUsage
-			);
-		}
-	} else {
-		output = normalizeClarificationDraftOutput(firstPassOutput);
-	}
-
-	return {
-		kind: "success",
-		output,
-		modelId: successfulModelId,
-		modelIdOriginal: params.aiAgent.model,
-		modelMigrationApplied: params.aiAgent.model !== successfulModelId,
-		providerUsage,
-		metrics: {
-			...metrics,
-			endedKind: output.kind,
-		},
-	};
 }
 
 async function trackKnowledgeClarificationUsage(params: {
 	db: Database;
 	request: KnowledgeClarificationRequestSelect;
 	conversation?: ConversationSelect | null;
-	generation: ClarificationGenerationResult;
-	phase: ClarificationUsagePhase;
-	stepIndex: number;
+	usageEvent: ClarificationUsageEvent;
 }): Promise<void> {
 	await trackGenerationUsage({
 		db: params.db,
@@ -1384,14 +1649,14 @@ async function trackKnowledgeClarificationUsage(params: {
 		aiAgentId: params.request.aiAgentId,
 		usageEventId: ulid(),
 		triggerMessageId: params.request.id,
-		modelId: params.generation.modelId,
-		modelIdOriginal: params.generation.modelIdOriginal,
-		modelMigrationApplied: params.generation.modelMigrationApplied,
-		providerUsage: params.generation.providerUsage,
+		modelId: params.usageEvent.model.modelId,
+		modelIdOriginal: params.usageEvent.model.modelIdOriginal,
+		modelMigrationApplied: params.usageEvent.model.modelMigrationApplied,
+		providerUsage: params.usageEvent.providerUsage,
 		source: "knowledge_clarification",
-		phase: params.phase,
+		phase: params.usageEvent.phase,
 		knowledgeClarificationRequestId: params.request.id,
-		knowledgeClarificationStepIndex: params.stepIndex,
+		knowledgeClarificationStepIndex: params.usageEvent.stepIndex,
 	});
 }
 
@@ -1417,14 +1682,10 @@ export async function runKnowledgeClarificationStep(
 	);
 
 	if (generation.kind === "retry_required") {
-		await reportClarificationProgress(
-			params.progressReporter,
-			createClarificationProgress({
-				phase: "finalizing_step",
-				label: "Finalizing...",
-				toolName: generation.metrics.toolName,
-			})
-		);
+		await reportClarificationPhaseProgress(params.progressReporter, {
+			phase: "finalizing_step",
+			toolName: generation.metrics.toolName,
+		});
 		const updatedRequest = await updateKnowledgeClarificationRequest(
 			params.db,
 			{
@@ -1462,31 +1723,27 @@ export async function runKnowledgeClarificationStep(
 	}
 
 	const output = generation.output;
-
-	if (output.kind === "question") {
-		const nextStepIndex = getAiQuestionCount(turns) + 1;
+	for (const usageEvent of generation.usageEvents) {
 		await trackKnowledgeClarificationUsage({
 			db: params.db,
 			request: params.request,
 			conversation: params.conversation ?? null,
-			generation,
-			phase: "clarification_question",
-			stepIndex: nextStepIndex,
+			usageEvent,
 		});
+	}
+
+	if (output.kind === "question") {
+		const nextStepIndex = getAiQuestionCount(turns) + 1;
 		await createKnowledgeClarificationTurn(params.db, {
 			requestId: params.request.id,
 			role: "ai_question",
 			question: output.question.trim(),
 			suggestedAnswers: output.suggestedAnswers,
 		});
-		await reportClarificationProgress(
-			params.progressReporter,
-			createClarificationProgress({
-				phase: "finalizing_step",
-				label: "Finalizing...",
-				toolName: generation.metrics.toolName,
-			})
-		);
+		await reportClarificationPhaseProgress(params.progressReporter, {
+			phase: "finalizing_step",
+			toolName: generation.metrics.toolName,
+		});
 
 		const updatedRequest = await updateKnowledgeClarificationRequest(
 			params.db,
@@ -1495,7 +1752,12 @@ export async function runKnowledgeClarificationStep(
 				updates: {
 					status: "awaiting_answer",
 					stepIndex: nextStepIndex,
+					maxSteps:
+						generation.questionPlan && generation.questionPlan.length > 0
+							? generation.questionPlan.length
+							: params.request.maxSteps,
 					topicSummary: output.topicSummary.trim(),
+					questionPlan: generation.questionPlan ?? params.request.questionPlan,
 					draftFaqPayload: null,
 					lastError: null,
 				},
@@ -1518,9 +1780,9 @@ export async function runKnowledgeClarificationStep(
 		}
 		logClarificationGenerationTiming({
 			requestId: params.request.id,
-			modelIdOriginal: generation.modelIdOriginal ?? params.aiAgent.model,
-			modelIdResolved: generation.modelId,
-			modelMigrationApplied: generation.modelMigrationApplied ?? false,
+			modelIdOriginal: generation.model.modelIdOriginal,
+			modelIdResolved: generation.model.modelId,
+			modelMigrationApplied: generation.model.modelMigrationApplied,
 			contextMs: generation.metrics.contextMs,
 			modelMs: generation.metrics.modelMs,
 			fallbackMs: generation.metrics.fallbackMs,
@@ -1533,27 +1795,16 @@ export async function runKnowledgeClarificationStep(
 	}
 
 	const normalizedDraft = normalizeDraftFaq(output.draftFaqPayload);
-	await trackKnowledgeClarificationUsage({
-		db: params.db,
-		request: params.request,
-		conversation: params.conversation ?? null,
-		generation,
-		phase: "faq_draft_generation",
-		stepIndex: params.request.stepIndex,
+	await reportClarificationPhaseProgress(params.progressReporter, {
+		phase: "finalizing_step",
+		toolName: generation.metrics.toolName,
 	});
-	await reportClarificationProgress(
-		params.progressReporter,
-		createClarificationProgress({
-			phase: "finalizing_step",
-			label: "Finalizing...",
-			toolName: generation.metrics.toolName,
-		})
-	);
 	const updatedRequest = await updateKnowledgeClarificationRequest(params.db, {
 		requestId: params.request.id,
 		updates: {
 			status: "draft_ready",
 			topicSummary: output.topicSummary.trim(),
+			questionPlan: generation.questionPlan ?? params.request.questionPlan,
 			draftFaqPayload: normalizedDraft,
 			lastError: null,
 		},
@@ -1572,9 +1823,9 @@ export async function runKnowledgeClarificationStep(
 	}
 	logClarificationGenerationTiming({
 		requestId: params.request.id,
-		modelIdOriginal: generation.modelIdOriginal ?? params.aiAgent.model,
-		modelIdResolved: generation.modelId,
-		modelMigrationApplied: generation.modelMigrationApplied ?? false,
+		modelIdOriginal: generation.model.modelIdOriginal,
+		modelIdResolved: generation.model.modelId,
+		modelMigrationApplied: generation.model.modelMigrationApplied,
 		contextMs: generation.metrics.contextMs,
 		modelMs: generation.metrics.modelMs,
 		fallbackMs: generation.metrics.fallbackMs,

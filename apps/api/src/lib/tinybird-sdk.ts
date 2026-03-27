@@ -34,6 +34,23 @@ export type PresenceEvent = {
 	longitude: number;
 };
 
+export type VisitorActivityEvent = {
+	timestamp: Date;
+	website_id: string;
+	visitor_id: string;
+	session_id: string;
+	event_type:
+		| "connected"
+		| "focus"
+		| "heartbeat"
+		| "page_sync"
+		| "route_change";
+	country_code: string;
+	city: string;
+	latitude: number;
+	longitude: number;
+} & FlattenedVisitorTrackingContext;
+
 export type ConversationMetricEvent = {
 	timestamp: Date;
 	website_id: string;
@@ -56,7 +73,11 @@ export type VisitorEvent = {
 	event_type: "page_view";
 } & FlattenedVisitorTrackingContext;
 
-type TinybirdEvent = PresenceEvent | ConversationMetricEvent | VisitorEvent;
+type TinybirdEvent =
+	| PresenceEvent
+	| VisitorActivityEvent
+	| ConversationMetricEvent
+	| VisitorEvent;
 
 // ============================================================================
 // Configuration
@@ -245,6 +266,9 @@ export async function ingestEvent<T extends TinybirdEvent>(
 // ============================================================================
 
 const presenceEventBuffer = new EventBuffer<PresenceEvent>("presence_events");
+const visitorActivityBuffer = new EventBuffer<VisitorActivityEvent>(
+	"visitor_activity_events"
+);
 const visitorEventBuffer = new EventBuffer<VisitorEvent>("visitor_events");
 const conversationMetricBuffer = new EventBuffer<ConversationMetricEvent>(
 	"conversation_metrics"
@@ -293,6 +317,37 @@ export function trackVisitorEvent(
 		...EMPTY_TRACKING_CONTEXT,
 		...event,
 		timestamp: new Date(),
+	});
+}
+
+export function trackVisitorActivity(
+	event: Omit<
+		VisitorActivityEvent,
+		| "timestamp"
+		| "session_id"
+		| "country_code"
+		| "city"
+		| "latitude"
+		| "longitude"
+		| keyof FlattenedVisitorTrackingContext
+	> &
+		Partial<FlattenedVisitorTrackingContext> & {
+			session_id?: string;
+			country_code?: string;
+			city?: string;
+			latitude?: number;
+			longitude?: number;
+		}
+): void {
+	visitorActivityBuffer.add({
+		...EMPTY_TRACKING_CONTEXT,
+		...event,
+		timestamp: new Date(),
+		session_id: event.session_id ?? event.visitor_id,
+		country_code: event.country_code ?? "",
+		city: event.city ?? "",
+		latitude: event.latitude ?? 0,
+		longitude: event.longitude ?? 0,
 	});
 }
 
@@ -399,6 +454,7 @@ export async function queryInboxAnalytics(
 export async function flushAllEvents(): Promise<void> {
 	await Promise.all([
 		presenceEventBuffer.destroy(),
+		visitorActivityBuffer.destroy(),
 		visitorEventBuffer.destroy(),
 		conversationMetricBuffer.destroy(),
 	]);

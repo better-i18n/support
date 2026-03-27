@@ -7,7 +7,7 @@ import { useQueryNormalizer } from "@normy/react-query";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Monitor, Smartphone } from "lucide-react";
 import { useMemo } from "react";
-import { LivePresenceGlobe } from "@/components/inbox-analytics/live-presence-globe";
+import { Globe, type GlobeVisitor } from "@/components/globe";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar } from "@/components/ui/avatar";
 import {
@@ -236,6 +236,28 @@ function buildHeroDetails(params: {
 		osLabel,
 		title,
 		viewport: heroVisitor?.viewport ?? null,
+	};
+}
+
+function buildHeroGlobeVisitor(params: {
+	hero: HeroDetails;
+	heroVisitor: VisitorDetail | null;
+}): GlobeVisitor | null {
+	const { hero, heroVisitor } = params;
+
+	if (heroVisitor?.latitude == null || heroVisitor.longitude == null) {
+		return null;
+	}
+
+	return {
+		avatarUrl: hero.avatarUrl,
+		id: heroVisitor.id,
+		latitude: heroVisitor.latitude,
+		locationLabel: hero.locationLabel,
+		longitude: heroVisitor.longitude,
+		name: hero.title,
+		pageLabel:
+			heroVisitor.currentPage?.path ?? heroVisitor.currentPage?.title ?? null,
 	};
 }
 
@@ -545,17 +567,17 @@ function DetailPrimaryPanel({
 	const hasIdentifiers = Boolean(
 		contact?.email || contact?.externalId || contact?.contactOrganizationId
 	);
-	const globeLocations =
+	const globeVisitor = buildHeroGlobeVisitor({
+		hero,
+		heroVisitor,
+	});
+
+	const globeFocus =
 		heroVisitor?.latitude != null && heroVisitor.longitude != null
-			? [
-					{
-						avatarUrl: hero.avatarUrl,
-						fallbackName: hero.title,
-						id: heroVisitor.id,
-						latitude: heroVisitor.latitude,
-						longitude: heroVisitor.longitude,
-					},
-				]
+			? {
+					latitude: heroVisitor.latitude,
+					longitude: heroVisitor.longitude,
+				}
 			: null;
 
 	return (
@@ -568,7 +590,7 @@ function DetailPrimaryPanel({
 				<div
 					className={cn(
 						"mx-auto flex w-full max-w-sm flex-col gap-8",
-						globeLocations ? "pb-8 lg:pb-64" : undefined
+						globeVisitor ? "pb-8 lg:pb-64" : undefined
 					)}
 					data-slot="contact-visitor-detail-primary-panel"
 				>
@@ -646,8 +668,44 @@ function DetailPrimaryPanel({
 					>
 						{visitorInsight}
 					</p>
+
+					{globeVisitor && globeFocus ? (
+						<div
+							className="lg:hidden"
+							data-slot="contact-visitor-detail-mobile-globe-wrapper"
+						>
+							<div className="overflow-hidden rounded-[18px] border border-primary/10 bg-background/95 shadow-sm">
+								<Globe
+									allowDrag={false}
+									autoRotate={false}
+									className="min-h-[240px]"
+									focus={globeFocus}
+									visitors={[globeVisitor]}
+								/>
+							</div>
+						</div>
+					) : null}
 				</div>
 			</ScrollArea>
+
+			{globeVisitor && globeFocus ? (
+				<div
+					className="pointer-events-none absolute inset-x-0 bottom-0 hidden px-8 pb-8 lg:block"
+					data-slot="contact-visitor-detail-desktop-globe-wrapper"
+				>
+					<div className="pointer-events-auto mx-auto max-w-sm">
+						<div className="overflow-hidden rounded-[18px] border border-primary/10 bg-background/95 shadow-sm">
+							<Globe
+								allowDrag={false}
+								autoRotate={false}
+								className="min-h-[240px]"
+								focus={globeFocus}
+								visitors={[globeVisitor]}
+							/>
+						</div>
+					</div>
+				</div>
+			) : null}
 		</div>
 	);
 }

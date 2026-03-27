@@ -15,7 +15,7 @@ SQL >
 	WHERE website_id = {{ String(website_id) }}
 		AND timestamp >= parseDateTimeBestEffort({{ String(date_from, '2024-01-01 00:00:00') }})
 		AND timestamp < parseDateTimeBestEffort({{ String(date_to, '2024-12-31 23:59:59') }})
-		AND event_type IN ('first_response', 'conversation_resolved', 'ai_resolved')
+		AND event_type IN ('conversation_started', 'first_response', 'conversation_resolved', 'ai_resolved')
 	GROUP BY event_type
 
 	UNION ALL
@@ -29,7 +29,7 @@ SQL >
 	WHERE website_id = {{ String(website_id) }}
 		AND timestamp >= parseDateTimeBestEffort({{ String(prev_date_from, '2024-01-01 00:00:00') }})
 		AND timestamp < parseDateTimeBestEffort({{ String(prev_date_to, '2024-12-31 23:59:59') }})
-		AND event_type IN ('first_response', 'conversation_resolved', 'ai_resolved')
+		AND event_type IN ('conversation_started', 'first_response', 'conversation_resolved', 'ai_resolved')
 	GROUP BY event_type
 
 TYPE endpoint

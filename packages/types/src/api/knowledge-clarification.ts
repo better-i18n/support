@@ -73,6 +73,29 @@ export const knowledgeClarificationQuestionScopeSchema = z
 		example: "broad_discovery",
 	});
 
+export const knowledgeClarificationPlannedQuestionSchema = z
+	.object({
+		id: z.string().min(1).max(80),
+		question: z.string().min(1).max(500),
+		suggestedAnswers: knowledgeClarificationSuggestedAnswersSchema,
+		inputMode: knowledgeClarificationQuestionInputModeSchema,
+		questionScope: knowledgeClarificationQuestionScopeSchema,
+		missingFact: z.string().min(1).max(280),
+		whyItMatters: z.string().min(1).max(400),
+	})
+	.openapi({
+		description:
+			"A pre-generated clarification question that can be asked later in the flow.",
+	});
+
+export const knowledgeClarificationQuestionPlanSchema = z
+	.array(knowledgeClarificationPlannedQuestionSchema)
+	.max(3)
+	.openapi({
+		description:
+			"Pre-generated clarification questions stored for the active request.",
+	});
+
 export const knowledgeClarificationDraftFaqSchema = faqKnowledgePayloadSchema
 	.extend({
 		title: z.string().nullable().optional().openapi({
@@ -89,7 +112,8 @@ export const conversationClarificationProgressPhaseSchema = z
 	.enum([
 		"loading_context",
 		"reviewing_evidence",
-		"generating_question",
+		"planning_questions",
+		"evaluating_answer",
 		"generating_draft",
 		"retrying_generation",
 		"finalizing_step",
@@ -97,7 +121,7 @@ export const conversationClarificationProgressPhaseSchema = z
 	.openapi({
 		description:
 			"Current transient progress phase while a clarification step is being prepared.",
-		example: "generating_question",
+		example: "planning_questions",
 	});
 
 export const conversationClarificationProgressSchema = z.object({
@@ -132,6 +156,7 @@ export const knowledgeClarificationRequestSchema = z.object({
 	stepIndex: z.number().int().min(0),
 	maxSteps: z.number().int().min(1),
 	targetKnowledgeId: z.ulid().nullable(),
+	questionPlan: knowledgeClarificationQuestionPlanSchema.nullable().optional(),
 	currentQuestion: z.string().nullable(),
 	currentSuggestedAnswers:
 		knowledgeClarificationSuggestedAnswersSchema.nullable(),
@@ -288,6 +313,12 @@ export type KnowledgeClarificationQuestionInputMode = z.infer<
 >;
 export type KnowledgeClarificationQuestionScope = z.infer<
 	typeof knowledgeClarificationQuestionScopeSchema
+>;
+export type KnowledgeClarificationPlannedQuestion = z.infer<
+	typeof knowledgeClarificationPlannedQuestionSchema
+>;
+export type KnowledgeClarificationQuestionPlan = z.infer<
+	typeof knowledgeClarificationQuestionPlanSchema
 >;
 export type KnowledgeClarificationDraftFaq = z.infer<
 	typeof knowledgeClarificationDraftFaqSchema

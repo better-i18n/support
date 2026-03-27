@@ -69,6 +69,7 @@ const dispatchRules: Partial<Record<RealtimeEventType, DispatchRuleOverrides>> =
 			website: { excludeConnection: true },
 			visitor: false,
 		},
+		visitorPresenceUpdate: { website: true, visitor: false },
 		visitorConnected: { website: true, visitor: false },
 		visitorDisconnected: { website: true, visitor: false },
 		conversationEventCreated: { website: true, visitor: true },
@@ -187,14 +188,16 @@ function dispatchEvent<T extends RealtimeEventType>(
 		ctx.sendToWebsite(websiteTarget, event as AnyRealtimeEvent, options);
 	}
 
+	const visitorTarget = event.payload.visitorId ?? ctx.visitorId;
+
 	// Check audience filter before sending to visitor
 	if (
 		rules.visitor &&
-		event.payload.visitorId &&
+		visitorTarget &&
 		ctx.sendToVisitor &&
 		shouldSendToVisitor(event)
 	) {
-		ctx.sendToVisitor(event.payload.visitorId, event as AnyRealtimeEvent);
+		ctx.sendToVisitor(visitorTarget, event as AnyRealtimeEvent);
 	}
 }
 
@@ -254,6 +257,10 @@ const eventHandlers: EventHandlers = {
 			visitorId: data.visitorId,
 			lastSeenAt,
 		});
+	},
+
+	visitorPresenceUpdate: (_ctx, event) => {
+		const _data = event.payload;
 	},
 
 	userPresenceUpdate: (_ctx, event) => {

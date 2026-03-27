@@ -22,6 +22,8 @@ export const visitorPresenceEntrySchema = z.object({
 	latitude: z.number().nullable(),
 	longitude: z.number().nullable(),
 	contactId: z.ulid().nullable(),
+	pagePath: z.string().nullable(),
+	attributionChannel: z.string().nullable(),
 });
 
 export const visitorPresenceProfileSchema = z.object({

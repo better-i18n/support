@@ -112,6 +112,46 @@ describe("tinybird visitor tracking", () => {
 		expect(payload.attribution_gclid).toBe("gclid_123");
 	});
 
+	it("flushes live visitor activity events to the visitor_activity_events datasource", async () => {
+		const fetchMock = mock(
+			async () =>
+				new Response(JSON.stringify({ ok: true }), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				})
+		);
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+		const { attribution, currentPage } = createTrackingContext();
+		const { flushAllEvents, trackVisitorActivity } = await modulePromise;
+
+		trackVisitorActivity({
+			website_id: "site-1",
+			visitor_id: "visitor-1",
+			session_id: "session-1",
+			event_type: "route_change",
+			...flattenVisitorTrackingContext({ attribution, currentPage }),
+		});
+		await flushAllEvents();
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const [url, init] = fetchMock.mock.calls[0] as unknown as [
+			string,
+			RequestInit,
+		];
+		expect(url).toContain("/v0/events?name=visitor_activity_events");
+
+		const payload = JSON.parse(String(init.body).trim()) as {
+			event_type: string;
+			session_id: string;
+			page_path: string;
+			attribution_channel: string;
+		};
+		expect(payload.event_type).toBe("route_change");
+		expect(payload.session_id).toBe("session-1");
+		expect(payload.page_path).toBe("/pricing");
+		expect(payload.attribution_channel).toBe("paid");
+	});
+
 	it("enriches conversation metrics from the stored visitor attribution", async () => {
 		const fetchMock = mock(
 			async () =>

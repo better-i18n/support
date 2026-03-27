@@ -10,6 +10,7 @@ import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
+	formatClarificationQuestionLabel,
 	shouldPreferKnowledgeClarificationRequestState,
 	stepFromKnowledgeClarificationRequest,
 } from "@/components/knowledge-clarification/helpers";
@@ -23,7 +24,10 @@ import { useTRPC } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { Spinner } from "../../../../../../packages/react/src/support/components/spinner";
 import Icon from "../../ui/icons";
-import { resolveClarificationProgressView } from "./clarification-progress";
+import {
+	DEFAULT_CLARIFICATION_PROGRESS_FALLBACK_LABEL,
+	resolveClarificationProgressView,
+} from "./clarification-progress";
 import { ComposerBottomBlock } from "./composer-bottom-block";
 import { ComposerCentralBlock } from "./composer-central-block";
 
@@ -43,7 +47,7 @@ type ClarificationComposerBlocks = {
 export type ClarificationTopicBlockProps = {
 	topicSummary: string;
 	stepIndex: number;
-	maxSteps: number;
+	maxSteps?: number;
 	className?: string;
 };
 
@@ -113,7 +117,6 @@ function useClarificationProgressClock(enabled: boolean) {
 export function ClarificationTopicBlock({
 	topicSummary,
 	stepIndex,
-	maxSteps,
 	className,
 }: ClarificationTopicBlockProps) {
 	return (
@@ -127,7 +130,7 @@ export function ClarificationTopicBlock({
 					<p className="text-muted-foreground text-sm">{topicSummary}</p>
 				</div>
 				<div className="shrink-0 self-start font-medium text-muted-foreground text-xs">
-					{Math.max(stepIndex, 1)} of {maxSteps}
+					{formatClarificationQuestionLabel(stepIndex)}
 				</div>
 			</div>
 		</div>
@@ -221,7 +224,7 @@ export function ClarificationDraftReadyBanner({
 			className="mb-4 flex items-start justify-between gap-3 px-2 py-2"
 			data-clarification-slot="draft-ready-banner"
 		>
-			<div className="min-w-0">
+			<div className="flex min-w-0 flex-col gap-1">
 				<div className="font-medium text-sm">FAQ draft ready</div>
 				<p className="truncate text-muted-foreground text-sm">{topicSummary}</p>
 			</div>
@@ -605,7 +608,6 @@ export function useClarificationComposerFlow({
 
 	const topicSummary = currentRequest?.topicSummary ?? summary.topicSummary;
 	const stepIndex = currentRequest?.stepIndex ?? summary.stepIndex;
-	const maxSteps = currentRequest?.maxSteps ?? summary.maxSteps;
 	const canSkip = Boolean(step?.kind === "question");
 	const retryRequest =
 		step?.kind === "retry_required"
@@ -616,7 +618,7 @@ export function useClarificationComposerFlow({
 	const loadingLabel =
 		activeProgress?.label ??
 		summary.progress?.label ??
-		"Preparing next step...";
+		DEFAULT_CLARIFICATION_PROGRESS_FALLBACK_LABEL;
 
 	const handleSubmit = () => {
 		if (!(step?.kind === "question" && answerDraft.submitPayload)) {
@@ -658,7 +660,6 @@ export function useClarificationComposerFlow({
 	return {
 		aboveBlock: (
 			<ClarificationTopicBlock
-				maxSteps={maxSteps}
 				stepIndex={stepIndex}
 				topicSummary={topicSummary}
 			/>

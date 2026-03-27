@@ -266,7 +266,7 @@ describe("useClarificationComposerFlow", () => {
 
 		expect(html).toContain("Clarify billing timing");
 		expect(html).toContain('data-clarification-slot="loading"');
-		expect(html).toContain("Preparing next step...");
+		expect(html).toContain("Reviewing your answer...");
 		expect(html).not.toContain('data-clarification-slot="actions"');
 	});
 

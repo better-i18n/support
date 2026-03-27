@@ -12,23 +12,23 @@ describe("mergeVisitorPresenceRows", () => {
 					visitor_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
 					status: null,
 					last_seen_at: "2026-02-25T11:59:30.000Z",
-					name: null,
-					image: null,
 					city: null,
 					country_code: null,
 					latitude: null,
 					longitude: null,
+					page_path: null,
+					attribution_channel: null,
 				},
 				{
 					visitor_id: "01ARZ3NDEKTSV4RRFFQ69G5FAW",
 					status: null,
 					last_seen_at: "2026-02-25T11:45:00.000Z",
-					name: null,
-					image: null,
 					city: null,
 					country_code: null,
 					latitude: null,
 					longitude: null,
+					page_path: null,
+					attribution_channel: null,
 				},
 			],
 		});
@@ -45,23 +45,23 @@ describe("mergeVisitorPresenceRows", () => {
 					visitor_id: "01ARZ3NDEKTSV4RRFFQ69G5FAX",
 					status: "away",
 					last_seen_at: "2026-02-25T11:40:00.000Z",
-					name: "",
-					image: "",
 					city: "",
 					country_code: null,
 					latitude: null,
 					longitude: null,
+					page_path: "/docs",
+					attribution_channel: "referral",
 				},
 				{
 					visitor_id: "01ARZ3NDEKTSV4RRFFQ69G5FAY",
 					status: "online",
 					last_seen_at: "2026-02-25T11:59:00.000Z",
-					name: "Tinybird Name",
-					image: "https://img.example/tinybird.png",
 					city: "Paris",
 					country_code: "FR",
 					latitude: 48.8566,
 					longitude: 2.3522,
+					page_path: "/pricing",
+					attribution_channel: "paid",
 				},
 			],
 			profilesByVisitorId: {
@@ -98,12 +98,14 @@ describe("mergeVisitorPresenceRows", () => {
 		expect(result.visitors[1]?.id).toBe("01ARZ3NDEKTSV4RRFFQ69G5FAX");
 
 		expect(result.visitors[0]).toMatchObject({
-			name: "Tinybird Name",
-			image: "https://img.example/tinybird.png",
+			name: "Fallback Name",
+			image: "https://img.example/fallback.png",
 			city: "Paris",
 			latitude: 48.8566,
 			longitude: 2.3522,
 			country: "France",
+			pagePath: "/pricing",
+			attributionChannel: "paid",
 		});
 
 		expect(result.visitors[1]).toMatchObject({
@@ -116,6 +118,8 @@ describe("mergeVisitorPresenceRows", () => {
 			latitude: 45.764,
 			longitude: 4.8357,
 			contactId: "01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+			pagePath: "/docs",
+			attributionChannel: "referral",
 		});
 	});
 });

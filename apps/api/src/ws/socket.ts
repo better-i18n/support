@@ -366,22 +366,28 @@ async function validateClientEvent(
 		visitorId?: string | null;
 	};
 
-	if (!typedPayload.conversationId) {
-		sendError(ws, {
-			error: "Missing conversationId",
-			message: "conversationId is required for this event type",
-		});
-		return false;
-	}
-
 	switch (eventType) {
 		case "conversationTyping":
+			if (!typedPayload.conversationId) {
+				sendError(ws, {
+					error: "Missing conversationId",
+					message: "conversationId is required for this event type",
+				});
+				return false;
+			}
 			return await validateTypingEventAuthorization(
 				typedPayload as { conversationId: string; visitorId?: string | null },
 				connectionContext,
 				ws
 			);
 		case "conversationSeen":
+			if (!typedPayload.conversationId) {
+				sendError(ws, {
+					error: "Missing conversationId",
+					message: "conversationId is required for this event type",
+				});
+				return false;
+			}
 			return await validateSeenEventAuthorization(
 				typedPayload as { conversationId: string },
 				connectionContext,

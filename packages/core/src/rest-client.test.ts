@@ -7,6 +7,7 @@ const trackedVisitorId = "01ARZ3NDEKTSV4RRFFQ69G5FAA";
 const originalDocument = globalThis.document;
 const originalFetch = globalThis.fetch;
 const originalLocalStorage = globalThis.localStorage;
+const originalSessionStorage = globalThis.sessionStorage;
 const originalNavigatorDescriptor = Object.getOwnPropertyDescriptor(
 	globalThis,
 	"navigator"
@@ -15,6 +16,8 @@ const originalWindowDescriptor = Object.getOwnPropertyDescriptor(
 	globalThis,
 	"window"
 );
+const originalSetInterval = globalThis.setInterval;
+const originalClearInterval = globalThis.clearInterval;
 
 type StorageValueMap = Record<string, string>;
 
@@ -50,8 +53,10 @@ function installBrowserEnvironment(params: {
 	referrer: string;
 	title: string;
 }) {
-	const listeners = new Map<string, Set<() => void>>();
-	const storage = createStorage();
+	const windowListeners = new Map<string, Set<() => void>>();
+	const documentListeners = new Map<string, Set<() => void>>();
+	const localStorage = createStorage();
+	const sessionStorage = createStorage();
 	const location = {
 		href: params.href,
 	};
@@ -80,17 +85,42 @@ function installBrowserEnvironment(params: {
 	const windowObject = {
 		location,
 		history,
-		localStorage: storage,
+		localStorage,
+		sessionStorage,
+		screen: {
+			width: 1728,
+			height: 1117,
+		},
+		innerWidth: 1440,
+		innerHeight: 900,
 		addEventListener(type: string, listener: () => void) {
-			const existing = listeners.get(type) ?? new Set<() => void>();
+			const existing = windowListeners.get(type) ?? new Set<() => void>();
 			existing.add(listener);
-			listeners.set(type, existing);
+			windowListeners.set(type, existing);
 		},
 		removeEventListener(type: string, listener: () => void) {
-			listeners.get(type)?.delete(listener);
+			windowListeners.get(type)?.delete(listener);
 		},
 		dispatch(type: string) {
-			for (const listener of listeners.get(type) ?? []) {
+			for (const listener of windowListeners.get(type) ?? []) {
+				listener();
+			}
+		},
+	};
+	const documentObject = {
+		referrer: params.referrer,
+		title: params.title,
+		visibilityState: "visible" as DocumentVisibilityState,
+		addEventListener(type: string, listener: () => void) {
+			const existing = documentListeners.get(type) ?? new Set<() => void>();
+			existing.add(listener);
+			documentListeners.set(type, existing);
+		},
+		removeEventListener(type: string, listener: () => void) {
+			documentListeners.get(type)?.delete(listener);
+		},
+		dispatch(type: string) {
+			for (const listener of documentListeners.get(type) ?? []) {
 				listener();
 			}
 		},
@@ -102,10 +132,7 @@ function installBrowserEnvironment(params: {
 	});
 	Object.defineProperty(globalThis, "document", {
 		configurable: true,
-		value: {
-			referrer: params.referrer,
-			title: params.title,
-		},
+		value: documentObject,
 	});
 	Object.defineProperty(globalThis, "navigator", {
 		configurable: true,
@@ -117,10 +144,21 @@ function installBrowserEnvironment(params: {
 	});
 	Object.defineProperty(globalThis, "localStorage", {
 		configurable: true,
-		value: storage,
+		value: localStorage,
+	});
+	Object.defineProperty(globalThis, "sessionStorage", {
+		configurable: true,
+		value: sessionStorage,
 	});
 
-	return windowObject;
+	return {
+		window: windowObject,
+		document: documentObject,
+		setVisibilityState(nextState: DocumentVisibilityState) {
+			documentObject.visibilityState = nextState;
+			documentObject.dispatch("visibilitychange");
+		},
+	};
 }
 
 function createTrackedVisitorResponse() {
@@ -196,6 +234,17 @@ afterEach(() => {
 		Reflect.deleteProperty(globalThis, "localStorage");
 	}
 
+	if (originalSessionStorage) {
+		Object.defineProperty(globalThis, "sessionStorage", {
+			configurable: true,
+			value: originalSessionStorage,
+		});
+	} else {
+		Reflect.deleteProperty(globalThis, "sessionStorage");
+	}
+
+	globalThis.setInterval = originalSetInterval;
+	globalThis.clearInterval = originalClearInterval;
 	globalThis.fetch = originalFetch;
 });
 
@@ -333,7 +382,7 @@ describe("CossistantRestClient.submitConversationRating", () => {
 
 describe("CossistantRestClient.getWebsite visitor tracking", () => {
 	it("tracks the initial pageview, skips duplicate SPA URLs, and tracks route changes", async () => {
-		const windowObject = installBrowserEnvironment({
+		const browser = installBrowserEnvironment({
 			href: "https://app.example.com/pricing?utm_source=hn&utm_medium=referral&utm_campaign=launch#hero",
 			referrer: "https://news.ycombinator.com/item?id=1",
 			title: "Pricing | Cossistant",
@@ -379,6 +428,19 @@ describe("CossistantRestClient.getWebsite visitor tracking", () => {
 				});
 			}
 
+			if (url.endsWith(`/visitors/${trackedVisitorId}/activity`)) {
+				return new Response(
+					JSON.stringify({
+						ok: true,
+						acceptedAt: "2026-03-11T03:00:00.000Z",
+					}),
+					{
+						status: 200,
+						headers: { "Content-Type": "application/json" },
+					}
+				);
+			}
+
 			throw new Error(`Unexpected fetch: ${url} ${init?.method ?? "GET"}`);
 		});
 		globalThis.fetch = fetchMock as typeof fetch;
@@ -387,8 +449,18 @@ describe("CossistantRestClient.getWebsite visitor tracking", () => {
 			await client.getWebsite();
 			await flushAsyncWork();
 
-			expect(fetchMock).toHaveBeenCalledTimes(2);
-			const firstPatch = fetchMock.mock.calls[1] as [string, RequestInit];
+			const patchRequests = fetchMock.mock.calls.filter(([input]) =>
+				String(input).endsWith(`/visitors/${trackedVisitorId}`)
+			) as [string, RequestInit][];
+			const activityRequests = fetchMock.mock.calls.filter(([input]) =>
+				String(input).endsWith(`/visitors/${trackedVisitorId}/activity`)
+			) as [string, RequestInit][];
+
+			expect(fetchMock).toHaveBeenCalledTimes(3);
+			expect(patchRequests).toHaveLength(1);
+			expect(activityRequests).toHaveLength(1);
+
+			const firstPatch = patchRequests[0];
 			const firstBody = JSON.parse(String(firstPatch[1].body)) as {
 				attribution?: {
 					firstTouch?: {
@@ -413,29 +485,195 @@ describe("CossistantRestClient.getWebsite visitor tracking", () => {
 				"https://app.example.com/pricing?utm_source=hn&utm_medium=referral&utm_campaign=launch"
 			);
 
-			windowObject.history.pushState(
+			const firstActivityBody = JSON.parse(
+				String(activityRequests[0]?.[1].body)
+			) as {
+				activityType?: string;
+				currentPage?: {
+					path?: string | null;
+				};
+				sessionId?: string;
+			};
+
+			expect(firstActivityBody.activityType).toBe("connected");
+			expect(firstActivityBody.currentPage?.path).toBe("/pricing");
+			expect(firstActivityBody.sessionId).toBeString();
+
+			browser.window.history.pushState(
 				{},
 				"",
 				"/pricing?utm_source=hn&utm_medium=referral&utm_campaign=launch#details"
 			);
 			await flushAsyncWork();
-			expect(fetchMock).toHaveBeenCalledTimes(2);
+			expect(fetchMock).toHaveBeenCalledTimes(3);
 
-			windowObject.history.pushState(
+			browser.window.history.pushState(
 				{},
 				"",
 				"/docs?utm_source=hn&utm_medium=referral&utm_campaign=launch"
 			);
 			await flushAsyncWork();
 
-			expect(fetchMock).toHaveBeenCalledTimes(3);
-			const secondPatch = fetchMock.mock.calls[2] as [string, RequestInit];
+			const updatedPatchRequests = fetchMock.mock.calls.filter(([input]) =>
+				String(input).endsWith(`/visitors/${trackedVisitorId}`)
+			) as [string, RequestInit][];
+			const updatedActivityRequests = fetchMock.mock.calls.filter(([input]) =>
+				String(input).endsWith(`/visitors/${trackedVisitorId}/activity`)
+			) as [string, RequestInit][];
+
+			expect(fetchMock).toHaveBeenCalledTimes(5);
+			expect(updatedPatchRequests).toHaveLength(2);
+			expect(updatedActivityRequests).toHaveLength(2);
+
+			const secondPatch = updatedPatchRequests[1];
 			const secondBody = JSON.parse(String(secondPatch[1].body)) as {
 				currentPage?: {
 					path?: string | null;
 				};
 			};
 			expect(secondBody.currentPage?.path).toBe("/docs");
+
+			const secondActivityBody = JSON.parse(
+				String(updatedActivityRequests[1]?.[1].body)
+			) as {
+				activityType?: string;
+				currentPage?: {
+					path?: string | null;
+				};
+			};
+			expect(secondActivityBody.activityType).toBe("route_change");
+			expect(secondActivityBody.currentPage?.path).toBe("/docs");
+		} finally {
+			client.destroy();
+		}
+	});
+
+	it("posts focus and heartbeat activity over HTTP while the tab is visible", async () => {
+		const browser = installBrowserEnvironment({
+			href: "https://app.example.com/pricing?utm_source=hn&utm_medium=referral&utm_campaign=launch",
+			referrer: "https://news.ycombinator.com/item?id=1",
+			title: "Pricing | Cossistant",
+		});
+		const client = new CossistantRestClient({
+			apiUrl: "https://api.example.com",
+			publicKey: "pk_test",
+		});
+		let heartbeatCallback: (() => void) | null = null;
+		const setIntervalMock = mock((callback: TimerHandler) => {
+			heartbeatCallback = callback as () => void;
+			return 1 as ReturnType<typeof setInterval>;
+		});
+		const clearIntervalMock = mock(
+			(_timer: ReturnType<typeof setInterval>) => {}
+		);
+		const fetchMock = mock(async (input: string | URL, init?: RequestInit) => {
+			const url = String(input);
+
+			if (url.endsWith("/websites")) {
+				return new Response(
+					JSON.stringify({
+						id: "site-1",
+						name: "Cossistant",
+						domain: "app.example.com",
+						description: null,
+						logoUrl: null,
+						organizationId: "org-1",
+						status: "active",
+						lastOnlineAt: null,
+						availableHumanAgents: [],
+						availableAIAgents: [],
+						visitor: {
+							id: trackedVisitorId,
+							isBlocked: false,
+							language: "en-US",
+							contact: null,
+						},
+					}),
+					{
+						status: 200,
+						headers: { "Content-Type": "application/json" },
+					}
+				);
+			}
+
+			if (url.endsWith(`/visitors/${trackedVisitorId}`)) {
+				return new Response(JSON.stringify(createTrackedVisitorResponse()), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				});
+			}
+
+			if (url.endsWith(`/visitors/${trackedVisitorId}/activity`)) {
+				return new Response(
+					JSON.stringify({
+						ok: true,
+						acceptedAt: "2026-03-11T03:00:00.000Z",
+					}),
+					{
+						status: 200,
+						headers: { "Content-Type": "application/json" },
+					}
+				);
+			}
+
+			throw new Error(`Unexpected fetch: ${url} ${init?.method ?? "GET"}`);
+		});
+
+		globalThis.fetch = fetchMock as typeof fetch;
+		globalThis.setInterval = setIntervalMock as typeof setInterval;
+		globalThis.clearInterval = clearIntervalMock as typeof clearInterval;
+
+		try {
+			await client.getWebsite();
+			await flushAsyncWork();
+
+			expect(setIntervalMock).toHaveBeenCalledTimes(1);
+			expect(heartbeatCallback).not.toBeNull();
+
+			heartbeatCallback?.();
+			await flushAsyncWork();
+
+			browser.window.dispatch("focus");
+			await flushAsyncWork();
+
+			const activityRequests = fetchMock.mock.calls.filter(([input]) =>
+				String(input).endsWith(`/visitors/${trackedVisitorId}/activity`)
+			) as [string, RequestInit][];
+			const activityTypes = activityRequests.map(([, init]) => {
+				const body = JSON.parse(String(init.body)) as {
+					activityType?: string;
+				};
+
+				return body.activityType ?? null;
+			});
+
+			expect(activityTypes).toEqual(["connected", "heartbeat", "focus"]);
+			expect(clearIntervalMock).toHaveBeenCalledTimes(1);
+
+			browser.setVisibilityState("hidden");
+			expect(clearIntervalMock).toHaveBeenCalledTimes(2);
+
+			browser.setVisibilityState("visible");
+			await flushAsyncWork();
+
+			const refreshedActivityTypes = fetchMock.mock.calls
+				.filter(([input]) =>
+					String(input).endsWith(`/visitors/${trackedVisitorId}/activity`)
+				)
+				.map(([, init]) => {
+					const body = JSON.parse(String(init.body)) as {
+						activityType?: string;
+					};
+
+					return body.activityType ?? null;
+				});
+
+			expect(refreshedActivityTypes).toEqual([
+				"connected",
+				"heartbeat",
+				"focus",
+				"focus",
+			]);
 		} finally {
 			client.destroy();
 		}

@@ -3,13 +3,14 @@
 import {
 	PRESENCE_AWAY_WINDOW_MS,
 	PRESENCE_ONLINE_WINDOW_MS,
+	PRESENCE_PING_INTERVAL_MS,
 	type VisitorPresenceEntry,
 } from "@cossistant/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryTinybirdPipe, useTinybirdToken } from "@/lib/tinybird";
 import { useTRPC } from "@/lib/trpc/client";
 
-const REFRESH_INTERVAL_MS = 30_000;
+const REFRESH_INTERVAL_MS = PRESENCE_PING_INTERVAL_MS;
 const ONLINE_WINDOW_MINUTES = Math.round(PRESENCE_ONLINE_WINDOW_MS / 60_000);
 const AWAY_WINDOW_MINUTES = Math.round(PRESENCE_AWAY_WINDOW_MS / 60_000);
 const DEFAULT_LIMIT = 100;
@@ -23,12 +24,12 @@ type TinybirdVisitorPresenceRow = {
 	visitor_id: string;
 	status: "online" | "away" | null;
 	last_seen_at: string;
-	name: string | null;
-	image: string | null;
 	city: string | null;
 	country_code: string | null;
 	latitude: number | null;
 	longitude: number | null;
+	page_path: string | null;
+	attribution_channel: string | null;
 };
 
 type PresenceProfile = {
@@ -115,15 +116,15 @@ export function mergeVisitorPresenceRows({
 }): VisitorPresenceQueryData {
 	const visitors: VisitorPresenceEntry[] = rows.map((row) => {
 		const profile = profilesByVisitorId?.[row.visitor_id];
-		const name =
-			toNullableString(row.name) ?? toNullableString(profile?.contactName);
-		const image =
-			toNullableString(row.image) ?? toNullableString(profile?.contactImage);
+		const name = toNullableString(profile?.contactName);
+		const image = toNullableString(profile?.contactImage);
 		const city = toNullableString(row.city) ?? toNullableString(profile?.city);
 		const latitude =
 			toNullableNumber(row.latitude) ?? toNullableNumber(profile?.latitude);
 		const longitude =
 			toNullableNumber(row.longitude) ?? toNullableNumber(profile?.longitude);
+		const country =
+			toNullableString(profile?.country) ?? toNullableString(row.country_code);
 
 		return {
 			id: row.visitor_id,
@@ -134,10 +135,12 @@ export function mergeVisitorPresenceRows({
 			image,
 			city,
 			region: toNullableString(profile?.region),
-			country: toNullableString(profile?.country),
+			country,
 			latitude,
 			longitude,
 			contactId: toNullableString(profile?.contactId),
+			pagePath: toNullableString(row.page_path),
+			attributionChannel: toNullableString(row.attribution_channel),
 		};
 	});
 
@@ -177,7 +180,9 @@ export function useVisitorPresenceData({
 }) {
 	const trpc = useTRPC();
 	const queryClient = useQueryClient();
-	const { data: tokenData } = useTinybirdToken(websiteSlug);
+	const { data: tokenData } = useTinybirdToken(websiteSlug, {
+		staleTimeMs: REFRESH_INTERVAL_MS,
+	});
 
 	return useQuery<VisitorPresenceQueryData>({
 		queryKey: [
@@ -186,6 +191,7 @@ export function useVisitorPresenceData({
 			ONLINE_WINDOW_MINUTES,
 			AWAY_WINDOW_MINUTES,
 			limit,
+			tokenData?.token,
 		],
 		queryFn: async () => {
 			if (!tokenData) {

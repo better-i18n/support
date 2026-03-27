@@ -33,8 +33,10 @@ import { resolvePublicKey } from "./resolve-public-key";
 import {
 	CossistantAPIError,
 	type CossistantConfig,
+	PRESENCE_PING_INTERVAL_MS,
 	type PublicWebsiteResponse,
 	type UpdateVisitorRequest,
+	type VisitorActivityRequest,
 	type VisitorMetadata,
 	type VisitorResponse,
 } from "./types";
@@ -51,6 +53,21 @@ import {
 	setVisitorId,
 } from "./visitor-tracker";
 
+const VISITOR_SESSION_STORAGE_KEY_PREFIX = "cossistant:visitor-session:";
+
+type CollectedVisitorData = Awaited<ReturnType<typeof collectVisitorData>>;
+
+function createVisitorSessionId() {
+	if (
+		typeof crypto !== "undefined" &&
+		typeof crypto.randomUUID === "function"
+	) {
+		return crypto.randomUUID();
+	}
+
+	return `visitor_session_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export class CossistantRestClient {
 	private config: CossistantConfig;
 	private baseHeaders: Record<string, string>;
@@ -60,6 +77,8 @@ export class CossistantRestClient {
 	private visitorBlocked = false;
 	private lastTrackedPageUrl: string | null = null;
 	private stopVisitorTracking: (() => void) | null = null;
+	private visitorActivitySessionId: string | null = null;
+	private visitorActivitySessionKey: string | null = null;
 
 	constructor(config: CossistantConfig) {
 		this.config = config;
@@ -125,16 +144,87 @@ export class CossistantRestClient {
 		throw new Error("Visitor ID is required");
 	}
 
+	private getVisitorActivitySessionId(visitorId: string): string {
+		const sessionKey = this.websiteId
+			? `${VISITOR_SESSION_STORAGE_KEY_PREFIX}${this.websiteId}:${visitorId}`
+			: null;
+
+		if (
+			sessionKey &&
+			this.visitorActivitySessionKey === sessionKey &&
+			this.visitorActivitySessionId
+		) {
+			return this.visitorActivitySessionId;
+		}
+
+		if (sessionKey && typeof window !== "undefined") {
+			try {
+				const existing = window.sessionStorage.getItem(sessionKey);
+				if (existing) {
+					this.visitorActivitySessionKey = sessionKey;
+					this.visitorActivitySessionId = existing;
+					return existing;
+				}
+
+				const created = createVisitorSessionId();
+				window.sessionStorage.setItem(sessionKey, created);
+				this.visitorActivitySessionKey = sessionKey;
+				this.visitorActivitySessionId = created;
+				return created;
+			} catch {
+				// Fall through to in-memory fallback below.
+			}
+		}
+
+		if (!this.visitorActivitySessionId) {
+			this.visitorActivitySessionId = createVisitorSessionId();
+		}
+
+		this.visitorActivitySessionKey = sessionKey;
+		return this.visitorActivitySessionId;
+	}
+
+	private async postVisitorActivity(
+		visitorId: string,
+		activityType: VisitorActivityRequest["activityType"],
+		options: {
+			visitorData?: CollectedVisitorData;
+		} = {}
+	): Promise<void> {
+		const visitorData = options.visitorData ?? (await collectVisitorData());
+		const attribution = visitorData?.attribution ?? null;
+		const currentPage = visitorData?.currentPage ?? null;
+
+		if (!(attribution && currentPage)) {
+			return;
+		}
+
+		await this.request(`/visitors/${visitorId}/activity`, {
+			method: "POST",
+			body: JSON.stringify({
+				sessionId: this.getVisitorActivitySessionId(visitorId),
+				activityType,
+				attribution,
+				currentPage,
+				occurredAt: currentPage.updatedAt,
+			} satisfies VisitorActivityRequest),
+			headers: {
+				"X-Visitor-Id": visitorId,
+			},
+		});
+	}
+
 	private async syncVisitorSnapshot(
 		visitorId: string,
 		options: {
 			force?: boolean;
+			visitorData?: CollectedVisitorData;
 		} = {}
-	): Promise<void> {
+	): Promise<boolean> {
 		try {
-			const visitorData = await collectVisitorData();
+			const visitorData = options.visitorData ?? (await collectVisitorData());
 			if (!visitorData) {
-				return;
+				return false;
 			}
 
 			const nextPageUrl = visitorData.currentPage?.url ?? null;
@@ -143,7 +233,7 @@ export class CossistantRestClient {
 				nextPageUrl &&
 				nextPageUrl === this.lastTrackedPageUrl
 			) {
-				return;
+				return false;
 			}
 
 			const payload = Object.entries(visitorData).reduce<
@@ -157,7 +247,7 @@ export class CossistantRestClient {
 			}, {});
 
 			if (Object.keys(payload).length === 0) {
-				return;
+				return false;
 			}
 
 			await this.request<VisitorResponse>(`/visitors/${visitorId}`, {
@@ -171,8 +261,10 @@ export class CossistantRestClient {
 			if (nextPageUrl) {
 				this.lastTrackedPageUrl = nextPageUrl;
 			}
+			return true;
 		} catch (error) {
 			logger.warn("Failed to sync visitor data", error);
+			return false;
 		}
 	}
 
@@ -183,16 +275,42 @@ export class CossistantRestClient {
 	}
 
 	private startVisitorTracking(visitorId: string): void {
-		if (typeof window === "undefined") {
+		if (typeof window === "undefined" || typeof document === "undefined") {
 			return;
 		}
 
 		this.stopTracking();
 
-		void this.syncVisitorSnapshot(visitorId, { force: true });
+		void (async () => {
+			const visitorData = await collectVisitorData();
+			await this.syncVisitorSnapshot(visitorId, {
+				force: true,
+				visitorData,
+			});
+			await this.postVisitorActivity(visitorId, "connected", {
+				visitorData,
+			});
+		})();
 
-		const sync = () => {
-			void this.syncVisitorSnapshot(visitorId);
+		const syncRouteChange = () => {
+			void (async () => {
+				const visitorData = await collectVisitorData();
+				const didSync = await this.syncVisitorSnapshot(visitorId, {
+					visitorData,
+				});
+
+				if (didSync) {
+					await this.postVisitorActivity(visitorId, "route_change", {
+						visitorData,
+					});
+				}
+			})();
+		};
+
+		const sendActivity = (
+			activityType: VisitorActivityRequest["activityType"]
+		) => {
+			void this.postVisitorActivity(visitorId, activityType);
 		};
 
 		const historyObject = window.history;
@@ -200,7 +318,7 @@ export class CossistantRestClient {
 		const originalReplaceState = historyObject.replaceState.bind(historyObject);
 
 		const scheduleSync = () => {
-			setTimeout(sync, 0);
+			setTimeout(syncRouteChange, 0);
 		};
 
 		historyObject.pushState = ((...args: Parameters<History["pushState"]>) => {
@@ -215,14 +333,56 @@ export class CossistantRestClient {
 			scheduleSync();
 		}) as History["replaceState"];
 
-		window.addEventListener("popstate", sync);
-		window.addEventListener("hashchange", sync);
+		let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+		const stopHeartbeatTimer = () => {
+			if (heartbeatTimer !== null) {
+				clearInterval(heartbeatTimer);
+				heartbeatTimer = null;
+			}
+		};
+
+		const startHeartbeatTimer = () => {
+			stopHeartbeatTimer();
+
+			if (document.visibilityState === "hidden") {
+				return;
+			}
+
+			heartbeatTimer = setInterval(() => {
+				sendActivity("heartbeat");
+			}, PRESENCE_PING_INTERVAL_MS);
+		};
+
+		const handleFocus = () => {
+			sendActivity("focus");
+			startHeartbeatTimer();
+		};
+
+		const handleVisibilityChange = () => {
+			if (document.visibilityState === "hidden") {
+				stopHeartbeatTimer();
+				return;
+			}
+
+			sendActivity("focus");
+			startHeartbeatTimer();
+		};
+
+		window.addEventListener("focus", handleFocus);
+		window.addEventListener("popstate", syncRouteChange);
+		window.addEventListener("hashchange", syncRouteChange);
+		document.addEventListener("visibilitychange", handleVisibilityChange);
+		startHeartbeatTimer();
 
 		this.stopVisitorTracking = () => {
+			stopHeartbeatTimer();
 			historyObject.pushState = originalPushState;
 			historyObject.replaceState = originalReplaceState;
-			window.removeEventListener("popstate", sync);
-			window.removeEventListener("hashchange", sync);
+			window.removeEventListener("focus", handleFocus);
+			window.removeEventListener("popstate", syncRouteChange);
+			window.removeEventListener("hashchange", syncRouteChange);
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
 		};
 	}
 

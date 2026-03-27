@@ -5,6 +5,43 @@ import type {
 	KnowledgeClarificationStepResponse,
 } from "@cossistant/types";
 
+export function formatClarificationQuestionLabel(stepIndex: number): string {
+	return `Question ${Math.max(stepIndex, 1)}`;
+}
+
+export function getClarificationRequestStatusLabel(
+	request: Pick<
+		KnowledgeClarificationRequest,
+		"status" | "stepIndex" | "draftFaqPayload"
+	>
+): string {
+	if (request.status === "draft_ready") {
+		return "Ready for review";
+	}
+
+	if (request.status === "retry_required") {
+		return "Needs retry";
+	}
+
+	if (request.status === "deferred") {
+		return "Saved for later";
+	}
+
+	if (request.status === "applied") {
+		return "Applied";
+	}
+
+	if (request.status === "dismissed") {
+		return "Dismissed";
+	}
+
+	if (request.status === "analyzing") {
+		return "AI working";
+	}
+
+	return formatClarificationQuestionLabel(request.stepIndex);
+}
+
 export function stepFromKnowledgeClarificationRequest(
 	request: KnowledgeClarificationRequest | null | undefined
 ): KnowledgeClarificationStepResponse | null {
