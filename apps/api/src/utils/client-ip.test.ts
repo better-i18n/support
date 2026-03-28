@@ -16,13 +16,13 @@ describe("client IP helpers", () => {
 		).toBe("2001:db8:cafe::17");
 	});
 
-	it("prefers x-real-ip over x-forwarded-for for the canonical client IP", () => {
+	it("prefers x-forwarded-for over x-real-ip for the canonical Railway client IP", () => {
 		const result = extractClientIp((name) => {
 			switch (name) {
-				case "x-real-ip":
-					return "8.8.8.8";
 				case "x-forwarded-for":
-					return "1.1.1.1, 2.2.2.2";
+					return "8.8.8.8, 44.44.44.44";
+				case "x-real-ip":
+					return "44.44.44.44";
 				default:
 					return null;
 			}
@@ -32,12 +32,21 @@ describe("client IP helpers", () => {
 		expect(result.publicIp).toBe("8.8.8.8");
 	});
 
-	it("uses the first public x-forwarded-for value when earlier hops are private", () => {
+	it("uses x-real-ip as a fallback when x-forwarded-for is missing", () => {
+		const result = extractClientIp((name) =>
+			name === "x-real-ip" ? "8.8.8.8" : null
+		);
+
+		expect(result.canonicalIp).toBe("8.8.8.8");
+		expect(result.publicIp).toBe("8.8.8.8");
+	});
+
+	it("keeps the leftmost x-forwarded-for value as canonical and the first public one for lookups", () => {
 		const result = extractClientIp((name) =>
 			name === "x-forwarded-for" ? "10.0.0.3, 8.8.8.8, 1.1.1.1" : null
 		);
 
-		expect(result.canonicalIp).toBe("8.8.8.8");
+		expect(result.canonicalIp).toBe("10.0.0.3");
 		expect(result.publicIp).toBe("8.8.8.8");
 	});
 });

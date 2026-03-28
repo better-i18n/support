@@ -1,7 +1,5 @@
 import { env } from "@api/env";
-import { getRedis } from "@api/redis";
 
-const GEOIP_CACHE_TTL_SECONDS = 60 * 60 * 24;
 const GEOIP_REQUEST_TIMEOUT_MS = 1500;
 const TRAILING_SLASHES_REGEX = /\/+$/;
 
@@ -22,10 +20,6 @@ export type GeoIpLookupResult = {
 	source: string;
 	resolved_at: string;
 };
-
-function getGeoIpCacheKey(ip: string): string {
-	return `geoip:lookup:${ip}`;
-}
 
 function normalizeLookupResult(value: unknown): GeoIpLookupResult | null {
 	if (!value || typeof value !== "object") {
@@ -72,21 +66,6 @@ function normalizeLookupResult(value: unknown): GeoIpLookupResult | null {
 export async function lookupGeoIp(
 	ip: string
 ): Promise<GeoIpLookupResult | null> {
-	const redis = getRedis();
-	const cacheKey = getGeoIpCacheKey(ip);
-
-	try {
-		const cached = await redis.get(cacheKey);
-		if (cached) {
-			const parsed = normalizeLookupResult(JSON.parse(cached));
-			if (parsed) {
-				return parsed;
-			}
-		}
-	} catch (error) {
-		console.warn("[geoip] Failed to read cache", { ip, error });
-	}
-
 	const controller = new AbortController();
 	const timeout = setTimeout(
 		() => controller.abort(),
@@ -118,17 +97,6 @@ export async function lookupGeoIp(
 		if (!parsed) {
 			console.warn("[geoip] Lookup response was invalid", { ip });
 			return null;
-		}
-
-		try {
-			await redis.set(
-				cacheKey,
-				JSON.stringify(parsed),
-				"EX",
-				GEOIP_CACHE_TTL_SECONDS
-			);
-		} catch (error) {
-			console.warn("[geoip] Failed to write cache", { ip, error });
 		}
 
 		return parsed;

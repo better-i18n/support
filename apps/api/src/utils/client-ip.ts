@@ -149,27 +149,38 @@ function getFirstForwardedForIp(
 }
 
 export function extractClientIp(getHeader: HeaderGetter): ClientIpInfo {
-	const xRealIp = normalizeIpCandidate(getHeader("x-real-ip"));
-	const forwardedFor = getFirstForwardedForIp(
+	const forwardedForCanonical = getFirstForwardedForIp(
+		getHeader("x-forwarded-for"),
+		false
+	);
+	const forwardedForPublic = getFirstForwardedForIp(
 		getHeader("x-forwarded-for"),
 		true
 	);
+	const xRealIp = normalizeIpCandidate(getHeader("x-real-ip"));
+	const forwarded = parseForwardedHeader(getHeader("forwarded"));
 	const cfConnectingIp = normalizeIpCandidate(getHeader("cf-connecting-ip"));
 	const xClientIp = normalizeIpCandidate(getHeader("x-client-ip"));
-	const forwarded = parseForwardedHeader(getHeader("forwarded"));
 
-	const orderedCandidates = [
+	const canonicalCandidates = [
+		forwardedForCanonical,
 		xRealIp,
-		forwardedFor,
+		forwarded,
 		cfConnectingIp,
 		xClientIp,
-		forwarded,
+	];
+	const publicCandidates = [
+		isPublicIp(forwardedForCanonical) ? forwardedForCanonical : null,
+		forwardedForPublic,
+		isPublicIp(xRealIp) ? xRealIp : null,
+		isPublicIp(forwarded) ? forwarded : null,
+		isPublicIp(cfConnectingIp) ? cfConnectingIp : null,
+		isPublicIp(xClientIp) ? xClientIp : null,
 	];
 
 	return {
-		canonicalIp: orderedCandidates.find(Boolean) ?? null,
-		publicIp:
-			orderedCandidates.find((candidate) => isPublicIp(candidate)) ?? null,
+		canonicalIp: canonicalCandidates.find(Boolean) ?? null,
+		publicIp: publicCandidates.find(Boolean) ?? null,
 	};
 }
 

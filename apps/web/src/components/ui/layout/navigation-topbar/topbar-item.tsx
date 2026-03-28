@@ -10,6 +10,7 @@ type SidebarItemProps = {
 	iconName?: IconName;
 	actions?: ReactNode;
 	href?: string;
+	prefetch?: boolean;
 	onClick?: () => void;
 	className?: string;
 	active?: boolean;
@@ -22,6 +23,7 @@ export function TopbarItem({
 	iconName,
 	actions,
 	href,
+	prefetch = true,
 	onClick,
 	className,
 	active = false,
@@ -84,7 +86,12 @@ export function TopbarItem({
 
 	if (href) {
 		return (
-			<Link className={baseClasses} href={href} onClick={onClick} prefetch>
+			<Link
+				className={baseClasses}
+				href={href}
+				onClick={onClick}
+				prefetch={prefetch}
+			>
 				{content}
 			</Link>
 		);

@@ -225,7 +225,7 @@ describe("visitor route PATCH /:id countryCode handling", () => {
 		expect(updateArg.data.countryCode).toBe("MX");
 	});
 
-	it("prefers Railway x-real-ip geo over browser-supplied city", async () => {
+	it("prefers Railway x-forwarded-for geo over browser-supplied city", async () => {
 		safelyExtractRequestDataMock.mockResolvedValue({
 			db: {},
 			website: { id: "site-1" },
@@ -270,7 +270,8 @@ describe("visitor route PATCH /:id countryCode handling", () => {
 			new Request("http://localhost/visitor-1", {
 				method: "PATCH",
 				headers: {
-					"x-real-ip": "8.8.8.8",
+					"x-forwarded-for": "8.8.8.8, 44.44.44.44",
+					"x-real-ip": "44.44.44.44",
 				},
 			})
 		);

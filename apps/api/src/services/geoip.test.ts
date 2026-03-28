@@ -1,101 +1,82 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
-const redisGetMock = mock(
-	(async () => null) as (...args: unknown[]) => Promise<unknown>
-);
-const redisSetMock = mock(
-	(async () => "OK") as (...args: unknown[]) => Promise<unknown>
-);
-
 mock.module("@api/env", () => ({
 	env: {
 		GEOIP_SERVICE_URL: "http://geoip.internal",
 	},
 }));
 
-mock.module("@api/redis", () => ({
-	getRedis: () => ({
-		get: redisGetMock,
-		set: redisSetMock,
-	}),
-}));
-
 const modulePromise = import("./geoip");
 
 describe("lookupGeoIp", () => {
 	const originalFetch = globalThis.fetch;
+	const originalWarn = console.warn;
+	const warnMock = mock(() => {});
 
 	beforeEach(() => {
-		redisGetMock.mockReset();
-		redisSetMock.mockReset();
-		redisGetMock.mockResolvedValue(null);
-		redisSetMock.mockResolvedValue("OK");
+		warnMock.mockReset();
+		console.warn = warnMock;
 	});
 
 	afterEach(() => {
 		globalThis.fetch = originalFetch;
+		console.warn = originalWarn;
 	});
 
-	it("returns cached results without hitting the geo service", async () => {
-		redisGetMock.mockResolvedValue(
-			JSON.stringify({
-				ip: "8.8.8.8",
-				found: true,
-				is_public: true,
-				country_code: "US",
-				country: "United States",
-				region: "California",
-				city: "Mountain View",
-				latitude: 37.386,
-				longitude: -122.0838,
-				timezone: "America/Los_Angeles",
-				accuracy_radius_km: 20,
-				asn: 15_169,
-				asn_organization: "Google LLC",
-				source: "maxmind",
-				resolved_at: "2026-03-28T00:00:00.000Z",
-			})
+	it("performs a direct GeoIP request for each eligible lookup", async () => {
+		const fetchMock = mock(
+			(async () =>
+				new Response(
+					JSON.stringify({
+						ip: "8.8.8.8",
+						found: true,
+						is_public: true,
+						country_code: "US",
+						country: "United States",
+						region: "California",
+						city: "Mountain View",
+						latitude: 37.386,
+						longitude: -122.0838,
+						timezone: "America/Los_Angeles",
+						accuracy_radius_km: 20,
+						asn: 15_169,
+						asn_organization: "Google LLC",
+						source: "maxmind",
+						resolved_at: "2026-03-28T00:00:00.000Z",
+					}),
+					{
+						status: 200,
+						headers: {
+							"Content-Type": "application/json",
+						},
+					}
+				)) as unknown as typeof fetch
 		);
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
 		const { lookupGeoIp } = await modulePromise;
+		const firstResult = await lookupGeoIp("8.8.8.8");
+		const secondResult = await lookupGeoIp("8.8.8.8");
 
-		const result = await lookupGeoIp("8.8.8.8");
-
-		expect(result?.city).toBe("Mountain View");
-		expect(redisSetMock).not.toHaveBeenCalled();
+		expect(firstResult?.country_code).toBe("US");
+		expect(secondResult?.city).toBe("Mountain View");
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 	});
 
-	it("caches successful geo service lookups", async () => {
-		globalThis.fetch = (async () =>
-			new Response(
-				JSON.stringify({
-					ip: "8.8.8.8",
-					found: true,
-					is_public: true,
-					country_code: "US",
-					country: "United States",
-					region: "California",
-					city: "Mountain View",
-					latitude: 37.386,
-					longitude: -122.0838,
-					timezone: "America/Los_Angeles",
-					accuracy_radius_km: 20,
-					asn: 15_169,
-					asn_organization: "Google LLC",
-					source: "maxmind",
-					resolved_at: "2026-03-28T00:00:00.000Z",
-				}),
-				{
-					status: 200,
-					headers: {
-						"Content-Type": "application/json",
-					},
-				}
-			)) as unknown as typeof fetch;
+	it("returns null for non-200 responses", async () => {
+		const fetchMock = mock(
+			(async () =>
+				new Response("boom", {
+					status: 503,
+				})) as unknown as typeof fetch
+		);
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
 
 		const { lookupGeoIp } = await modulePromise;
 		const result = await lookupGeoIp("8.8.8.8");
 
-		expect(result?.country_code).toBe("US");
-		expect(redisSetMock).toHaveBeenCalledTimes(1);
+		expect(result).toBeNull();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(warnMock).toHaveBeenCalledTimes(1);
 	});
 });

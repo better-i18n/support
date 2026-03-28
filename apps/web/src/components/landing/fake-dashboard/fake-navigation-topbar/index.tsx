@@ -14,10 +14,15 @@ export function FakeNavigationTopbar({ className }: { className?: string }) {
 				</Link>
 			</div>
 			<div className="mr-2 flex items-center gap-3">
-				<TopbarItem className="pr-1" hideLabelOnMobile href="/agent">
+				<TopbarItem
+					className="pr-1"
+					hideLabelOnMobile
+					href="/agent"
+					prefetch={false}
+				>
 					<span className="flex items-center gap-1.5">Agent</span>
 				</TopbarItem>
-				<TopbarItem hideLabelOnMobile href="/contacts">
+				<TopbarItem hideLabelOnMobile href="/contacts" prefetch={false}>
 					Contacts
 				</TopbarItem>
 				<div className="group/btn relative flex items-center gap-2 rounded px-2 py-1 text-primary/80 text-sm transition-colors hover:bg-background-300 hover:text-primary">
