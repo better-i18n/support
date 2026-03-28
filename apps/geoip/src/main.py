@@ -57,6 +57,7 @@ def create_app(manager: GeoIPDatabaseManager | None = None) -> FastAPI:
 	@app.post("/v1/lookup", response_model=LookupResponse)
 	async def lookup(payload: LookupRequest) -> LookupResponse:
 		try:
+			logger.info("getting info for %s", payload.ip)
 			return await asyncio.to_thread(app.state.geoip_manager.lookup, payload.ip)
 		except RuntimeError as error:
 			raise HTTPException(status_code=503, detail=str(error)) from error
@@ -70,4 +71,3 @@ app = create_app()
 if __name__ == "__main__":
 	settings = Settings.from_env()
 	uvicorn.run("src.main:app", host="0.0.0.0", port=settings.port)
-
