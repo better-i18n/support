@@ -30,7 +30,7 @@ MAXMIND_LICENSE_KEY=<secret>
 MAXMIND_EDITION_IDS=GeoLite2-City GeoLite2-ASN
 GEOIP_DB_DIR=/data/geoip
 GEOIP_UPDATE_INTERVAL_HOURS=24
-HOST=::
+HOST=0.0.0.0
 PORT=8080
 ```
 
@@ -59,7 +59,7 @@ GEOIP_SERVICE_URL=http://localhost:8083
 
 Deploy this app as its own Railway service named `geoip`.
 
-The service uses Hypercorn and binds both `0.0.0.0` and `::` by default so Railway's public deployment healthchecks and private networking can both reach it.
+The service uses Hypercorn and binds to `0.0.0.0` by default. Wildcard values like `HOST=::` are normalized to the same single bind so Linux container runtimes do not fail with `address already in use`.
 
 Use `/live` as the Railway deployment healthcheck path. `/health` remains a readiness endpoint and can return `503` until the MaxMind databases have been downloaded and loaded.
 
@@ -70,7 +70,7 @@ The service now starts serving `/live` immediately while the initial MaxMind boo
 - `current_update_started_at`: when the active update began
 - `last_update_error`: the latest refresh/bootstrap failure, if any
 
-Railway environment variable values should be entered as raw values without wrapping quotes. For example, use `HOST=::`, not `HOST="::"`.
+Railway environment variable values should be entered as raw values without wrapping quotes. For example, use `HOST=0.0.0.0`, not `HOST="0.0.0.0"`.
 
 Railway logs will now include `geoipupdate` output, which makes it easier to confirm whether the MaxMind databases are actively downloading.
 

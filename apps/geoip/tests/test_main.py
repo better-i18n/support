@@ -122,8 +122,13 @@ def test_live_returns_200_while_initialization_is_still_running() -> None:
 	assert health_response.json()["update_in_progress"] is True
 
 
-def test_build_bind_addresses_defaults_to_dual_stack_for_railway() -> None:
-	assert build_bind_addresses("::", 8080) == ["0.0.0.0:8080", "[::]:8080"]
+def test_build_bind_addresses_normalizes_wildcard_hosts_to_single_bind() -> None:
+	assert build_bind_addresses("::", 8080) == ["0.0.0.0:8080"]
+	assert build_bind_addresses("0.0.0.0", 8080) == ["0.0.0.0:8080"]
+
+
+def test_build_bind_addresses_preserves_explicit_ipv6_host() -> None:
+	assert build_bind_addresses("2001:db8::1", 8080) == ["[2001:db8::1]:8080"]
 
 
 def test_lookup_returns_payload() -> None:
