@@ -38,9 +38,12 @@ async def initialize_databases(manager: GeoIPDatabaseManager) -> None:
 
 def build_bind_addresses(host: str, port: int) -> list[str]:
 	normalized_host = host.strip()
-	# Binding both 0.0.0.0 and [::] can conflict on Linux when the IPv6 socket
-	# also accepts IPv4 traffic. Normalize wildcard hosts to a single safe bind.
-	if not normalized_host or normalized_host in {"::", "0.0.0.0"}:
+	# Bind a single wildcard socket so Railway private networking works on both
+	# dual-stack and legacy IPv6-only environments without dual-bind conflicts.
+	if not normalized_host or normalized_host == "::":
+		return [f"[::]:{port}"]
+
+	if normalized_host == "0.0.0.0":
 		return [f"0.0.0.0:{port}"]
 
 	if ":" in normalized_host and not normalized_host.startswith("["):
@@ -105,4 +108,5 @@ if __name__ == "__main__":
 	config.bind = build_bind_addresses(settings.host, settings.port)
 	config.accesslog = "-"
 	config.errorlog = "-"
+	logger.info("GeoIP server bind addresses resolved to %s", config.bind)
 	asyncio.run(serve(app, config))

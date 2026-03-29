@@ -49,7 +49,7 @@ class Settings:
 			license_key=os.getenv("MAXMIND_LICENSE_KEY", "").strip(),
 			edition_ids=_split_edition_ids(os.getenv("MAXMIND_EDITION_IDS")),
 			db_dir=Path(os.getenv("GEOIP_DB_DIR", "/data/geoip")),
-			host=os.getenv("HOST", "0.0.0.0").strip() or "0.0.0.0",
+			host=os.getenv("HOST", "::").strip() or "::",
 			update_interval_hours=int(os.getenv("GEOIP_UPDATE_INTERVAL_HOURS", "24")),
 			port=int(os.getenv("PORT", "8080")),
 		)

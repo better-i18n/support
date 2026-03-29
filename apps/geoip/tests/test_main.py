@@ -123,7 +123,7 @@ def test_live_returns_200_while_initialization_is_still_running() -> None:
 
 
 def test_build_bind_addresses_normalizes_wildcard_hosts_to_single_bind() -> None:
-	assert build_bind_addresses("::", 8080) == ["0.0.0.0:8080"]
+	assert build_bind_addresses("::", 8080) == ["[::]:8080"]
 	assert build_bind_addresses("0.0.0.0", 8080) == ["0.0.0.0:8080"]
 
 
