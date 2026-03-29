@@ -29,6 +29,7 @@ MAXMIND_LICENSE_KEY=<secret>
 MAXMIND_EDITION_IDS=GeoLite2-City GeoLite2-ASN
 GEOIP_DB_DIR=/data/geoip
 GEOIP_UPDATE_INTERVAL_HOURS=24
+HOST=::
 PORT=8080
 ```
 
@@ -57,10 +58,12 @@ GEOIP_SERVICE_URL=http://localhost:8083
 
 Deploy this app as its own Railway service named `geoip`.
 
+The service binds to `::` by default so Railway private networking can reach it in both new dual-stack environments and older IPv6-only ones.
+
 The main API should use:
 
 ```env
-GEOIP_SERVICE_URL=http://geoip.railway.internal
+GEOIP_SERVICE_URL=http://geoip.railway.internal:8080
 ```
 
 Only the `geoip` service needs the MaxMind credentials.

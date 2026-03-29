@@ -70,4 +70,4 @@ app = create_app()
 
 if __name__ == "__main__":
 	settings = Settings.from_env()
-	uvicorn.run("src.main:app", host="0.0.0.0", port=settings.port)
+	uvicorn.run("src.main:app", host=settings.host, port=settings.port)
