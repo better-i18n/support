@@ -46,6 +46,7 @@ export type GlobeProps = {
 	autoRotate?: boolean;
 	rotationSpeed?: number;
 	allowDrag?: boolean;
+	minHeight?: number | string | null;
 };
 
 type DragState = {
@@ -83,6 +84,7 @@ export function Globe({
 	autoRotate = true,
 	rotationSpeed = DEFAULT_GLOBE_ROTATION_SPEED,
 	allowDrag = true,
+	minHeight = 220,
 }: GlobeProps) {
 	const id = useId();
 	const { resolvedTheme } = useTheme();
@@ -321,6 +323,13 @@ export function Globe({
 	const allowHorizontalDrag =
 		allowDrag && longitude === undefined && focusView === null;
 	const allowVerticalDrag = allowHorizontalDrag && tilt === undefined;
+	const rootStyle: React.CSSProperties | undefined =
+		minHeight == null
+			? undefined
+			: {
+					minHeight:
+						typeof minHeight === "number" ? `${minHeight}px` : minHeight,
+				};
 
 	function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
 		if (!allowHorizontalDrag) {
@@ -405,6 +414,7 @@ export function Globe({
 			onPointerMove={handlePointerMove}
 			onPointerUp={finishPointerDrag}
 			ref={containerRef}
+			style={rootStyle}
 		>
 			<canvas
 				className="size-full"

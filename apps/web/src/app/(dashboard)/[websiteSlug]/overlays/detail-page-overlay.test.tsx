@@ -349,6 +349,40 @@ describe("ContactVisitorDetailView", () => {
 		expect(html).not.toContain('data-slot="mock-globe"');
 	});
 
+	it("falls back to another visitor with coordinates when the hero visitor has none", async () => {
+		const html = await renderView({
+			globeVisitors: [
+				{
+					...heroVisitor,
+					id: "visitor-2",
+					latitude: 48.8566,
+					longitude: 2.3522,
+					currentPage: {
+						...heroVisitor.currentPage,
+						path: "/docs",
+					},
+				},
+			],
+			heroVisitor: {
+				...heroVisitor,
+				latitude: null,
+				longitude: null,
+			},
+		});
+
+		expect(html).toContain(
+			'data-slot="contact-visitor-detail-desktop-globe-wrapper"'
+		);
+		expect(html).toContain(
+			'data-slot="contact-visitor-detail-mobile-globe-wrapper"'
+		);
+		expect(html).toContain(
+			'data-focus="{&quot;latitude&quot;:48.8566,&quot;longitude&quot;:2.3522}"'
+		);
+		expect(html).toContain('data-id="visitor-2"');
+		expect(html).toContain('data-page-label="/docs"');
+	});
+
 	it("renders loading, error, and empty states", async () => {
 		const loadingHtml = await renderView({
 			isLoading: true,

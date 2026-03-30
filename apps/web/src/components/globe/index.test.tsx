@@ -121,6 +121,12 @@ function installDomGlobals(window: Window) {
 	});
 }
 
+function getGlobeRoot() {
+	return Array.from(document.getElementsByTagName("div")).find(
+		(element) => element.getAttribute("data-slot") === "globe-root"
+	) as HTMLElement | undefined;
+}
+
 describe("Globe", () => {
 	beforeEach(() => {
 		activeRoot = null;
@@ -198,5 +204,33 @@ describe("Globe", () => {
 		});
 
 		expect(createGlobeMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("applies a default min-height and lets callers override it", async () => {
+		const { act } = await import("react");
+		const { createRoot } = await import("react-dom/client");
+		const { Globe } = await import("./index");
+
+		mountNode = document.createElement("div");
+		document.body.appendChild(mountNode);
+		activeRoot = createRoot(mountNode);
+
+		await act(async () => {
+			activeRoot?.render(<Globe allowDrag={false} autoRotate={false} />);
+		});
+
+		let globeRoot = getGlobeRoot();
+
+		expect(globeRoot?.style.minHeight).toBe("220px");
+
+		await act(async () => {
+			activeRoot?.render(
+				<Globe allowDrag={false} autoRotate={false} minHeight={260} />
+			);
+		});
+
+		globeRoot = getGlobeRoot();
+
+		expect(globeRoot?.style.minHeight).toBe("260px");
 	});
 });

@@ -54,6 +54,7 @@ type ContactVisitorDetailViewProps = {
 	mode: "contact" | "visitor";
 	contact: DetailContact | null;
 	deviceDetailsById: DeviceDetailById;
+	globeVisitors?: readonly (VisitorDetail | null | undefined)[];
 	heroVisitor: VisitorDetail | null;
 	isError: boolean;
 	isLoading: boolean;
@@ -175,6 +176,31 @@ function inferDeviceKind(params: {
 		: "desktop";
 }
 
+function hasGlobeCoordinates<
+	T extends {
+		latitude: number | null;
+		longitude: number | null;
+	},
+>(
+	visitor: T | null | undefined
+): visitor is T & {
+	latitude: number;
+	longitude: number;
+} {
+	return visitor?.latitude != null && visitor.longitude != null;
+}
+
+function pickGlobeVisitor(params: {
+	heroVisitor: VisitorDetail | null;
+	visitors?: readonly (VisitorDetail | null | undefined)[];
+}) {
+	if (hasGlobeCoordinates(params.heroVisitor)) {
+		return params.heroVisitor;
+	}
+
+	return params.visitors?.find(hasGlobeCoordinates) ?? null;
+}
+
 function buildHeroDetails(params: {
 	contact: DetailContact | null;
 	heroVisitor: VisitorDetail | null;
@@ -245,28 +271,44 @@ function buildHeroDetails(params: {
 
 function buildHeroGlobeData(params: {
 	hero: HeroDetails;
-	heroVisitor: VisitorDetail | null;
+	globeVisitor: VisitorDetail | null;
 }): HeroGlobeData | null {
-	const { hero, heroVisitor } = params;
+	const { globeVisitor, hero } = params;
 
-	if (heroVisitor?.latitude == null || heroVisitor.longitude == null) {
+	if (!hasGlobeCoordinates(globeVisitor)) {
 		return null;
 	}
 
+	const countryDetails = resolveCountryDetails({
+		city: globeVisitor.city,
+		country: globeVisitor.country,
+		countryCode: globeVisitor.countryCode,
+		locale: globeVisitor.language,
+		timezone: globeVisitor.timezone,
+	});
+	const locationLabel =
+		hero.locationLabel ||
+		[globeVisitor.city, countryDetails.name ?? countryDetails.code ?? null]
+			.filter(Boolean)
+			.join(", ") ||
+		null;
+
 	return {
 		focus: {
-			latitude: heroVisitor.latitude,
-			longitude: heroVisitor.longitude,
+			latitude: globeVisitor.latitude,
+			longitude: globeVisitor.longitude,
 		},
 		visitor: {
 			avatarUrl: hero.avatarUrl,
-			id: heroVisitor.id,
-			latitude: heroVisitor.latitude,
-			locationLabel: hero.locationLabel,
-			longitude: heroVisitor.longitude,
+			id: globeVisitor.id,
+			latitude: globeVisitor.latitude,
+			locationLabel,
+			longitude: globeVisitor.longitude,
 			name: hero.title,
 			pageLabel:
-				heroVisitor.currentPage?.path ?? heroVisitor.currentPage?.title ?? null,
+				globeVisitor.currentPage?.path ??
+				globeVisitor.currentPage?.title ??
+				null,
 		},
 	};
 }
@@ -549,6 +591,7 @@ function DevicesSection({
 function DetailPrimaryPanel({
 	contact,
 	hero,
+	globeVisitors,
 	heroVisitor,
 	leadVisitorSummary,
 	mode,
@@ -557,6 +600,7 @@ function DetailPrimaryPanel({
 }: {
 	contact: DetailContact | null;
 	hero: HeroDetails;
+	globeVisitors?: readonly (VisitorDetail | null | undefined)[];
 	heroVisitor: VisitorDetail | null;
 	leadVisitorSummary: LeadVisitorSummary | null;
 	mode: "contact" | "visitor";
@@ -579,7 +623,10 @@ function DetailPrimaryPanel({
 	);
 	const heroGlobeData = buildHeroGlobeData({
 		hero,
-		heroVisitor,
+		globeVisitor: pickGlobeVisitor({
+			heroVisitor,
+			visitors: globeVisitors,
+		}),
 	});
 
 	return (
@@ -680,8 +727,8 @@ function DetailPrimaryPanel({
 								<Globe
 									allowDrag={false}
 									autoRotate={false}
-									className="min-h-[240px]"
 									focus={heroGlobeData.focus}
+									minHeight={240}
 									visitors={[heroGlobeData.visitor]}
 								/>
 							</div>
@@ -700,8 +747,8 @@ function DetailPrimaryPanel({
 							<Globe
 								allowDrag={false}
 								autoRotate={false}
-								className="min-h-[240px]"
 								focus={heroGlobeData.focus}
+								minHeight={240}
 								visitors={[heroGlobeData.visitor]}
 							/>
 						</div>
@@ -858,6 +905,7 @@ function DetailSecondaryPanel({
 export function ContactVisitorDetailView({
 	contact,
 	deviceDetailsById,
+	globeVisitors,
 	heroVisitor,
 	isError,
 	isLoading,
@@ -919,6 +967,7 @@ export function ContactVisitorDetailView({
 			>
 				<DetailPrimaryPanel
 					contact={contact}
+					globeVisitors={globeVisitors}
 					hero={hero}
 					heroVisitor={heroVisitor}
 					leadVisitorSummary={leadVisitorSummary}
@@ -1048,6 +1097,9 @@ export function ContactVisitorDetailOverlay() {
 					: (visitorQuery.data?.contact ?? null)
 			}
 			deviceDetailsById={deviceDetailsById}
+			globeVisitors={contactVisitorDetailsQueries.map(
+				(query) => query.data ?? null
+			)}
 			heroVisitor={resolvedHeroVisitor}
 			isError={
 				activeDetail.type === "contact"

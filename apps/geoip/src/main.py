@@ -88,7 +88,6 @@ def create_app(manager: GeoIPDatabaseManager | None = None) -> FastAPI:
 	@app.post("/v1/lookup", response_model=LookupResponse)
 	async def lookup(payload: LookupRequest) -> LookupResponse:
 		try:
-			logger.info("getting info for %s", payload.ip)
 			return await asyncio.to_thread(app.state.geoip_manager.lookup, payload.ip)
 		except RuntimeError as error:
 			raise HTTPException(status_code=503, detail=str(error)) from error
