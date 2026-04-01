@@ -1,75 +1,44 @@
-![hero](github.png)
+# Better i18n Support
 
-<p align="center">
-    Open source chat &lt;Support /&gt; widget for React
-    <br />
-    <br />
-    <a href="https://github.com/cossistant/cossistant/issues">Issues</a>
-    ·
-    <a href="https://cossistant.com/docs">Docs</a>
-    ·
-    <a href="https://discord.gg/vQkPjgvzcc">Discord</a>
-</p>
+Self-hosted customer support platform, forked from [Cossistant](https://github.com/cossistantcom/cossistant) (AGPL-3.0).
 
-## About Cossistant
+## About
 
-Cossistant is an open source chat support widget for the React ecosystem. Built by developers, for developers who need a flexible, customizable chat solution that seamlessly integrates into their applications. We provide headless components, real-time messaging, and complete backend infrastructure—all with a code-first, API-driven philosophy that prioritizes developer experience and AI-friendly documentation.
+This is Better i18n's internal support infrastructure — an AI-powered customer support system with real-time chat, conversation management, and an embeddable React widget.
 
-## Get Started
+## Stack
 
-**Using Cossistant in your app?**
-→ Check out our [Quickstart Guide](https://cossistant.com/docs/quickstart)
+- **API:** Bun + Hono + Better Auth + Drizzle ORM
+- **Database:** PostgreSQL 17 + pgvector
+- **Cache/Queue:** Redis 7
+- **AI:** OpenRouter / Gemini + pgvector RAG
+- **Widget:** React (headless primitives + styled components)
+- **Deploy:** Docker Compose + Dokploy
 
-**Contributing to Cossistant?**
-→ Read the [Contributors Guide](https://cossistant.com/docs/others/contributors)
+## Quick Start
 
-## Packages
+```bash
+# Clone
+git clone https://github.com/better-i18n/support.git
+cd support
 
-- **[@cossistant/react](https://www.npmjs.com/package/@cossistant/react)** - React SDK with headless hooks and primitives
-- **[@cossistant/next](https://www.npmjs.com/package/@cossistant/next)** - Next.js-specific bindings and utilities
+# Copy env files
+cp apps/api/.env.default apps/api/.env
+cp apps/workers/.env.default apps/workers/.env
 
-For full documentation, visit [cossistant.com/docs](https://cossistant.com/docs)
-
-## Tech Stack
-
-- Monorepo (Turborepo)
-- Bun
-- React & Next.js
-- TypeScript
-- Hono (API)
-- tRPC
-- Drizzle ORM
-- Better Auth
-- TailwindCSS
-- WebSockets
-- Docker (Postgres + Redis)
+# Start services
+docker compose up -d
+```
 
 ## License
 
-This project is licensed under the **[AGPL-3.0](https://opensource.org/licenses/AGPL-3.0)** for non-commercial use.
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE) — the same license as the upstream [Cossistant](https://github.com/cossistantcom/cossistant) project.
 
-### Commercial Use
+As required by AGPL-3.0:
+- This fork's source code is publicly available
+- All modifications are clearly tracked in git history
+- The original copyright and license are preserved
 
-For commercial use or deployments requiring a setup fee, please contact us
-for a commercial license at [anthony@cossistant.com](mailto:anthony@cossistant.com).
+## Upstream
 
-By using this software, you agree to the terms of the license.
-<br />
-<br />
-
-### Open source friends
-
-Proudly part of Vercel open source program:
-<br />
-<br />
-<a href="https://vercel.com/oss">
-<img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge-2026.svg" />
-</a>
-<br />
-<br />
-You can also join our open source program:
-<br />
-<br />
-<a href="https://cossistant.com/open-source-program">
-<img alt="Cossistant OSS Program" src="https://cdn.cossistant.com/oss/oss-friends.svg" />
-</a>
+This is a fork of [cossistantcom/cossistant](https://github.com/cossistantcom/cossistant). We maintain our customizations (branding, deployment config, widget styling) while keeping the core engine in sync with upstream.

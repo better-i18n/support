@@ -2,7 +2,6 @@ import { useSupport } from "@cossistant/react";
 import { useMemo } from "react";
 import { Text } from "../text";
 import { cn } from "../utils";
-import { CossistantLogo } from "./cossistant-branding";
 
 export type WatermarkProps = {
 	className?: string;
@@ -11,12 +10,12 @@ export type WatermarkProps = {
 export const Watermark: React.FC<WatermarkProps> = ({ className }) => {
 	const { website } = useSupport();
 
-	const cossistantUrl = useMemo(() => {
+	const betterI18nUrl = useMemo(() => {
 		if (!website) {
-			return "https://cossistant.com";
+			return "https://better-i18n.com";
 		}
 
-		const url = new URL("https://cossistant.com");
+		const url = new URL("https://better-i18n.com");
 
 		url.searchParams.set("ref", "chatbox");
 		url.searchParams.set("domain", website.domain);
@@ -31,7 +30,7 @@ export const Watermark: React.FC<WatermarkProps> = ({ className }) => {
 				"group/watermark flex items-center gap-1.5 font-medium text-co-primary/80 hover:text-co-blue",
 				className
 			)}
-			href={cossistantUrl}
+			href={betterI18nUrl}
 			rel="noopener noreferrer"
 			target="_blank"
 		>
@@ -40,7 +39,9 @@ export const Watermark: React.FC<WatermarkProps> = ({ className }) => {
 				className="text-co-muted-foreground text-xs"
 				textKey="common.brand.watermark"
 			/>
-			<CossistantLogo className="h-3 transition-transform duration-200 group-focus-within/watermark:rotate-5 group-hover/watermark:scale-105" />
+			<span className="text-xs font-semibold transition-transform duration-200 group-focus-within/watermark:rotate-5 group-hover/watermark:scale-105">
+				Better i18n
+			</span>
 		</a>
 	);
 };

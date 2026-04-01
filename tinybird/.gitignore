@@ -1,6 +1,0 @@
-# Tinybird local config
-.env
-.env.local
-
-# Tinybird CLI cache
-.tinyb.lock

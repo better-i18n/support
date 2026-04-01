@@ -15,11 +15,8 @@ COPY packages/transactional/package.json ./packages/transactional/
 COPY packages/types/package.json ./packages/types/
 COPY packages/redis/package.json ./packages/redis/
 COPY packages/jobs/package.json ./packages/jobs/
-COPY packages/facehash/package.json ./packages/facehash/
 COPY packages/tiny-markdown/package.json ./packages/tiny-markdown/
 COPY packages/memory/package.json ./packages/memory/
-COPY packages/location/package.json ./packages/location/
-COPY tinybird/package.json ./tinybird/
 
 # Install dependencies
 RUN bun install

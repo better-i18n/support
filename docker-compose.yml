@@ -6,7 +6,7 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: cossistant
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -29,35 +29,34 @@ services:
       timeout: 5s
       retries: 5
 
-  geoip:
+  api:
     build:
-      context: ./apps/geoip
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.api
     restart: unless-stopped
     ports:
-      - "8083:8080"
-    environment:
-      MAXMIND_ACCOUNT_ID: ${MAXMIND_ACCOUNT_ID:-}
-      MAXMIND_LICENSE_KEY: ${MAXMIND_LICENSE_KEY:-}
-      MAXMIND_EDITION_IDS: ${MAXMIND_EDITION_IDS:-GeoLite2-City GeoLite2-ASN}
-      GEOIP_DB_DIR: /data/geoip
-      GEOIP_UPDATE_INTERVAL_HOURS: ${GEOIP_UPDATE_INTERVAL_HOURS:-24}
-      PORT: 8080
-    volumes:
-      - geoip_data:/data/geoip
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')",
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 5
+      - "${API_PORT:-8787}:8787"
+    env_file:
+      - ./apps/api/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  workers:
+    build:
+      context: .
+      dockerfile: Dockerfile.workers
+    restart: unless-stopped
+    env_file:
+      - ./apps/workers/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:
   redis_data:
-  geoip_data:
