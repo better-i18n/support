@@ -45,7 +45,7 @@ export default function Playground() {
 
 	return (
 		<div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-4 md:p-20">
-			<Background />
+			<Background asciiOpacity={0.5} />
 
 			{/* Header */}
 			<div className="absolute top-4 left-4 z-10 md:top-10 md:left-10">
