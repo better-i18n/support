@@ -24,7 +24,7 @@ COPY packages/facehash/package.json ./packages/facehash/
 COPY packages/release/package.json ./packages/release/
 
 # Install dependencies
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Copy source files
 COPY . .
