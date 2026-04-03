@@ -34,8 +34,8 @@ COPY . .
 
 # Run postinstall now that source files are available, then build deps
 RUN cd apps/web && bunx fumadocs-mdx
-# Build deps with concurrency=1 to reduce memory pressure
-RUN bunx turbo run build --filter=@cossistant/web^... --concurrency=1
+# Build only the lightweight workspace deps (skip API binary compilation)
+RUN bunx turbo run build --filter=@cossistant/core --filter=@cossistant/types --filter=@cossistant/transactional --filter=@cossistant/next --filter=@cossistant/location --filter=@cossistant/tiny-markdown --filter=@cossistant/react --concurrency=1
 
 # Build args for Next.js (needed at build time)
 ARG NEXT_PUBLIC_API_BASE_URL
