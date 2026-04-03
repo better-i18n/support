@@ -2,6 +2,9 @@ FROM node:20-slim
 
 WORKDIR /app
 
+# Limit Node.js memory to prevent OOM on small servers
+ENV NODE_OPTIONS="--max-old-space-size=1024"
+
 # Install bun
 RUN npm install -g bun@1.2.22
 
@@ -31,7 +34,8 @@ COPY . .
 
 # Run postinstall now that source files are available, then build deps
 RUN cd apps/web && bunx fumadocs-mdx
-RUN bunx turbo run build --filter=@cossistant/web^...
+# Build deps with concurrency=1 to reduce memory pressure
+RUN bunx turbo run build --filter=@cossistant/web^... --concurrency=1
 
 # Build args for Next.js (needed at build time)
 ARG NEXT_PUBLIC_API_BASE_URL
