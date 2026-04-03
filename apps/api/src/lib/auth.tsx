@@ -2,9 +2,7 @@ import { db } from "@api/db";
 import * as schema from "@api/db/schema";
 import { env } from "@api/env";
 import { generateULID } from "@api/utils/db/ids";
-import { dash } from "@better-auth/infra";
 import { ResetPasswordEmail, sendEmail } from "@cossistant/transactional";
-import { polar, portal, usage } from "@polar-sh/better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { betterAuth } from "better-auth/minimal";
 
@@ -15,8 +13,6 @@ import {
 } from "better-auth/plugins";
 import React from "react";
 import { syncUserToDefaultResendAudience } from "./auth-user-audience";
-
-import polarClient from "./polar";
 
 // Needed for email templates
 export const auth = betterAuth({
@@ -74,75 +70,10 @@ export const auth = betterAuth({
 			},
 			organizationCreation: {
 				disabled: false,
-				afterCreate: async ({ organization, member, user }, request) => {
-					console.log("organization created", organization);
-					console.log("member", member);
-					console.log("user", user);
-
-					// Create Polar customer for organization
-					try {
-						// Check if customer already exists
-						try {
-							const existingCustomer = await polarClient.customers.getExternal({
-								externalId: organization.id,
-							});
-
-							if (existingCustomer) {
-								console.log(
-									`Polar customer already exists for organization ${organization.id}`
-								);
-								return;
-							}
-						} catch (error) {
-							// Customer doesn't exist, continue to create
-						}
-
-						// Create customer with organization ID as external ID
-						await polarClient.customers.create({
-							email: user.email,
-							name: user.name || undefined,
-							externalId: organization.id,
-						});
-
-						console.log(
-							`Created Polar customer for organization ${organization.id}`
-						);
-					} catch (error) {
-						// Handle "email already exists" error gracefully
-						const errorMessage =
-							error instanceof Error ? error.message : String(error);
-						const errorString = JSON.stringify(error);
-
-						const isEmailExistsError =
-							(errorMessage.includes("email") &&
-								errorMessage.includes("already exists")) ||
-							errorString.includes("email") ||
-							(errorString.includes("already exists") &&
-								errorString.includes("customer"));
-
-						if (isEmailExistsError) {
-							console.warn(
-								`Customer with email ${user.email} already exists in Polar. Skipping customer creation for organization ${organization.id}.`
-							);
-						} else {
-							console.error(
-								`Error creating Polar customer for organization ${organization.id}:`,
-								error
-							);
-							// Don't throw error to avoid blocking organization creation
-						}
-					}
-				},
 			},
 		}),
 		anonymous(),
 		admin(),
-		// Type assertion needed due to version mismatch between @polar-sh/better-auth and better-auth
-		polar({
-			client: polarClient,
-			createCustomerOnSignUp: false,
-			use: [portal(), usage()],
-		}),
 	],
 	// Allow requests from the frontend development server and production domains
 	trustedOrigins: [

@@ -1,9 +1,4 @@
-import { env } from "@api/env";
-import { Polar } from "@polar-sh/sdk";
-
-const polarClient = new Polar({
-	accessToken: env.POLAR_ACCESS_TOKEN,
-	server: env.NODE_ENV === "production" ? "production" : "sandbox",
-});
-
+// Polar billing disabled — stub export for backward compatibility
+// biome-ignore lint/suspicious/noExplicitAny: intentional stub
+const polarClient = {} as Record<string, unknown>;
 export default polarClient;
