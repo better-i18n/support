@@ -50,7 +50,8 @@ ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY
 ENV NEXT_PUBLIC_TINYBIRD_HOST=$NEXT_PUBLIC_TINYBIRD_HOST
 ENV NEXT_PUBLIC_COSSISTANT_API_KEY=$NEXT_PUBLIC_COSSISTANT_API_KEY
 
-RUN cd apps/web && bun run build
+# Use webpack instead of Turbopack for lower memory usage on constrained servers
+RUN cd apps/web && npx next build --no-turbopack
 
 EXPOSE 3000
 
