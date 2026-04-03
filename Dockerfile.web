@@ -23,13 +23,14 @@ COPY packages/memory/package.json ./packages/memory/
 COPY packages/react/package.json ./packages/react/
 COPY packages/release/package.json ./packages/release/
 
-# Install dependencies
-RUN bun install
+# Install dependencies (skip postinstall — fumadocs-mdx needs source files present)
+RUN bun install --ignore-scripts
 
 # Copy source files
 COPY . .
 
-# Build all workspace dependencies first, then the web app
+# Run postinstall now that source files are available, then build deps
+RUN cd apps/web && bunx fumadocs-mdx
 RUN bunx turbo run build --filter=@cossistant/web^...
 
 # Build args for Next.js (needed at build time)
