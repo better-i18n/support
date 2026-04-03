@@ -2,10 +2,10 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Install and bun
+# Install bun
 RUN npm install -g bun
 
-# Copy package files
+# Copy package files — every workspace member must be present for bun install
 COPY package.json bun.lock turbo.json ./
 COPY apps/workers/package.json ./apps/workers/
 COPY apps/api/package.json ./apps/api/
@@ -17,20 +17,19 @@ COPY packages/redis/package.json ./packages/redis/
 COPY packages/jobs/package.json ./packages/jobs/
 COPY packages/tiny-markdown/package.json ./packages/tiny-markdown/
 COPY packages/memory/package.json ./packages/memory/
+COPY packages/location/package.json ./packages/location/
+COPY packages/react/package.json ./packages/react/
+COPY packages/next/package.json ./packages/next/
+COPY packages/facehash/package.json ./packages/facehash/
+COPY packages/release/package.json ./packages/release/
 
 # Install dependencies
-RUN bun install
+RUN bun install --frozen-lockfile
 
 # Copy source files
 COPY . .
 
-# Build dependencies (all packages workers depends on)
+# Build dependencies
 RUN bunx turbo run build --filter=@cossistant/workers^...
 
-# Railway will set the PORT environment variable
-# EXPOSE is mainly for documentation, the actual port is controlled by env.PORT
-
-# Run with bun runtime
 CMD ["bun", "run", "apps/workers/src/index.ts"]
-
-

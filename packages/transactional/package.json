@@ -26,6 +26,8 @@
   "devDependencies": {
     "@cossistant/typescript-config": "workspace:*",
     "@react-email/preview-server": "^5.0.3",
+    "@types/node": "^25.5.2",
+    "@types/nodemailer": "^7.0.11",
     "@types/react": "^19.2.4",
     "@types/react-dom": "^19.2.3",
     "react-email": "^5.0.3"
