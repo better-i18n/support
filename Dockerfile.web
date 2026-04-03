@@ -3,7 +3,7 @@ FROM node:20-slim
 WORKDIR /app
 
 # Limit Node.js memory to prevent OOM on small servers
-ENV NODE_OPTIONS="--max-old-space-size=1024"
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 # Install bun
 RUN npm install -g bun@1.2.22
