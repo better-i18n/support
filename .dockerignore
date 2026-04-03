@@ -1,0 +1,16 @@
+node_modules
+.next
+.turbo
+.git
+.gitignore
+.env
+.env.*
+*.md
+!README.md
+dist
+build
+coverage
+.DS_Store
+.devtools
+apps/api/server
+apps/workers/.logs
