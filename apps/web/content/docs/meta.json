@@ -1,0 +1,4 @@
+{
+  "root": true,
+  "pages": ["(root)", "quickstart", "support-component", "concepts", "others"]
+}

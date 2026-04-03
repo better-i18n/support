@@ -1,0 +1,50 @@
+FROM node:20-slim AS base
+
+WORKDIR /app
+
+# Install bun
+RUN npm install -g bun
+
+# Copy package files for dependency resolution
+COPY package.json bun.lock turbo.json ./
+COPY apps/web/package.json ./apps/web/
+COPY apps/api/package.json ./apps/api/
+COPY packages/typescript-config/package.json ./packages/typescript-config/
+COPY packages/core/package.json ./packages/core/
+COPY packages/next/package.json ./packages/next/
+COPY packages/location/package.json ./packages/location/
+COPY packages/facehash/package.json ./packages/facehash/
+COPY packages/transactional/package.json ./packages/transactional/
+COPY packages/types/package.json ./packages/types/
+COPY packages/jobs/package.json ./packages/jobs/
+COPY packages/tiny-markdown/package.json ./packages/tiny-markdown/
+COPY packages/redis/package.json ./packages/redis/
+COPY packages/memory/package.json ./packages/memory/
+
+# Install dependencies
+RUN bun install
+
+# Copy source files
+COPY . .
+
+# Build all workspace dependencies first, then the web app
+RUN bunx turbo run build --filter=@cossistant/web^...
+
+# Build args for Next.js (needed at build time)
+ARG NEXT_PUBLIC_API_BASE_URL
+ARG NEXT_PUBLIC_BASE_URL
+ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY
+ARG NEXT_PUBLIC_TINYBIRD_HOST
+ARG NEXT_PUBLIC_COSSISTANT_API_KEY
+
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL
+ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY
+ENV NEXT_PUBLIC_TINYBIRD_HOST=$NEXT_PUBLIC_TINYBIRD_HOST
+ENV NEXT_PUBLIC_COSSISTANT_API_KEY=$NEXT_PUBLIC_COSSISTANT_API_KEY
+
+RUN cd apps/web && bun run build
+
+EXPOSE 3000
+
+CMD ["bun", "run", "--cwd", "apps/web", "start"]

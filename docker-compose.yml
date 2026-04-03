@@ -2,11 +2,9 @@ services:
   postgres:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: cossistant
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -19,12 +17,11 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -36,8 +33,61 @@ services:
     restart: unless-stopped
     ports:
       - "${API_PORT:-8787}:8787"
-    env_file:
-      - ./apps/api/.env
+    environment:
+      NODE_ENV: production
+      PORT: 8787
+      # Database
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_NAME: cossistant
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      # Auth
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${API_URL}
+      API_KEY_SECRET: ${API_KEY_SECRET}
+      PUBLIC_APP_URL: ${WEB_URL}
+      # OAuth (optional)
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      # SMTP (Brevo)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      # AI (OpenRouter)
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # S3 Storage
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-}
+      # VAPID (Web Push)
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:support@better-i18n.com}
+      # Firecrawl
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      # Slack
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      # Legacy (kept for compat, not used)
+      RESEND_API_KEY: ""
+      RESEND_AUDIENCE_ID: ""
+      RESEND_WEBHOOK_SECRET: ""
+      QSTASH_TOKEN: ""
+      QSTASH_CURRENT_SIGNING_KEY: ""
+      QSTASH_NEXT_SIGNING_KEY: ""
+      QSTASH_URL: ""
+      POLAR_ACCESS_TOKEN: ""
+      POLAR_WEBHOOK_SECRET: ""
+      POLAR_AI_USAGE_METER_ID: ""
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,13 +99,113 @@ services:
       context: .
       dockerfile: Dockerfile.workers
     restart: unless-stopped
-    env_file:
-      - ./apps/workers/.env
+    environment:
+      NODE_ENV: production
+      PORT: 8790
+      # Database
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_NAME: cossistant
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      # Auth
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${API_URL}
+      API_KEY_SECRET: ${API_KEY_SECRET}
+      PUBLIC_APP_URL: ${WEB_URL}
+      # SMTP (Brevo)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      # AI (OpenRouter)
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # S3 Storage
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-}
+      # VAPID (Web Push)
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:support@better-i18n.com}
+      # Firecrawl
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      # Legacy (kept for compat, not used)
+      RESEND_API_KEY: ""
+      RESEND_AUDIENCE_ID: ""
+      RESEND_WEBHOOK_SECRET: ""
+      QSTASH_TOKEN: ""
+      QSTASH_CURRENT_SIGNING_KEY: ""
+      QSTASH_NEXT_SIGNING_KEY: ""
+      QSTASH_URL: ""
+      POLAR_ACCESS_TOKEN: ""
+      POLAR_WEBHOOK_SECRET: ""
+      POLAR_AI_USAGE_METER_ID: ""
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${API_URL}
+        NEXT_PUBLIC_BASE_URL: ${WEB_URL}
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+        NEXT_PUBLIC_TINYBIRD_HOST: ""
+        NEXT_PUBLIC_COSSISTANT_API_KEY: ""
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      # Database (needed for Next.js server components using tRPC)
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_NAME: cossistant
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      # Auth
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${API_URL}
+      API_KEY_SECRET: ${API_KEY_SECRET}
+      PUBLIC_APP_URL: ${WEB_URL}
+      # Public vars (also baked at build time via args)
+      NEXT_PUBLIC_API_BASE_URL: ${API_URL}
+      NEXT_PUBLIC_BASE_URL: ${WEB_URL}
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      # OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      # Legacy (not used)
+      RESEND_API_KEY: ""
+      RESEND_AUDIENCE_ID: ""
+      QSTASH_TOKEN: ""
+      QSTASH_CURRENT_SIGNING_KEY: ""
+      QSTASH_NEXT_SIGNING_KEY: ""
+      QSTASH_URL: ""
+      POLAR_ACCESS_TOKEN: ""
+      POLAR_WEBHOOK_SECRET: ""
+      S3_BUCKET_NAME: ""
+      S3_REGION: ""
+      S3_ACCESS_KEY_ID: ""
+      S3_SECRET_ACCESS_KEY: ""
+    depends_on:
+      - api
 
 volumes:
   postgres_data:

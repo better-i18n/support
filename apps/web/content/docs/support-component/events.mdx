@@ -1,0 +1,339 @@
+---
+title: Events
+description: Listen to widget lifecycle events for analytics, logging, and custom integrations.
+search:
+  kind: guide
+  tags:
+    - events
+    - analytics
+    - callbacks
+  aliases:
+    - onConversationStart
+    - onConversationEnd
+    - onMessageSent
+    - onMessageReceived
+    - onError
+---
+
+## Overview
+
+The Support widget emits events throughout its lifecycle, allowing you to:
+
+- Track user interactions for analytics
+- Log events for debugging
+- Trigger custom behavior based on widget activity
+- Integrate with third-party services
+
+## Event Callback Props
+
+The simplest way to listen to events is via callback props on the `<Support>` component:
+
+```tsx showLineNumbers title="app/layout.tsx"
+"use client";
+
+import { Support } from "@cossistant/next";
+
+export function SupportWidget() {
+  return (
+    <Support
+      onConversationStart={({ conversationId }) => {
+        analytics.track("support_conversation_started", { conversationId });
+      }}
+      onConversationEnd={({ conversationId }) => {
+        analytics.track("support_conversation_ended", { conversationId });
+      }}
+      onMessageSent={({ conversationId, message }) => {
+        analytics.track("support_message_sent", {
+          conversationId,
+          messageId: message.id,
+        });
+      }}
+      onMessageReceived={({ conversationId, message }) => {
+        analytics.track("support_message_received", {
+          conversationId,
+          messageId: message.id,
+        });
+      }}
+      onError={({ error, context }) => {
+        logger.error("Support widget error", { error, context });
+      }}
+    />
+  );
+}
+```
+
+## Available Events
+
+### onConversationStart
+
+Fired when a new conversation is created.
+
+<auto-type-table
+  path="packages/react/src/support/context/events.tsx"
+  name="ConversationStartEvent"
+  variant="parameter"
+/>
+
+### onConversationEnd
+
+Fired when a conversation is closed or resolved.
+
+<auto-type-table
+  path="packages/react/src/support/context/events.tsx"
+  name="ConversationEndEvent"
+  variant="parameter"
+/>
+
+### onMessageSent
+
+Fired when the visitor sends a message.
+
+<auto-type-table
+  path="packages/react/src/support/context/events.tsx"
+  name="MessageSentEvent"
+  variant="parameter"
+/>
+
+### onMessageReceived
+
+Fired when a message is received from an agent (human or AI).
+
+<auto-type-table
+  path="packages/react/src/support/context/events.tsx"
+  name="MessageReceivedEvent"
+  variant="parameter"
+/>
+
+### onError
+
+Fired when an error occurs within the widget.
+
+<auto-type-table
+  path="packages/react/src/support/context/events.tsx"
+  name="ErrorEvent"
+  variant="parameter"
+/>
+
+## Programmatic Event Handling
+
+For more control, use the `useSupportEvents` hook to subscribe to events from any component within the widget:
+
+```tsx showLineNumbers title="components/analytics-tracker.tsx"
+"use client";
+
+import { useSupportEvents } from "@cossistant/next/support";
+import { useEffect } from "react";
+
+export function AnalyticsTracker() {
+  const events = useSupportEvents();
+
+  useEffect(() => {
+    if (!events) return;
+
+    // Subscribe to multiple event types
+    const unsubscribes = [
+      events.subscribe("conversationStart", (event) => {
+        analytics.track("conversation_started", event);
+      }),
+      events.subscribe("messageSent", (event) => {
+        analytics.track("message_sent", event);
+      }),
+      events.subscribe("messageReceived", (event) => {
+        analytics.track("message_received", event);
+      }),
+      events.subscribe("error", (event) => {
+        errorTracker.captureException(event.error, {
+          extra: { context: event.context },
+        });
+      }),
+    ];
+
+    // Cleanup all subscriptions
+    return () => {
+      unsubscribes.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [events]);
+
+  return null;
+}
+```
+
+<Alert variant="info" className="mt-6">
+  <Icon name="info" className="size-4" />
+  <AlertTitle>Where to place the tracker</AlertTitle>
+  <AlertDescription>
+    The `AnalyticsTracker` component should be rendered inside the Support
+    widget tree or within a component wrapped by `SupportProvider`. The events
+    context is scoped to the widget instance.
+  </AlertDescription>
+</Alert>
+
+## Emitting Custom Events
+
+From within custom pages or components, use `useSupportEventEmitter` to emit events:
+
+```tsx showLineNumbers title="pages/custom-conversation.tsx"
+"use client";
+
+import { useSupportEventEmitter } from "@cossistant/next/support";
+
+export function CustomConversationPage({ conversationId }: { conversationId: string }) {
+  const emitter = useSupportEventEmitter();
+
+  const handleSendMessage = async (message: string) => {
+    try {
+      const sentMessage = await sendMessage(conversationId, message);
+
+      // Emit the event for other listeners
+      emitter.emitMessageSent(conversationId, sentMessage);
+    } catch (error) {
+      emitter.emitError(error as Error, "message_send_failed");
+    }
+  };
+
+  return (
+    // ...your component
+  );
+}
+```
+
+## Integration Examples
+
+### Google Analytics 4
+
+```tsx showLineNumbers title="components/ga-tracker.tsx"
+"use client";
+
+import { Support } from "@cossistant/next";
+
+export function SupportWithGA() {
+  return (
+    <Support
+      onConversationStart={({ conversationId }) => {
+        gtag("event", "support_conversation_start", {
+          conversation_id: conversationId,
+        });
+      }}
+      onMessageSent={({ conversationId, message }) => {
+        gtag("event", "support_message_sent", {
+          conversation_id: conversationId,
+          message_id: message.id,
+        });
+      }}
+    />
+  );
+}
+```
+
+### Sentry Error Tracking
+
+```tsx showLineNumbers title="components/sentry-support.tsx"
+"use client";
+
+import { Support } from "@cossistant/next";
+import * as Sentry from "@sentry/react";
+
+export function SupportWithSentry() {
+  return (
+    <Support
+      onError={({ error, context }) => {
+        Sentry.captureException(error, {
+          tags: {
+            component: "support_widget",
+          },
+          extra: {
+            context,
+          },
+        });
+      }}
+    />
+  );
+}
+```
+
+### Segment
+
+```tsx showLineNumbers title="components/segment-support.tsx"
+"use client";
+
+import { Support } from "@cossistant/next";
+import { analytics } from "./analytics";
+
+export function SupportWithSegment() {
+  return (
+    <Support
+      onConversationStart={({ conversationId }) => {
+        analytics.track("Support Conversation Started", {
+          conversationId,
+        });
+      }}
+      onConversationEnd={({ conversationId }) => {
+        analytics.track("Support Conversation Ended", {
+          conversationId,
+        });
+      }}
+      onMessageSent={({ conversationId, message }) => {
+        analytics.track("Support Message Sent", {
+          conversationId,
+          messageId: message.id,
+          hasAttachments: message.parts.some(
+            (part) => part.type === "image" || part.type === "file"
+          ),
+        });
+      }}
+    />
+  );
+}
+```
+
+### PostHog
+
+```tsx showLineNumbers title="components/posthog-support.tsx"
+"use client";
+
+import { Support } from "@cossistant/next";
+import { usePostHog } from "posthog-js/react";
+
+export function SupportWithPostHog() {
+  const posthog = usePostHog();
+
+  return (
+    <Support
+      onConversationStart={({ conversationId }) => {
+        posthog.capture("support_conversation_started", {
+          conversationId,
+        });
+      }}
+      onMessageSent={({ conversationId }) => {
+        posthog.capture("support_message_sent", {
+          conversationId,
+        });
+      }}
+    />
+  );
+}
+```
+
+## Event Types
+
+All event types are exported for TypeScript usage:
+
+```tsx
+import type {
+  SupportEvent,
+  SupportEventType,
+  ConversationStartEvent,
+  ConversationEndEvent,
+  MessageSentEvent,
+  MessageReceivedEvent,
+  ErrorEvent,
+  SupportEventCallbacks,
+} from "@cossistant/next/support";
+```
+
+<auto-type-table
+  path="packages/react/src/support/context/events.tsx"
+  name="EventTypeExports"
+  type="{ SupportEvent: SupportEvent; SupportEventType: SupportEventType; SupportEventCallbacks: SupportEventCallbacks }"
+  variant="property"
+/>

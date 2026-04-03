@@ -1,0 +1,283 @@
+---
+title: Routing & Pages
+description: Add custom pages and navigate between them with type-safe routing.
+search:
+  kind: guide
+  tags:
+    - routing
+    - navigation
+    - custom-pages
+    - typescript
+  aliases:
+    - useSupportNavigation
+    - RouteRegistry
+    - Support.Page
+    - navigate
+    - goBack
+---
+
+## Overview
+
+Add custom pages to the Support widget using **declarative `<Support.Page>` components**. All navigation is **strongly typed** with full autocomplete for route names and parameters.
+
+## Adding a Custom Page
+
+### Step 1: Define route types
+
+Type augmentation enables **full TypeScript autocomplete** for your custom routes:
+
+```tsx
+declare module "@cossistant/core" {
+  interface RouteRegistry {
+    SETTINGS: { tab: string };
+    HELP: undefined;
+  }
+}
+```
+
+### Step 2: Create your page component
+
+```tsx
+import { useSupportNavigation, Header, Button } from "@cossistant/next";
+
+const SettingsPage = ({ params }) => {
+  const { navigate, goBack, canGoBack } = useSupportNavigation();
+
+  return (
+    <>
+      <Header>
+        {canGoBack && <button onClick={goBack}>← Back</button>}
+        <h1>Settings</h1>
+      </Header>
+      <div className="p-4">
+        <p>Current tab: {params?.tab}</p>
+        <Button onClick={() => navigate({ page: "HOME" })}>
+          Go Home
+        </Button>
+      </div>
+    </>
+  );
+};
+```
+
+### Step 3: Register with `<Support.Page>`
+
+```tsx
+import { Support } from "@cossistant/next";
+
+<Support>
+  <Support.Page name="SETTINGS" component={SettingsPage} />
+</Support>
+```
+
+### Step 4: Navigate
+
+```tsx
+const { navigate } = useSupportNavigation();
+
+// ✅ Fully typed with autocomplete
+navigate({
+  page: "SETTINGS",
+  params: { tab: "profile" }
+});
+```
+
+## Navigation Hooks
+
+The `useSupportNavigation` hook provides everything needed for routing:
+
+```tsx
+import { useSupportNavigation } from "@cossistant/next";
+
+const MyPage = () => {
+  const {
+    navigate,    // Navigate to a page (adds to history)
+    replace,     // Replace current page (no history)
+    goBack,      // Go to previous page
+    canGoBack,   // Can navigate back?
+    current,     // Current navigation state
+    page,        // Current page name
+    params,      // Current page params
+  } = useSupportNavigation();
+
+  return (
+    <div>
+      {canGoBack && <button onClick={goBack}>Back</button>}
+      <p>Page: {page}</p>
+    </div>
+  );
+};
+```
+
+### Navigation Methods
+
+| Method | Description | Example |
+|--------|-------------|---------|
+| `navigate()` | Go to a new page (adds to history) | `navigate({ page: "SETTINGS", params: { tab: "profile" } })` |
+| `replace()` | Replace current page (no history) | `replace({ page: "HOME" })` |
+| `goBack()` | Return to previous page | `goBack()` |
+
+## Built-in Pages
+
+The widget includes four default pages:
+
+```tsx
+// Home page
+navigate({ page: "HOME" });
+
+// Articles/FAQ page
+navigate({ page: "ARTICLES" });
+
+// Conversation page
+navigate({
+  page: "CONVERSATION",
+  params: {
+    conversationId: "abc123",
+    initialMessage: "Hello!"
+  }
+});
+
+// Conversation history
+navigate({ page: "CONVERSATION_HISTORY" });
+```
+
+## Type Safety
+
+TypeScript validates **both route names and params**:
+
+```tsx
+// ✅ Valid - conversationId is required
+navigate({
+  page: "CONVERSATION",
+  params: { conversationId: "123" }
+});
+
+// ❌ TypeScript error - missing required param
+navigate({
+  page: "CONVERSATION",
+  params: {}
+});
+
+// ✅ Custom routes work too
+navigate({
+  page: "SETTINGS",
+  params: { tab: "profile" }
+});
+
+// ❌ TypeScript error - invalid page name
+navigate({
+  page: "UNKNOWN_PAGE"
+});
+```
+
+## Building UI Components
+
+Use exported components to build custom pages:
+
+```tsx
+import {
+  Header,
+  Button,
+  Text,
+  useSupportText,
+  useSupportNavigation
+} from "@cossistant/next";
+
+const HelpPage = () => {
+  const { goBack } = useSupportNavigation();
+  const text = useSupportText();
+
+  return (
+    <>
+      <Header>
+        <button onClick={goBack}>← {text("common.actions.back")}</button>
+      </Header>
+
+      <div className="p-6">
+        <h2 className="text-2xl font-semibold mb-4">
+          Help Center
+        </h2>
+
+        <Button
+          variant="secondary"
+          size="large"
+          onClick={() => navigate({ page: "HOME" })}
+        >
+          Back to Home
+        </Button>
+      </div>
+    </>
+  );
+};
+```
+
+## Complete Example
+
+```tsx
+"use client";
+
+import { Support, useSupportNavigation } from "@cossistant/next";
+
+// 1. Extend types
+declare module "@cossistant/core" {
+  interface RouteRegistry {
+    FAQ: undefined;
+    SETTINGS: { section: string };
+  }
+}
+
+// 2. Create pages
+const FAQPage = () => {
+  const { goBack } = useSupportNavigation();
+  return (
+    <div className="p-6">
+      <button onClick={goBack}>← Back</button>
+      <h1>FAQ</h1>
+    </div>
+  );
+};
+
+const SettingsPage = ({ params }) => {
+  const { navigate } = useSupportNavigation();
+  return (
+    <div className="p-6">
+      <h1>Settings - {params?.section}</h1>
+      <button onClick={() => navigate({ page: "FAQ" })}>
+        View FAQ
+      </button>
+    </div>
+  );
+};
+
+// 3. Register and use
+export default function App() {
+  return (
+    <Support>
+      <Support.Page name="FAQ" component={FAQPage} />
+      <Support.Page name="SETTINGS" component={SettingsPage} />
+    </Support>
+  );
+}
+
+// 4. Navigate from anywhere
+function MyButton() {
+  const { navigate } = useSupportNavigation();
+
+  return (
+    <button onClick={() => navigate({
+      page: "SETTINGS",
+      params: { section: "profile" }
+    })}>
+      Open Settings
+    </button>
+  );
+}
+```
+
+## Tips
+
+**Keep it simple.** Start with `<Support />`, add custom pages only when needed.
+
+**Use type augmentation.** Always extend `RouteRegistry` for full type safety.
+
+**Leverage hooks.** Use `useSupportNavigation` for routing, `useSupportText` for i18n, `useSupport` for data.

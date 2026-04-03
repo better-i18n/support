@@ -8,14 +8,15 @@
   "exports": {
     ".": "./index.ts",
     "./emails": "./emails/index.ts",
-    "./send": "./send-via-resend.ts"
+    "./send": "./send-email.ts"
   },
   "dependencies": {
     "@cossistant/tiny-markdown": "workspace:*",
     "@react-email/components": "^1.0.1",
+    "@react-email/render": "^1.0.6",
+    "nodemailer": "^6.10.1",
     "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "resend": "^6.4.2"
+    "react-dom": "19.1.0"
   },
   "scripts": {
     "dev": "email dev --port 3010",

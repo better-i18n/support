@@ -1,0 +1,15 @@
+{
+  "pages": [
+    "index",
+    "about",
+    "theme",
+    "customization",
+    "routing",
+    "primitives",
+    "text",
+    "hooks",
+    "types",
+    "events"
+  ],
+  "title": "<Support />"
+}
