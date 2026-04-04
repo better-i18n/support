@@ -3,17 +3,18 @@ nixPkgs = ["nodejs_20"]
 cmds = ["npm install -g bun@1.2.22"]
 
 [phases.install]
-cmds = ["bun install --ignore-scripts"]
+cmds = ["PATH=$PATH:/usr/local/bin && bun install --ignore-scripts"]
 
 [phases.build]
 cmds = [
-    "cd apps/web && bunx fumadocs-mdx",
-    "bunx turbo run build --filter=@cossistant/core --filter=@cossistant/types --filter=@cossistant/transactional --filter=@cossistant/next --filter=@cossistant/location --filter=@cossistant/tiny-markdown --filter=@cossistant/react --concurrency=1",
-    "cd apps/web && bun run build"
+    "PATH=$PATH:/usr/local/bin && cd apps/web && bunx fumadocs-mdx",
+    "PATH=$PATH:/usr/local/bin && bunx turbo run build --filter=@cossistant/core --filter=@cossistant/types --filter=@cossistant/transactional --filter=@cossistant/next --filter=@cossistant/location --filter=@cossistant/tiny-markdown --filter=@cossistant/react --concurrency=1",
+    "PATH=$PATH:/usr/local/bin && cd apps/web && bun run build"
 ]
 
 [start]
-cmd = "bun run --cwd apps/web start"
+cmd = "PATH=$PATH:/usr/local/bin && bun run --cwd apps/web start"
 
 [variables]
 NODE_OPTIONS = "--max-old-space-size=2048"
+PATH = "/usr/local/bin:/app/node_modules/.bin:${PATH}"
