@@ -1,0 +1,19 @@
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+cmds = ["npm install -g bun@1.2.22"]
+
+[phases.install]
+cmds = ["bun install --ignore-scripts"]
+
+[phases.build]
+cmds = [
+    "cd apps/web && bunx fumadocs-mdx",
+    "bunx turbo run build --filter=@cossistant/core --filter=@cossistant/types --filter=@cossistant/transactional --filter=@cossistant/next --filter=@cossistant/location --filter=@cossistant/tiny-markdown --filter=@cossistant/react --concurrency=1",
+    "cd apps/web && bun run build"
+]
+
+[start]
+cmd = "bun run --cwd apps/web start"
+
+[variables]
+NODE_OPTIONS = "--max-old-space-size=2048"
