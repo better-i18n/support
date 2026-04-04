@@ -1,6 +1,8 @@
 "use client";
 
-import { useSupport } from "@cossistant/next";
+// useSupport disabled for self-hosted
+const useSupport = () => ({ open: () => {} });
+
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useHotkeys } from "react-hotkeys-hook";

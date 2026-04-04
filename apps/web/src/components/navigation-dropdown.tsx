@@ -1,6 +1,8 @@
 "use client";
 
-import { useSupport } from "@cossistant/next";
+// useSupport disabled for self-hosted
+const useSupport = () => ({ open: () => {} });
+
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
