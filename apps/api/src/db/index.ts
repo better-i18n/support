@@ -40,8 +40,7 @@ const createDb = (): NodePgDatabase<typeof schema> => {
 			user: env.DATABASE_USERNAME,
 			password: env.DATABASE_PASSWORD,
 			database: env.DATABASE_NAME,
-			ssl:
-				env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+			ssl: false,
 		},
 		cache: bunRedisCache({
 			config: { ex: 600 },
