@@ -1,7 +1,5 @@
-import { Analytics } from "@vercel/analytics/next";
 import { Geist, Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
-import Script from "next/script";
 
 import "./globals.css";
 
@@ -57,15 +55,8 @@ export default function RootLayout({
 				className={`${geistSans.variable} ${geistMono.variable} ${F37Stout.variable} group/body antialiased`}
 			>
 				<div className="isolate" id="radix-portal-root" />
-				<Script
-					data-domain="cossistant.com"
-					data-website-id="68dfcb6e6f762f4ecaf58bb4"
-					src="https://datafa.st/js/script.js"
-					strategy="afterInteractive"
-				/>
 				<Providers>{children}</Providers>
 				<Toaster />
-				<Analytics />
 			</body>
 		</html>
 	);

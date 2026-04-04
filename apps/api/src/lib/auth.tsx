@@ -79,11 +79,8 @@ export const auth = betterAuth({
 	trustedOrigins: [
 		"http://localhost:3000",
 		"http://localhost:3001",
-		"https://cossistant.com",
-		"https://cossistant.com",
-		"https://www.cossistant.com",
-		"https://www.cossistant.com",
-		"https://api.cossistant.com",
+		"https://support.better-i18n.com",
+		"https://support-api.better-i18n.com",
 	],
 	socialProviders: {
 		google: {
@@ -107,7 +104,7 @@ export const auth = betterAuth({
 		},
 		crossSubDomainCookies: {
 			enabled: true,
-			domain: env.NODE_ENV === "production" ? ".cossistant.com" : undefined,
+			domain: env.NODE_ENV === "production" ? ".better-i18n.com" : undefined,
 		},
 		// Add cookie prefix for better organization
 		cookiePrefix: "cossistant-auth",
