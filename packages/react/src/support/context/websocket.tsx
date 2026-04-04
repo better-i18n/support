@@ -89,6 +89,16 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 		}
 	}, [realtime, auth, autoConnect]);
 
+	// Cached server snapshot to avoid infinite loop with useSyncExternalStore
+	const serverSnapshot = useMemo(
+		() => ({
+			status: "disconnected" as const,
+			error: null,
+			connectionId: null,
+		}),
+		[]
+	);
+
 	// Subscribe to connection state
 	const connectionState = useSyncExternalStore(
 		useCallback(
@@ -96,18 +106,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 				realtime?.onStateChange(onStoreChange) ?? (() => {}),
 			[realtime]
 		),
-		() =>
-			realtime?.getState() ?? {
-				status: "disconnected" as const,
-				error: null,
-				connectionId: null,
-			},
-		() =>
-			realtime?.getState() ?? {
-				status: "disconnected" as const,
-				error: null,
-				connectionId: null,
-			}
+		() => realtime?.getState() ?? serverSnapshot,
+		() => serverSnapshot
 	);
 
 	// Track last event via subscription
