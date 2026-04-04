@@ -169,7 +169,7 @@ app.doc("/openapi", {
 	},
 	servers: [
 		{
-			url: "https://api.cossistant.com/v1",
+			url: "https://support-api.better-i18n.com/v1",
 			description: "Production server",
 		},
 	],

@@ -19,7 +19,7 @@ export const auth = betterAuth({
 	baseURL:
 		process.env.BETTER_AUTH_URL ||
 		(process.env.NODE_ENV === "production"
-			? "https://api.cossistant.com"
+			? "https://support-api.better-i18n.com"
 			: "http://localhost:8787"),
 	secret: process.env.BETTER_AUTH_SECRET || undefined,
 	database: drizzleAdapter(db, {
