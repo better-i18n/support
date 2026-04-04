@@ -42,12 +42,8 @@ const stripSetCookie: MiddlewareHandler = async (c, next) => {
 
 const acceptedOrigins = [
 	"http://localhost:3000",
-	"https://cossistant.com",
-	"https://www.cossistant.com",
-	"https://cossistant.com",
-	"https://www.cossistant.com",
-	"http://localhost:8081",
-	"https://qstash.upstash.io",
+	"https://support.better-i18n.com",
+	"https://support-api.better-i18n.com",
 ];
 
 // Logger middleware
